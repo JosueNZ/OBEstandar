@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Report_RequestVacationsCustom" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.1000000000000005"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="154"/>
+	<style name="table">
+		<box>
+			<pen lineWidth="1.0" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="table_TH" mode="Opaque" backcolor="#FFFFFF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="table_CH" mode="Opaque" backcolor="#FFBFBF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<style name="table_TD" mode="Opaque" backcolor="#FFFFFF">
+		<box>
+			<pen lineWidth="0.5" lineColor="#000000"/>
+		</box>
+	</style>
+	<subDataset name="Table Dataset 1"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select b.name as tercero,
+   to_char(stardateabsent,'dd-MM-yyyy') as fechaingreso,
+   p.description as compania,
+   k.name as puesto,
+   d.name as area,
+   e.name as lugar,
+   to_char(a.stardate,'dd-MM-yyyy') as stardate,
+   to_char(a.enddate,'dd-MM-yyyy') as enddate,
+   a.nodays,
+   to_char(a.enddate + 1,'dd-MM-yyyy') as fechaingresoempleado,
+   to_char(entrydate,'yyyy')||'-'||to_char(end_date,'yyyy') as periodo,
+   CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN F.Nodays +  CASE WHEN Typevacations = 'DN' THEN a.nodays ELSE 0 END ELSE F.Nodays END  AS diasbasicos_periodo,
+   CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN F.Noadditionaltotal + CASE WHEN Typevacations = 'DA' THEN a.nodays ELSE 0 END ELSE F.Noadditionaltotal END  as diasadicionales_periodo,
+   CASE WHEN Typevacations = 'DN' THEN CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN a.nodays ELSE NULL END  ELSE 0 END  as diasbasico_goza,
+   CASE WHEN Typevacations = 'DA' THEN CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN a.nodays ELSE NULL END  ELSE 0 END  as diasadicionales_goza,
+   F.Nodays as diasbasico_saldo,
+   F.Noadditionaltotal as diasadicionales_saldo from SSPR_LEAVE_EMP a left join c_bpartner b on a.c_bpartner_id = b.c_bpartner_id
+    left join sspr_contract i on b.c_bpartner_id = i.c_bpartner_id
+    left join sspr_contract_position j on i.sspr_contract_id = j.sspr_contract_id and a.stardate between j.startdate and j.enddate
+    left join sspr_position k on j.sspr_position_id = k.sspr_position_id
+    left join C_COSTCENTER d on a.C_COSTCENTER_ID = d.C_COSTCENTER_ID
+    left join SSHR_DEPARTMENT e on a.EM_SSHR_DEPARTMENT_ID = e.SSHR_DEPARTMENT_ID
+    left join ad_org p on a.ad_org_id = p.ad_org_id
+    LEFT JOIN sspr_leave_emp_vac Q ON A.SSPR_LEAVE_EMP_ID = Q.SSPR_LEAVE_EMP_ID
+    left join sspr_vacations f on a.c_bpartner_id = f.c_bpartner_id AND ENTRYDATE >=(SELECT ENTRYDATE FROM sspr_vacations WHERE sspr_vacations.Sspr_Vacations_ID= Q.Sspr_Vacations_ID) where a.SSPR_LEAVE_EMP_id = $P{DOCUMENT_ID} order by 11]]>
+	</queryString>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="fechaingreso" class="java.lang.String"/>
+	<field name="compania" class="java.lang.String"/>
+	<field name="puesto" class="java.lang.String"/>
+	<field name="area" class="java.lang.String"/>
+	<field name="lugar" class="java.lang.String"/>
+	<field name="stardate" class="java.lang.String"/>
+	<field name="enddate" class="java.lang.String"/>
+	<field name="nodays" class="java.math.BigDecimal"/>
+	<field name="fechaingresoempleado" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="diasbasicos_periodo" class="java.math.BigDecimal"/>
+	<field name="diasadicionales_periodo" class="java.math.BigDecimal"/>
+	<field name="diasbasico_goza" class="java.math.BigDecimal"/>
+	<field name="diasadicionales_goza" class="java.math.BigDecimal"/>
+	<field name="diasbasico_saldo" class="java.math.BigDecimal"/>
+	<field name="diasadicionales_saldo" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="31" splitType="Stretch">
+			<staticText>
+				<reportElement x="192" y="8" width="168" height="20"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[SOLICITUD DE VACACIONES]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="178" splitType="Stretch">
+			<rectangle>
+				<reportElement x="18" y="0" width="520" height="74"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="23" y="4" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[EMPLEADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="22" y="33" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[FECHA INGRESO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="22" y="56" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[CAMPAÑIA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="303" y="4" width="57" height="20"/>
+				<textElement/>
+				<text><![CDATA[POSICIÓN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="303" y="33" width="57" height="20"/>
+				<textElement/>
+				<text><![CDATA[ÁREA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="303" y="56" width="57" height="20"/>
+				<textElement/>
+				<text><![CDATA[LUGAR]]></text>
+			</staticText>
+			<line>
+				<reportElement x="360" y="1" width="1" height="73"/>
+			</line>
+			<line>
+				<reportElement x="113" y="0" width="1" height="74"/>
+			</line>
+			<line>
+				<reportElement x="296" y="0" width="1" height="73"/>
+			</line>
+			<line>
+				<reportElement x="18" y="51" width="520" height="1"/>
+			</line>
+			<line>
+				<reportElement x="18" y="30" width="520" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="18" y="90" width="520" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[ESTADO ACTUAL DE LAS VACACIONES PENDIENTES (Espacio reservado para R.H)]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="18" y="117" width="520" height="61"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="23" y="121" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[PERIODO]]></text>
+			</staticText>
+			<line>
+				<reportElement x="113" y="117" width="1" height="61"/>
+			</line>
+			<line>
+				<reportElement x="18" y="147" width="520" height="1"/>
+			</line>
+			<line>
+				<reportElement x="390" y="118" width="1" height="60"/>
+			</line>
+			<staticText>
+				<reportElement x="270" y="121" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[DIAS QUE GOZA]]></text>
+			</staticText>
+			<line>
+				<reportElement x="247" y="117" width="1" height="60"/>
+			</line>
+			<staticText>
+				<reportElement x="118" y="150" width="47" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Basicos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="143" y="121" width="90" height="20"/>
+				<textElement/>
+				<text><![CDATA[DEL PERIODO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="432" y="121" width="82" height="20"/>
+				<textElement/>
+				<text><![CDATA[NUEVO SALDO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="188" y="150" width="60" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Adicionales]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="326" y="151" width="60" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Adicionales]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="256" y="151" width="47" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Basicos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="400" y="151" width="47" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Basicos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="470" y="151" width="60" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Adicionales]]></text>
+			</staticText>
+			<line>
+				<reportElement x="177" y="148" width="1" height="29"/>
+			</line>
+			<line>
+				<reportElement x="316" y="148" width="1" height="29"/>
+			</line>
+			<line>
+				<reportElement x="463" y="149" width="1" height="29"/>
+			</line>
+			<textField isBlankWhenNull="true">
+				<reportElement x="116" y="4" width="181" height="26"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="118" y="33" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechaingreso}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="116" y="56" width="180" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{compania}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="363" y="1" width="175" height="29"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{puesto}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="361" y="34" width="177" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{area}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="364" y="56" width="174" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{lugar}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="22" splitType="Stretch">
+			<line>
+				<reportElement x="18" y="21" width="520" height="1"/>
+			</line>
+			<line>
+				<reportElement x="18" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="113" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="177" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="247" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="316" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="390" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="463" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="538" y="1" width="1" height="21"/>
+			</line>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="118" y="3" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasbasicos_periodo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="192" y="3" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicionales_periodo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="256" y="3" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasbasico_goza}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="334" y="3" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicionales_goza}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="400" y="3" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasbasico_saldo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="474" y="1" width="47" height="18"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicionales_saldo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="21" y="3" width="90" height="16"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="263" splitType="Stretch">
+			<rectangle>
+				<reportElement x="19" y="1" width="520" height="22"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="22" y="7" width="94" height="16"/>
+				<textElement/>
+				<text><![CDATA[REVISADO POR :]]></text>
+			</staticText>
+			<line>
+				<reportElement x="113" y="1" width="1" height="22"/>
+			</line>
+			<staticText>
+				<reportElement x="20" y="36" width="168" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[SOLICITUD :]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="18" y="56" width="520" height="22"/>
+			</rectangle>
+			<line>
+				<reportElement x="113" y="57" width="1" height="21"/>
+			</line>
+			<staticText>
+				<reportElement x="22" y="62" width="94" height="16"/>
+				<textElement/>
+				<text><![CDATA[FECHA INICIO :]]></text>
+			</staticText>
+			<line>
+				<reportElement x="381" y="57" width="1" height="21"/>
+			</line>
+			<staticText>
+				<reportElement x="290" y="62" width="94" height="16"/>
+				<textElement/>
+				<text><![CDATA[FECHA FIN :]]></text>
+			</staticText>
+			<line>
+				<reportElement x="282" y="57" width="1" height="21"/>
+			</line>
+			<rectangle>
+				<reportElement x="18" y="88" width="520" height="22"/>
+			</rectangle>
+			<line>
+				<reportElement x="283" y="89" width="1" height="21"/>
+			</line>
+			<staticText>
+				<reportElement x="30" y="94" width="197" height="16"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL DE DIAS A SER GOZADOS :]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="18" y="116" width="520" height="22"/>
+			</rectangle>
+			<line>
+				<reportElement x="283" y="117" width="1" height="21"/>
+			</line>
+			<staticText>
+				<reportElement x="21" y="122" width="261" height="16"/>
+				<textElement/>
+				<text><![CDATA[Empleado declara que regresara a laborar el dia :]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="18" y="165" width="520" height="97"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="23" y="207" width="90" height="14"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Firma]]></text>
+			</staticText>
+			<line>
+				<reportElement x="182" y="165" width="1" height="97"/>
+			</line>
+			<line>
+				<reportElement x="18" y="221" width="520" height="1"/>
+			</line>
+			<line>
+				<reportElement x="18" y="243" width="520" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="22" y="246" width="39" height="9"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Nombre : ]]></text>
+			</staticText>
+			<line>
+				<reportElement x="365" y="165" width="1" height="98"/>
+			</line>
+			<staticText>
+				<reportElement x="22" y="224" width="90" height="18"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Solicitado por :
+(Empleado)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="20" y="145" width="168" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[APROBACIONES :]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="188" y="207" width="90" height="14"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Firma]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="370" y="207" width="90" height="14"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Firma]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="188" y="224" width="90" height="18"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Autorizado por :
+(Jefe Inmediato)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="371" y="225" width="90" height="17"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Aprobado por :]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="188" y="246" width="39" height="9"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Nombre : ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="371" y="246" width="39" height="9"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<text><![CDATA[Nombre : ]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="143" y="62" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{stardate}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="410" y="62" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{enddate}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="366" y="90" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{nodays}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="291" y="118" width="239" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechaingresoempleado}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

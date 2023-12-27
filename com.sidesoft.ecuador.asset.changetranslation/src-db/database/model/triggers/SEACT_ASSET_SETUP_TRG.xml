@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SEACT_ASSET_SETUP_TRG">
+    <trigger name="SEACT_ASSET_SETUP_TRG" table="SEACT_ASSET_SETUP" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[    V_COUNT NUMBER;
+  BEGIN
+    SELECT COUNT(1) INTO V_COUNT FROM seact_asset_setup WHERE depreciation='Y';
+    IF (INSERTING OR UPDATING ) THEN
+        IF (:NEW.depreciation='Y' AND V_COUNT>0) THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SEACT_AnotherActiveConfiguration@') ;
+        END IF;
+    END IF;
+    RETURN NEW;
+  END SEACT_ASSET_SETUP_TRG
+]]></body>
+    </trigger>
+  </database>

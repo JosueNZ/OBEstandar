@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_C_INVOICE_TRG">
+    <trigger name="SSRE_C_INVOICE_TRG" table="C_INVOICE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING) THEN
+    IF (:NEW.issotrx = 'N' AND :OLD.posted = 'Y' AND :NEW.posted = 'N') THEN
+	  --Se comenta esta linea ya que no permite descontabilizar	
+      --EXECUTE IMMEDIATE 'ALTER TRIGGER c_invoicelinetax_trg DISABLE';
+      UPDATE c_invoicelinetax ilt 
+      SET em_ssre_iscustomeraccounted = 'N' 
+      WHERE ilt.c_invoice_id = :NEW.c_invoice_id
+        AND ilt.em_ssre_iscustomeraccounted = 'Y';
+	  --Se comenta esta linea ya que no permite descontabilizar	
+      --EXECUTE IMMEDIATE 'ALTER TRIGGER c_invoicelinetax_trg ENABLE';
+
+    END IF;
+  END IF;
+
+  END SSRE_C_INVOICE_TRG
+]]></body>
+    </trigger>
+  </database>

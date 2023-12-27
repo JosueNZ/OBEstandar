@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_INVOICE_TRG">
+    <trigger name="SSRE_INVOICE_TRG" table="C_INVOICE" fires="after" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_type VARCHAR2(60);
+
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (UPDATING ) THEN
+
+    IF(:OLD.Processed='Y'AND 
+      (COALESCE(:OLD.EM_SSRE_REFUNDED_ID, '0') <> COALESCE(:NEW.EM_SSRE_REFUNDED_ID, '0'))) THEN
+
+      RAISE_APPLICATION_ERROR(-20000, '@20501@');
+
+    END IF;
+    
+  END IF;
+
+  -- Check if is customer refund and customer is not null
+  IF (INSERTING OR UPDATING ) THEN
+
+    IF (:new.em_ssre_refunded_id is not null) THEN
+    
+      SELECT type INTO v_type
+      FROM SSRE_REFUND
+      WHERE ssre_refund_id = :new.em_ssre_refunded_id;
+
+      IF (v_type = 'CR' AND :new.em_ssre_c_bpartner_id is null) THEN
+
+        RAISE_APPLICATION_ERROR(-20000, '@EM_SSRE_Refund_Customer@');
+      
+      END IF;
+      
+    END IF;
+
+  END IF;
+
+  END SSRE_INVOICE_TRG
+]]></body>
+    </trigger>
+  </database>

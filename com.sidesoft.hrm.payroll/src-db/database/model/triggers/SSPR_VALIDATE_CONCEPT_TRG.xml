@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_VALIDATE_CONCEPT_TRG">
+    <trigger name="SSPR_VALIDATE_CONCEPT_TRG" table="C_BPARTNER" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_ConceptThirthID VARCHAR2(32);
+  v_ConceptFourthID VARCHAR2(32);
+
+  BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+	
+
+  IF (INSERTING or UPDATING ) THEN
+
+	v_ConceptThirthID := :new.em_sspr_concept_thirteenth_id;
+	v_ConceptFourthID := :new.em_sspr_concept_fourteenth_id;
+
+		IF COALESCE(v_ConceptThirthID,'ND') <>'ND' AND COALESCE(v_ConceptFourthID,'ND')<>'ND' THEN
+			IF v_ConceptThirthID = v_ConceptFourthID THEN
+				RAISE_APPLICATION_ERROR(-20000,'@Sspr_ValidateConepts@');
+			END IF;
+		END IF;
+
+ END IF;
+      
+  END SSPR_VALIDATE_CONCEPT_TRG
+]]></body>
+    </trigger>
+  </database>

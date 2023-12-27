@@ -1,0 +1,180 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_RETURN_VACATIONSDAYS">
+    <function name="SSPR_RETURN_VACATIONSDAYS" type="NUMERIC">
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_type" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_startdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_enddate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_c_bpartner_id VARCHAR2(32) ;
+v_year NUMBER;
+v_sspr_concept_id VARCHAR2(32) ;
+V_COUNT NUMBER;
+v_days NUMBER;
+v_yeardays NUMBER;
+v_validaciones NUMBER;
+v_vacationsdays NUMBER;
+v_vacationdays_add NUMBER;
+v_days_add NUMBER;
+v_days_nor NUMBER;
+v_year_char VARCHAR2(60) ;
+v_days_next NUMBER;
+v_sspr_contract_id VARCHAR2(32) ;
+v_name VARCHAR2(60) ;
+v_type VARCHAR2(32) ;
+v_startdate DATE;
+v_enddate DATE;
+i NUMBER;
+v_DateIngEmpleado DATE;
+v_tempstartdate DATE;
+v_tempenddate DATE;
+v_complete_days NUMBER;
+
+
+begin
+	v_c_bpartner_id := p_c_bpartner_id;
+	v_sspr_contract_id := p_sspr_contract_id;
+	v_startdate := p_startdate;
+	v_enddate := p_enddate;
+	v_type := p_type;
+	v_year := 0;
+	v_days_add := 0;
+	v_days_nor := 0;
+	v_days_next := 0;
+
+
+	--FECHA INICIO DEL CONTRATO
+	select coalesce((select startdate
+	from sspr_contract
+	where c_bpartner_id = v_c_bpartner_id
+	and sspr_contract_id = v_sspr_contract_id),Null)
+	into v_DateIngEmpleado
+	from dual;
+
+
+	If(v_DateIngEmpleado is null or v_enddate is null)Then
+		RAISE_APPLICATION_ERROR(-20000, '@No existe contrato @  v_DateIngEmpleado ' || coalesce(v_DateIngEmpleado,Null));
+	End if;
+
+	 i:=0;
+	v_tempstartdate := (v_DateIngEmpleado);
+	v_tempenddate := ((v_enddate)) + INTERVAL '1' DAY;
+	WHILE (v_tempstartdate < v_tempenddate) LOOP
+	i:=i+1;
+	v_tempstartdate := (v_DateIngEmpleado) + INTERVAL '1' YEAR * i;
+	END LOOP;
+	
+	 v_year := i; -- -1;
+
+	If(v_startdate is null or v_enddate is null)Then
+
+		--DIAS LABORADOS DEL EMPLEADO
+		select coalesce(round((
+		select to_number(TO_DATE(to_char((case when b.enddate > v_enddate or b.enddate is null then v_enddate else b.enddate end),'dd-mm-yyyy'))  --- (b.startdate + INTERVAL  '1' year )
+			       - TO_DATE(to_char(to_char(b.startdate,'dd') || '-' || to_char(b.startdate,'mm') || '-' || to_number(to_char(b.startdate,'yyyy'),'999999.99') + v_year),'dd-mm-yyyy'))
+		from c_bpartner a
+		left join sspr_contract b on b.c_bpartner_id = a.c_bpartner_id
+		where a.c_bpartner_id = v_c_bpartner_id
+		and b.sspr_contract_id = v_sspr_contract_id),2),0)
+		into v_yeardays
+		from dual;
+
+	Else
+
+		--DIAS LABORADOS DEL EMPLEADO
+		select coalesce(round((
+		select to_number(TO_DATE(to_char((v_enddate),'dd-mm-yyyy'))
+				- TO_DATE(to_char((v_startdate),'dd-mm-yyyy'))) + 1
+		from dual),2),0)
+		into v_yeardays
+		from dual;
+
+		--DIAS AÑO
+		select coalesce(round((
+		select to_number(TO_DATE(to_char((v_startdate + INTERVAL '1' year ) -1,'dd-mm-yyyy'))
+				- TO_DATE(to_char((v_startdate),'dd-mm-yyyy'))) + 1
+		from dual),2),0)
+		into v_complete_days 
+		from dual;
+	End If;
+	--REGIMEN LABORAL
+	select coalesce(d.vacationdays,0) as vacationdays, coalesce(d.vacationdays_add,0) as vacationdays_add
+	into v_vacationsdays, v_vacationdays_add
+	from sspr_contract c
+	left join sspr_labor_regime d on d.sspr_labor_regime_id = c.sspr_labor_regime_id
+	where c.sspr_contract_id = v_sspr_contract_id;
+
+	--	select sspr_return_additional_days('8C8DAB9662AB4CA5BE69EF2C7BE67D03','5BB61A167BD343B08F681D0BD2F38C67', 'DA', '01-') from dual
+	-- 	select sspr_return_additional_days('37A26E7FF0EC4AD7A034C1CFBDDB1454','8D27600B5CE44014BDE7ED427C43F05F','DN', '01-09-2015', '31-03-2016') from dual
+	--      select sspr_return_vacationsdays('78BEEB13BC81458EB5A958C2362AB9E2','232D654950D34952B898F82CC51273F7', 'DN', '01-05-2015', '29-02-2016') from dual
+	
+	V_COUNT := 1;
+
+	WHILE  V_COUNT <= v_year 
+	LOOP						          
+		IF(V_COUNT <= 5)
+		THEN
+			v_days := 0;
+		END IF;
+
+		IF(V_COUNT > 5 and V_COUNT < 20)
+		THEN
+			v_days := v_days + v_vacationdays_add ;
+			v_days_next := 1;
+		END IF;
+
+		IF(V_COUNT >=20)
+		THEN
+			v_days := v_vacationsdays; --15;
+			v_days_next := 0;
+		END IF;
+		
+	V_COUNT := V_COUNT + 1;				
+								
+	END LOOP; 
+
+	--DIAS NORMALES
+	v_days_nor := (v_yeardays * ((v_vacationsdays)/v_complete_days));
+
+	--DIAS ADICIONALES
+	v_days_add := (v_yeardays * (v_days/v_complete_days));-- (v_yeardays * ((v_days + v_days_next)/365));	
+
+	--RETORNA AÑOS EMPLEADO
+	If(v_type = 'AE')Then
+		RETURN v_year;
+	End If;
+
+	--RETORNA DIAS EMPLEADO
+	If(v_type = 'DE')Then
+		RETURN v_yeardays ;
+	End If;
+	
+	--RETORNA DIAS NORMALES
+	If(v_type = 'DN')Then
+		RETURN v_days_nor;
+	End If;
+
+	--RETORNA DIAS ADICIONALES
+	If(v_type = 'DA')Then
+		RETURN v_days_add;
+	End If;
+
+	--RETORNA DIAS ADICIONALES COMPLETOS
+	If(v_type = 'DAG')Then
+		v_days := v_days ; --+ v_days_next;
+		RETURN v_days;
+	End If;
+END SSPR_RETURN_VACATIONSDAYS
+]]></body>
+    </function>
+  </database>

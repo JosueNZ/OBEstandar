@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRBI_ABSENCES">
+    <function name="SPRBI_ABSENCES" type="VARCHAR">
+      <parameter name="v_movement" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="v_employee" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[Cur_Biometric RECORD;
+    v_lastday DATE;
+    v_day NUMBER;
+    v_check character (1);
+    v_holiday DATE;
+    v_hasmark NUMBER;
+    v_Record_ID VARCHAR2(32);
+    v_result BOOLEAN;
+    v_permissions_count NUMBER;
+BEGIN
+    -- Obtenemos el dia anterior
+    SELECT v_movement - '1 day'::interval INTO v_lastday;
+    -- Verificamos si el dia anterior existe marcacion
+    SELECT COUNT(sprov_employee_overtime_id) INTO v_day FROM sprov_employee_overtime
+        WHERE datemovement::DATE = v_lastday::DATE AND c_bpartner_id = v_employee;
+    -- Verificamos si tiene marcaciones
+    SELECT COUNT(sprov_employee_overtime_id) INTO v_hasmark FROM sprov_employee_overtime
+        WHERE c_bpartner_id = v_employee AND datemovement::DATE < v_lastday::DATE;
+    -- Sino tiene marcacion el dia anterior pero tiene marcaciones anteriores a la fecha, validamos el porque
+    IF (v_day = 0) AND (v_hasmark > 0) THEN
+        -- Dia de la semana
+        SELECT EXTRACT(DOW FROM v_lastday) INTO v_day;
+        IF (v_day = 0) THEN
+            v_day := 7;
+        END IF;
+        -- Verificamos si es feriado
+        SELECT TO_DATE(value) INTO v_holiday FROM sshd_holidays_standards WHERE value = TO_CHAR(v_lastday, 'dd-MM');
+        IF (v_holiday IS NULL) THEN
+            SELECT value INTO v_holiday FROM sshd_holidays_period_line WHERE value::DATE = v_lastday::DATE;
+        END IF;
+        -- Obtenemos el check de horas extras del empleado
+        SELECT EM_Sspr_Extra_Hours INTO v_check FROM c_bpartner WHERE c_bpartner_id = v_employee;
+        IF (v_check = 'N') AND (v_holiday IS NULL) THEN
+            -- Verificamos si tiene el dia configurado
+            SELECT COUNT(D.day) INTO v_day FROM c_bpartner AS BP
+                JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+                JOIN sspr_shift AS S ON S.sspr_shift_id = C.sspr_shift_id
+                JOIN sprbi_days AS D ON D.sspr_shift_id = S.sspr_shift_id
+            WHERE BP.c_bpartner_id = v_employee AND D.day = v_day::varchar;
+            IF (v_day > 0) THEN
+				--Validamos si tiene permisos aprobados para la fecha del nuevo registro.
+				Select 
+					(Select COUNT(*) From sspr_leave_emp  Where status_approve  ='ap'
+					And (v_lastday::DATE) Between enddate  And stardate  
+					And c_bpartner_id =v_employee
+				) Into v_permissions_count From DUAL;
+				If(v_permissions_count=0)Then
+					FOR Cur_Biometric IN (SELECT ad_client_id, ad_org_id, createdby, updatedby, identify, c_bpartner_id, 
+						entry_1, exit_1 FROM sprov_employee_overtime
+						WHERE c_bpartner_id = v_employee LIMIT 1
+					) LOOP
+						v_Record_ID:=get_uuid();
+						INSERT INTO sprov_employee_overtime (sprov_employee_overtime_id, ad_client_id, ad_org_id, createdby, updatedby, identify, c_bpartner_id, datemovement, entry_1, exit_1, non_attendance)
+						VALUES (v_Record_ID, Cur_Biometric.ad_client_id, Cur_Biometric.ad_org_id, Cur_Biometric.createdby, Cur_Biometric.updatedby, Cur_Biometric.identify, Cur_Biometric.c_bpartner_id, (v_lastday::DATE||' 00:00:00')::TIMESTAMP, Cur_Biometric.entry_1, Cur_Biometric.exit_1, 'Y');
+					END LOOP;
+				End If;
+            END IF;
+        END IF;
+		-- Llamamos recursivamente
+		--SELECT sprbi_absences(v_lastday::DATE, v_employee) INTO v_result;
+		RETURN sprbi_absences(v_lastday::DATE, v_employee);
+    END IF;
+    RETURN TRUE;
+END SPRBI_ABSENCES
+]]></body>
+    </function>
+  </database>

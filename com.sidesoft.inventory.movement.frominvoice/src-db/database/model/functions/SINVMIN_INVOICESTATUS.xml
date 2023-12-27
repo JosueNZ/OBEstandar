@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SINVMIN_INVOICESTATUS">
+    <function name="SINVMIN_INVOICESTATUS" type="NUMERIC">
+      <parameter name="pinoutid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cInOutLine RECORD;
+	rInOut RECORD;
+	vQtyDelivered NUMBER;
+	vQtyInvoiced NUMBER;
+	vPercent NUMBER:= 0;
+	vCount NUMBER:= 0;
+BEGIN
+	
+	SELECT * INTO rInOut FROM m_inout WHERE m_inout_id = pInOutId;
+	
+	IF rInOut.docstatus = 'CO' THEN
+
+		FOR cInOutLine IN (
+			SELECT sb.m_inoutline_id, sb.c_invoiceline_id, sb.c_orderline_id, ABS(qty) movementqty, il.qtyinvoiced
+			FROM m_inoutline iol
+				JOIN sinvmin_square_bill sb ON sb.ad_table_id = '319' AND sb.m_inoutline_id = iol.m_inoutline_id
+				LEFT JOIN c_invoiceline AS il ON il.c_invoiceline_id = sb.c_invoiceline_id
+			WHERE iol.m_inout_id = pInOutId
+		) LOOP
+			
+			SELECT ABS(SUM(qty)) INTO vQtyDelivered
+			FROM sinvmin_square_bill
+			WHERE ad_table_id = '319' AND c_invoiceline_id IS NOT NULL
+				AND (c_orderline_id = cInOutLine.c_orderline_id OR c_invoiceline_id = cInOutLine.c_invoiceline_id)
+			GROUP BY COALESCE(c_orderline_id, c_invoiceline_id);
+			
+			vQtyDelivered := COALESCE(vQtyDelivered, cInOutLine.movementqty);
+			
+			SELECT ABS(SUM(qty)) INTO vQtyInvoiced
+			FROM sinvmin_square_bill
+			WHERE ad_table_id = '318' AND m_inoutline_id IS NOT NULL
+				AND (c_orderline_id = cInOutLine.c_orderline_id OR m_inoutline_id = cInOutLine.m_inoutline_id)
+			GROUP BY COALESCE(c_orderline_id, m_inoutline_id);
+			
+			vQtyInvoiced := COALESCE(vQtyInvoiced, cInOutLine.qtyinvoiced);
+			
+			vCount := vCount + 1;
+			vPercent := vPercent + (
+				CASE
+					WHEN vQtyDelivered > vQtyInvoiced THEN (vQtyInvoiced * 100) / vQtyDelivered
+					ELSE (vQtyDelivered * 100) / vQtyInvoiced
+				END
+			);
+			
+		END LOOP;
+	
+		IF vCount > 0 THEN
+			vPercent := vPercent / vCount;
+		END IF;
+		
+	END IF;
+
+	RETURN ROUND(COALESCE(vPercent,0),2);
+END SINVMIN_INVOICESTATUS
+]]></body>
+    </function>
+  </database>

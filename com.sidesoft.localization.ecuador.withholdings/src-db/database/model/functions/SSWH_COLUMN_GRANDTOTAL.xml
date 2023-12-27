@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_COLUMN_GRANDTOTAL">
+    <function name="SSWH_COLUMN_GRANDTOTAL" type="NUMERIC">
+      <parameter name="invoice_id" type="VARCHAR">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+   c_grandtotals RECORD;
+   v_display       NUMBER(12,5);
+BEGIN
+v_display:=0;
+FOR c_grandtotals  IN (select SUM (COALESCE(VW.GRANDTOTAL, 0)) AS SUMA
+from sswh_acct_receivab_payab_v VW
+LEFT JOIN C_INVOICE CI ON VW.INVOICE = CI.DOCUMENTNO
+where doc_code IN ('AP', 'PP', 'FP') AND VW.INVOICE = invoice_id)
+  LOOP
+
+  v_display  := v_display  + c_grandtotals.SUMA;
+
+  END LOOP;
+    RETURN v_display;
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN '**';
+END SSWH_COLUMN_GRANDTOTAL]]></body>
+    </function>
+  </database>

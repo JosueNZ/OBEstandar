@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_ArchiveVariationSalary" pageWidth="800" pageHeight="572" orientation="Landscape" columnWidth="800" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="ad_org_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_period_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_city_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select sum(extra) as extra,ruc, ciudad,anio,mes,ci,'INS' as constante,'O' as tipo_transaccion
+from
+(select b.taxid ruc,
+	case when i.name = 'QUITO' then '0001'
+	     when i.name = 'GUAYAQUIL' then '0002'
+	     when i.name = 'ESMERALDAS' then '0003'
+	 end as	ciudad,
+	extract(year from d.enddate) anio,
+	case when extract(month from d.enddate) = 1 then '01'
+	     when extract(month from d.enddate) = 2 then '02'
+	     when extract(month from d.enddate) = 3 then '03'
+	     when extract(month from d.enddate) = 4 then '04'
+	     when extract(month from d.enddate) = 5 then '05'
+	     when extract(month from d.enddate) = 6 then '06'
+	     when extract(month from d.enddate) = 7 then '07'
+	     when extract(month from d.enddate) = 8 then '08'
+	     when extract(month from d.enddate) = 9 then '09'
+	     when extract(month from d.enddate) = 10 then '10'
+	     when extract(month from d.enddate) = 11 then '11'
+	     when extract(month from d.enddate) = 12 then '12'
+	end as mes,
+	f.taxid ci,
+	round(sum(g.amount),2) as extra
+from ad_org a
+left join AD_OrgInfo b on a.ad_org_id = b.ad_org_id
+left join SSPR_Payroll c on a.ad_org_id = c.ad_org_id
+left join c_period d on c.c_period_id =d.c_period_id
+left join SSPR_Payroll_Ticket e on c.sspr_payroll_id = e.sspr_payroll_id
+left join c_bpartner f on e.c_bpartner_id = f.c_bpartner_id
+left join SSPR_Payroll_Ticket_Concept g on e.sspr_payroll_ticket_id = g.sspr_payroll_ticket_id
+left join sspr_concept h on g.sspr_concept_id = h.sspr_concept_id
+left join c_city i on f.em_sspr_city = i.c_city_id
+where a.ad_org_id = $P{ad_org_id}
+and d.c_period_id  = $P{c_period_id}
+and c.documentno = $P{documentno}
+and i.c_city_id = $P{c_city_id}
+and h.variationsalary = 'Y'
+group by b.taxid, d.enddate, f.taxid, g.amount, i.name) rt
+where extra > 0
+group by ruc, ciudad,anio,mes,ci]]>
+	</queryString>
+	<field name="extra" class="java.math.BigDecimal"/>
+	<field name="ruc" class="java.lang.String"/>
+	<field name="ciudad" class="java.lang.String"/>
+	<field name="anio" class="java.lang.Double"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="constante" class="java.lang.String"/>
+	<field name="tipo_transaccion" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="15" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ruc}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ciudad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="200" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Double"><![CDATA[$F{anio}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="300" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{mes}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="400" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{constante}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="500" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ci}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="600" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{extra}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="700" y="0" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipo_transaccion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+	<noData>
+		<band/>
+	</noData>
+</jasperReport>

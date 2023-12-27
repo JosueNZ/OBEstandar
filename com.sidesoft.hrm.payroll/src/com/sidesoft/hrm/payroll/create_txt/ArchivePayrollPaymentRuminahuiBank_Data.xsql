@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchivePayrollPaymentRuminahuiBankData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+select  'PA' as servicecode,
+                bp.em_sspr_documentno as ci,
+                'USD' as currency,
+                ROUND(TOTALNET,2) as valor,
+                'CTA' as bankaccount,
+                case bpba.bankaccounttype when 'S' then 'AHO' when 'C' then 'CTE' else '' end as bankacctype,
+                bpba.accountno,
+                A.DESCRIPTION as observation,
+                case bp.em_sspr_documenttype when 'NI' then 'C' when 'SRT' then 'R' else '' end as typeid,
+                bp.name,
+                bt.code, 
+                a.documentno    
+    From SSPR_PAYROLL A LEFT JOIN AD_ORG B ON A.AD_ORG_ID = B.AD_ORG_ID       
+    LEFT JOIN C_CURRENCY C ON B.C_CURRENCY_ID = C.C_CURRENCY_ID       
+    LEFT JOIN SSPR_PAYROLL_TICKET D ON A.SSPR_PAYROLL_ID = D.SSPR_PAYROLL_ID        
+        join c_bpartner bp on D.c_bpartner_id = bp.c_bpartner_id  
+        left join c_bp_bankaccount bpba on bpba.c_bpartner_id = bp.c_bpartner_id and bpba.em_sspr_ispayroll = 'Y'  
+        left join ssfi_banktransfer bt on bpba.em_ssfi_banktransfer_id = bt.ssfi_banktransfer_id  
+    WHERE   
+    A.DOCUMENTNO = ? AND  
+    bp.EM_SSPR_Typeofincome= 'D' and ispayroll='Y' and processed= 'Y'   
+    and a.isliquidation  = 'N'  ORDER BY bp.NAME      
+      ]]>
+    </Sql>
+    <Parameter name="documentno"/>
+  </SqlMethod>
+
+</SqlClass>

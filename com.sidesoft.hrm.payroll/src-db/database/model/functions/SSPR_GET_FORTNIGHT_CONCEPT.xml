@@ -1,0 +1,174 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GET_FORTNIGHT_CONCEPT">
+    <function name="SSPR_GET_FORTNIGHT_CONCEPT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Partner RECORD;
+  Cur_ConceptParemeter RECORD;
+  Cur_ConceptParemeter2 RECORD;
+  
+  V_SSPR_CONCEPT_ID_0 varchar(32);
+  V_AMOUNT_0 NUMBER;
+  V_C_BPARTNER_ID_0 varchar(32); 
+  V_QUINCENA_0 NUMBER;
+  V_PERIOD_ID_0 varchar(32);
+  V_YEAR_ID varchar(32);
+  V_PERIOD varchar(32);
+
+  v_StartPeriod_ID VARCHAR2(32);
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_SSconcept_ID VARCHAR2(32);  
+  v_Qconcept_ID VARCHAR2(32);  
+  v_Salary_ID VARCHAR2(32);  
+  V_PERIODO_ANT VARCHAR2(32);  
+  V_sspr_concept_amount_ID VARCHAR2(32);  
+  v_n_insertions NUMBER ;
+  v_Message VARCHAR2(2000):='';
+BEGIN  
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+      -- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;    
+	FOR Cur_Parameter IN
+	      (SELECT i.Record_ID,
+		p.ParameterName,
+		p.P_String,
+		p.P_Number,
+		p.P_Date,
+		p.AD_Client_ID,
+		p.AD_Org_ID,
+		p.CreatedBy        
+	      FROM AD_PInstance i
+	      LEFT JOIN AD_PInstance_Para p
+		   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+	      WHERE i.AD_PInstance_ID = PInstance_ID
+	      ORDER BY p.SeqNo
+	      )
+	    LOOP      	  
+		
+	      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+		v_StartPeriod_ID := Cur_Parameter.P_String;      
+		  
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.CreatedBy;
+	      ELSIF (Cur_Parameter.ParameterName = 'SSPR_Concept_ID') THEN
+		DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	      END IF;     
+	      
+	    END LOOP; -- Get Parameter
+
+         --BUSCA EL CONCEPTO MARCADO COMO QUINCENA
+       -- SELECT SSPR_CONCEPT_ID INTO v_Qconcept_ID FROM SSPR_CONCEPT WHERE isfortnight ='Y' limit 1;
+        
+        	FOR Cur_ConceptParemeter IN
+	      (
+        SELECT SSPR_CONCEPT_ID FROM SSPR_CONCEPT WHERE isfortnight ='Y'
+	      )
+	    LOOP  
+      v_Qconcept_ID:=Cur_ConceptParemeter.SSPR_CONCEPT_ID;
+      END LOOP;
+      
+        IF v_Qconcept_ID IS NULL THEN
+		--raise exception '%', '@Concepto Quincena No existe@';--OBTG:2000-
+        RAISE_APPLICATION_ERROR(-20000, '@Concepto Quincena No existe@');
+		--Concepto Quincena No existe
+        END IF;
+	
+        --SELECT SSPR_CONCEPT_ID INTO v_Salary_ID FROM SSPR_CONCEPT WHERE issalary ='Y' limit 1;
+        
+        FOR Cur_ConceptParemeter2 IN
+	      (
+          SELECT SSPR_CONCEPT_ID FROM SSPR_CONCEPT WHERE issalary ='Y'
+	      )
+	    LOOP  
+      v_Salary_ID:=Cur_ConceptParemeter2.SSPR_CONCEPT_ID;
+      END LOOP;
+      
+        IF v_Salary_ID IS NULL THEN
+		--raise exception '%', '@Concepto Sueldo No existe@';--OBTG:-2000--
+        RAISE_APPLICATION_ERROR(-20000, '@Concepto Sueldo No existe@');
+		--Concepto Sueldo No existe
+	END IF;
+	--SELECCIONAR LE ID DEL ANIO ACTUAL
+	SELECT C_YEAR_ID INTO V_YEAR_ID FROM  C_YEAR WHERE YEAR = (EXTRACT (YEAR FROM now()) );
+	--BUSCA EL ID DEL PERIODO ANTERIOR AL SELECCIONADO EN LE PROCESO
+	SELECT C_PERIOD_ID INTO V_PERIODO_ANT FROM C_PERIOD
+	WHERE PERIODNO =(SELECT PERIODNO FROM C_PERIOD WHERE C_PERIOD_ID = v_StartPeriod_ID ) - 1
+	AND C_YEAR_ID = V_YEAR_ID ;
+		
+	IF V_PERIODO_ANT IS NULL THEN
+		--raise exception '%', '@Periodo No existe@';--OBTG:-2000--
+     RAISE_APPLICATION_ERROR(-20000, '@Periodo No existe@');
+		--Periodo No existe
+	elsif V_PERIODO_ANT IS not NULL THEN
+		--raise exception '%', V_PERIODO_ANT|| '..'||v_Salary_ID;
+		For Cur_Partner IN (
+				--CALCULA LA QUINCENA EN BASE A EL SUELDO DEL MES ANTERIOR(MES ANTERIOR = PERIODO SELECIONADO - 1)
+				SELECT A.SSPR_CONCEPT_ID,  A.AMOUNT  , B.C_BPARTNER_ID, to_number((A.AMOUNT*0.40)) AS QUINCENA , 
+				c.c_period_id, a.createdby , a.ad_client_id, a.ad_org_id
+				--INTO V_SSPR_CONCEPT_ID_0, V_AMOUNT_0, V_C_BPARTNER_ID_0, V_QUINCENA_0, V_PERIOD_ID_0, 
+				FROM sspr_payroll_ticket_concept A
+				LEFT JOIN sspr_payroll_ticket b on a.sspr_payroll_ticket_ID = B.sspr_payroll_ticket_id
+				LEFT JOIN sspr_payroll c on b.sspr_payroll_id = c.sspr_payroll_id
+				WHERE A.SSPR_CONCEPT_ID = v_Salary_ID
+				AND B.sspr_payroll_ID = (SELECT SSPR_PAYROLL_ID FROM SSPR_PAYROLL 
+				where C_PERIOD_ID = V_PERIODO_ANT and ispayroll ='Y')
+				ORDER BY 1,3,4
+				)
+			LOOP
+				--BUSCA QUE SI EXISTE DATOS PARA EL CONCEPTO QUINCENA EN EL PERIODO SELECCIONADO
+				--raise exception '%', v_Qconcept_ID || '..'||Cur_Partner.c_bpartner_id || '..'||v_StartPeriod_ID||'..'|| Cur_Partner.quincena;
+				SELECT sspr_concept_amount_ID INTO V_sspr_concept_amount_ID FROM sspr_concept_amount
+				WHERE SSPR_CONCEPT_ID = v_Qconcept_ID AND C_PERIOD_ID = v_StartPeriod_ID
+				AND C_BPARTNER_ID = Cur_Partner.C_BPARTNER_ID;
+				
+				
+				IF V_sspr_concept_amount_ID IS NOT NULL THEN 
+					UPDATE sspr_concept_amount SET sspr_concept_id =v_Qconcept_ID, c_bpartner_id =Cur_Partner.c_bpartner_id  , 
+					    c_period_id = v_StartPeriod_ID , amount = Cur_Partner.quincena   WHERE  SSPR_CONCEPT_ID = v_Qconcept_ID 
+					    AND C_PERIOD_ID = v_StartPeriod_ID 	AND C_BPARTNER_ID = Cur_Partner.C_BPARTNER_ID AND ISMODIFIED = 'N';
+				ELSIF V_sspr_concept_amount_ID IS NULL THEN 
+					--raise exception '%',V_sspr_concept_amount_ID;
+					INSERT INTO sspr_concept_amount(
+					    sspr_concept_amount_id, ad_client_id, ad_org_id, isactive, created, 
+					    createdby, updated, updatedby, sspr_concept_id, c_bpartner_id, 
+					    c_period_id, amount)
+					VALUES (get_uuid(), Cur_Partner.ad_client_id, Cur_Partner.ad_org_id, 'Y', now(), 
+					    Cur_Partner.createdby, now(), Cur_Partner.createdby,v_Qconcept_ID , Cur_Partner.c_bpartner_id , 
+					    v_StartPeriod_ID, Cur_Partner.quincena);
+				END IF;
+
+				
+				v_n_insertions := v_n_insertions + 1;
+				
+			END LOOP;
+		END IF;
+		--return 'Proceso Executado';
+	 v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_GET_FORTNIGHT_CONCEPT
+]]></body>
+    </function>
+  </database>

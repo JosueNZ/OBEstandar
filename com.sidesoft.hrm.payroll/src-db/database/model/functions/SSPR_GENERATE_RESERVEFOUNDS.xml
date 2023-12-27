@@ -1,0 +1,213 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GENERATE_RESERVEFOUNDS">
+    <function name="SSPR_GENERATE_RESERVEFOUNDS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+  Cur_Readmissions RECORD;
+  Cur_Readmission_line RECORD;
+  Cur_Parameter RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);
+  v_SSconcept_ID VARCHAR2(32);
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+  v_Period_ID VARCHAR2(32);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_SSconceptIess_ID VARCHAR2(32);
+  v_SSconceptCompany_ID VARCHAR2(32);
+  v_value NUMBER;
+  V_Dias_Laborados NUMBER;
+  V_Dias NUMBER;
+  v_FondosReserva NUMBER;
+  V_ReserveFundsCompany VARCHAR2(32);
+  V_ReserveFundsIess VARCHAR2(32);
+  V_Concept_FR VARCHAR2(32);
+  v_CONCEPT_EMPLOYEE_ID VARCHAR2(32);
+
+BEGIN
+ --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP      	  
+		
+		IF (Cur_Parameter.ParameterName = 'Period') THEN
+			v_Period_ID := Cur_Parameter.P_String;      
+			v_Client_ID := Cur_Parameter.AD_Client_ID;
+			v_Org_ID := Cur_Parameter.AD_Org_ID;
+			v_User_ID := Cur_Parameter.CreatedBy;    
+		ELSIF (Cur_Parameter.ParameterName = 'SSPR_Concept_ID') THEN
+			v_SSconcept_ID := Cur_Parameter.P_String; 
+		ELSIF (Cur_Parameter.ParameterName = 'SSPR_Concept_Company_ID') THEN
+			v_SSconceptCompany_ID := Cur_Parameter.P_String; 
+		/*ELSIF (Cur_Parameter.ParameterName = 'SSPR_Concept_Iess_ID') THEN
+			v_SSconceptIess_ID := Cur_Parameter.P_String;   */ 
+		ELSE  
+			DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+		END IF;     
+	      
+	END LOOP; -- Get Parameter
+
+	--VALIDO SI EXISTE EL CONCEPTO  YA CREADO CON REFERENCIA A ESE EMPLEADO EN LAS LINEAS DEL CONCEPTO
+	--Y LO ELIMINO
+	DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = v_SSconceptCompany_ID AND C_Period_ID = v_Period_ID;
+	--DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = v_SSconceptIess_ID AND C_Period_ID = v_Period_ID;
+        	
+	--OBTENGO EL PERIODO 
+	SELECT startdate, enddate
+	INTO v_StartPeriod,v_EndPeriod
+	FROM C_period
+	WHERE C_period_ID = v_Period_ID;
+
+	--CURSOR EMLEADOS
+	FOR Cur_Employee IN
+	(SELECT CBP.C_BPartner_ID,CBP.EM_SSPR_RESERVEFUNDSCOMPANY,CBP.EM_SSPR_RESERVEFUNDSIESS,EM_SSPR_CONCEPT_ID--, P.SSPR_Period_ID
+	FROM C_BPartner CBP 
+	--LEFT JOIN SSPR_Period P ON CBP.C_BPartner_ID = P.C_BPartner_ID
+	WHERE IsEmployee = 'Y' AND CBP.Ad_Client_ID = v_Client_ID AND CBP.Ad_Org_ID = v_Org_ID
+             --AND P.C_Period_ID = v_Period_ID 
+             --AND CBP.ISACTIVE = 'Y'
+             AND CBP.EM_SSPR_Status='A'
+             AND CBP.em_sspr_create_payroll = 'Y'
+	)
+	LOOP
+		V_ReserveFundsCompany:=Cur_Employee.EM_SSPR_RESERVEFUNDSCOMPANY;
+		V_ReserveFundsIess:=Cur_Employee.EM_SSPR_RESERVEFUNDSIESS;
+		v_CONCEPT_EMPLOYEE_ID := Cur_Employee.EM_SSPR_CONCEPT_ID;
+		
+		FOR Cur_Readmissions IN
+		(
+			SELECT DISTINCT C_BPARTNER_ID as C_BPARTNER_ID,STARTDATE,ENDDATE 
+			FROM SSPR_READMISSIONS
+			WHERE C_BPARTNER_ID = Cur_Employee.C_BPartner_ID AND 
+			ENDDATE IS NULL			
+		)
+		LOOP
+			V_DIAS:=0;
+			FOR Cur_Readmission_line IN
+			(
+				SELECT STARTDATE,
+				COALESCE(TO_DATE(ENDDATE),now()) AS ENDDATE
+				,trunc(to_number(COALESCE(TO_DATE(v_EndPeriod),now())-TO_DATE(STARTDATE)),0)  AS dias,
+				C_BPARTNER_ID
+				FROM SSPR_READMISSIONS
+				WHERE C_BPARTNER_ID = Cur_Readmissions.C_BPartner_ID  
+				ORDER BY STARTDATE
+			)
+			LOOP
+				
+				V_Dias:=V_DIAS+Cur_Readmission_line.dias;						
+			END LOOP;
+
+
+			--VALIDACIONES PARA OBTENER LOS DIAS  LABORADOS
+			IF V_Dias < 365 THEN 
+				V_Dias_Laborados:=0;
+			ELSIF V_Dias=365 THEN 
+				V_Dias_Laborados:=30;
+			ELSIF V_Dias > 365  AND V_Dias < 395 THEN 
+				V_Dias_Laborados:=V_Dias-365;
+			ELSE  V_Dias_Laborados:=30;
+			END IF;
+								
+			--OBTENGO VALOR INGRESOS
+			v_value:= COALESCE(SSPR_GET_BUSINESS_CONCEPT(v_SSconcept_ID, v_Period_ID, Cur_Readmissions.C_BPartner_ID),0);
+       
+			--CALCULO VALOR FONDOS DE RESERVA
+			v_FondosReserva:=(v_value*V_Dias_Laborados)/30;
+
+			--CREA CONCEPTO FONDOS DE RESERVA EN LAS LINEAS 
+				  V_Concept_FR:=v_SSconceptCompany_ID;
+			INSERT INTO SSPR_Concept_Amount
+				    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+				    Created, CreatedBy, Updated, UpdatedBy,
+				    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount
+				    )
+				    VALUES
+				    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+				    now(), v_User_ID,now(), v_User_ID,
+				    v_SSconceptCompany_ID,Cur_Readmissions.C_BPARTNER_ID,v_Period_ID,v_FondosReserva
+				    );
+            
+			--VALIDO SI ENVIO AL IEES LOS FONDOS DE RESERVA  SEGUN LA CONFIGURACION DEL EMPLEADO
+			/*IF V_ReserveFundsCompany='Y' THEN
+				--V_Concept_FR:=v_SSconceptCompany_ID;
+			--ELS*/IF V_ReserveFundsIess='Y' THEN 
+				--V_Concept_FR:=v_SSconceptIess_ID;--COMENTADO X CAMBIO PARA FONDOS DE CESANTIA
+				V_Concept_FR:=v_CONCEPT_EMPLOYEE_ID;
+
+				--VALIDO SI EXISTE EL CONCEPTO  YA CREADO CON REFERENCIA A ESE EMPLEADO EN LAS LINEAS DEL CONCEPTO
+				--Y LO ELIMINO
+				DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = V_Concept_FR AND C_Period_ID = v_Period_ID and C_BPARTNER_ID =Cur_Readmissions.C_BPARTNER_ID;
+				          
+			--CREA CONCEPTO EN LAS LINEAS         
+			INSERT INTO SSPR_Concept_Amount
+			    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+			    Created, CreatedBy, Updated, UpdatedBy,
+			    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount
+			    )
+			    VALUES
+			    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			    now(), v_User_ID, now(), v_User_ID,
+			    V_Concept_FR,Cur_Readmissions.C_BPARTNER_ID,v_Period_ID,v_FondosReserva
+			    );
+			END IF;				
+			      
+			v_n_insertions:= v_n_insertions +1;
+		
+		END LOOP;
+	END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;			 	 	  
+  				
+RETURN;
+END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_GENERATE_RESERVEFOUNDS
+]]></body>
+    </function>
+  </database>

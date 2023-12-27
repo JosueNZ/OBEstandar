@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptc_LaboralHistoryIESS" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.100000000000001"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="30"/>
+	<parameter name="SUBREP_Rptc_LaboralHistoryEspenses" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_BPartner_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Month_Filter" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Status_Filter" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREP_Rptc_LaboralHistoryIncome" class="net.sf.jasperreports.engine.JasperReport"/>
+	<queryString>
+		<![CDATA[Select
+cbp.c_bpartner_id as "employee_id",
+cbp.value as "employee_value",
+cbp.name as "employee_name",
+cbp.em_sspr_documentno as "employee_taxid",
+trunc(to_number((now() - cbp.em_sspr_birthday )/365),0) as "employee_birthday",
+(Case When cbp.em_sspr_status = 'A' then 'Activo'
+else 'Inactivo' end) as "employee_status",
+cbp.em_sspr_entrydate as "employee_entrydate",
+cemp.permanentremuneration as "remuneration",
+(select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate) as "period_id",
+(select concept_amount as "concept_amount" from (select
+cbp.c_bpartner_id,
+py.c_period_id,
+sum(ptcp.amount) as "concept_amount"
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'In'
+and cpt.em_sfpr_isworkhistory = 'Y'
+group by cbp.c_bpartner_id, py.c_period_id
+) tincome
+where tincome.c_bpartner_id = cbp.c_bpartner_id
+and tincome.c_period_id = (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate)
+) as "income",
+(select concept_amount as "concept_amount" from (select
+cbp.c_bpartner_id,
+py.c_period_id,
+sum(ptcp.amount) as "concept_amount"
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'Out'
+and cpt.em_sfpr_isworkhistory = 'N'
+group by cbp.c_bpartner_id, py.c_period_id
+) texpense
+where texpense.c_bpartner_id = cbp.c_bpartner_id
+and texpense.c_period_id = (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate)
+) as "texpense"
+From c_bpartner cbp
+left join sspr_contract cemp on cemp.c_bpartner_id = cbp.c_bpartner_id
+where cbp.isactive = 'Y'
+and cbp.em_sspr_create_payroll = 'Y'
+and cbp.isemployee = 'Y'
+and (cbp.c_bpartner_id = $P{C_BPartner_ID} or $P{C_BPartner_ID} is null)
+and cbp.em_sspr_status = $P{Status_Filter}
+]]>
+	</queryString>
+	<field name="employee_id" class="java.lang.String"/>
+	<field name="employee_value" class="java.lang.String"/>
+	<field name="employee_name" class="java.lang.String"/>
+	<field name="employee_taxid" class="java.lang.String"/>
+	<field name="employee_birthday" class="java.math.BigDecimal"/>
+	<field name="employee_status" class="java.lang.String"/>
+	<field name="employee_entrydate" class="java.sql.Timestamp"/>
+	<field name="remuneration" class="java.math.BigDecimal"/>
+	<field name="period_id" class="java.lang.String"/>
+	<field name="income" class="java.math.BigDecimal"/>
+	<field name="texpense" class="java.math.BigDecimal"/>
+	<variable name="Total_IncomeExpense" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{income}.subtract( $F{texpense} )]]></variableExpression>
+	</variable>
+	<group name="Header Employee">
+		<groupExpression><![CDATA[$F{employee_id}]]></groupExpression>
+		<groupHeader>
+			<band height="207">
+				<rectangle>
+					<reportElement x="0" y="167" width="285" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="285" y="167" width="287" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="0" y="187" width="211" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="211" y="187" width="75" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="285" y="187" width="214" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="499" y="187" width="73" height="20"/>
+				</rectangle>
+				<textField>
+					<reportElement x="103" y="38" width="243" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_name}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="103" y="58" width="147" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_taxid}]]></textFieldExpression>
+				</textField>
+				<textField pattern="dd/MM/yyyy">
+					<reportElement x="103" y="118" width="157" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{employee_entrydate}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="103" y="138" width="100" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{remuneration}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="18" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Value]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="38" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Name]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="58" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Tax]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="103" y="78" width="100" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_status}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="78" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Age]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="118" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Entry Date]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="98" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Status]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="138" width="100" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Remuneration]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="103" y="98" width="100" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_status}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="103" y="18" width="243" height="20"/>
+					<textElement/>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_value}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="187" width="211" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Concept]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="211" y="187" width="75" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Value]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="285" y="187" width="214" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Concept]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="499" y="187" width="73" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Value]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="0" y="167" width="286" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Income]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="285" y="167" width="287" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Expense]]></text>
+				</staticText>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="65">
+				<textField pattern="###0.00;-###0.00">
+					<reportElement x="185" y="1" width="100" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{income}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00">
+					<reportElement x="472" y="1" width="100" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{texpense}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="85" y="1" width="100" height="20"/>
+					<textElement verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Total Income]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="372" y="1" width="100" height="20"/>
+					<textElement verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Total Expense]]></text>
+				</staticText>
+				<textField pattern="###0.00;-###0.00">
+					<reportElement x="472" y="28" width="100" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{Total_IncomeExpense}]]></textFieldExpression>
+				</textField>
+				<line>
+					<reportElement x="0" y="0" width="572" height="1"/>
+				</line>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="59" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="25" width="572" height="27"/>
+				<textElement textAlignment="Center">
+					<font size="20" isBold="true"/>
+				</textElement>
+				<text><![CDATA[WORK HISTORY IESS]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="30" splitType="Stretch">
+			<subreport>
+				<reportElement x="-1" y="0" width="285" height="30"/>
+				<subreportParameter name="concept_id">
+					<subreportParameterExpression><![CDATA[$F{employee_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="c_period_id">
+					<subreportParameterExpression><![CDATA[$F{period_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="net.sf.jasperreports.engine.JasperReport"><![CDATA[$P{SUBREP_Rptc_LaboralHistoryIncome}]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="284" y="0" width="288" height="30"/>
+				<subreportParameter name="concept_id">
+					<subreportParameterExpression><![CDATA[$F{employee_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="c_period_id">
+					<subreportParameterExpression><![CDATA[$F{period_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="net.sf.jasperreports.engine.JasperReport"><![CDATA[$P{SUBREP_Rptc_LaboralHistoryEspenses}]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

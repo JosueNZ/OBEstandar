@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_VALIDATETAXID_TRG">
+    <trigger name="SSRE_VALIDATETAXID_TRG" table="SSRE_REFUNDINVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+	v_dig         CHAR(1);
+	v_dig1        INTEGER;
+	v_dig2        INTEGER; 
+	v_dig3        INTEGER;
+	v_dig4        INTEGER; 
+	v_result      CHAR(1);
+	v_taxid       VARCHAR2(255);
+	v_type        CHAR(1);
+	v_taxid2      VARCHAR2(255);
+	v_length      NUMBER;
+	v_bpartner_id VARCHAR2(32); 
+	valores	      VARCHAR2(3);  
+	valubica      VARCHAR2(2);  
+
+BEGIN 
+	v_type:=:NEW.taxidtype;
+	v_taxid:=:NEW.taxidruc;
+	v_taxid2:= replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(v_taxid,'0',''),'1',''),'2',''),'3',''),'4',''),'5',''),'6',''),'7',''),'8',''),'9','');
+	v_length:= length(v_taxid);
+	valores := substr(:NEW.taxidruc, 11,3) ;
+	valubica := substr(:NEW.taxidruc, 1,2) ;
+
+      IF (v_type = 'D') THEN
+        	IF (v_taxid2 <> '') THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+        	ELSIF NOT (v_length = 10) THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_NifMustBeLengthNumeric@');
+          	END IF;
+		v_dig:=substr(v_taxid, 3, 1);
+          	IF v_dig = '0' or v_dig = '1' or v_dig = '2' or v_dig = '3' or v_dig = '4' or v_dig = '5' then
+			IF (10 - mod((sswh_get_suma_digito(to_number(substr(v_taxid, 1, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 2, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 3, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 4, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 5, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 6, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 7, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 8, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 9, 1))*2) ), 10)) <> to_number(substr(v_taxid, 10, 1)) and 
+				(10 - mod((sswh_get_suma_digito(to_number(substr(v_taxid, 1, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 2, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 3, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 4, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 5, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 6, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 7, 1))*2) + sswh_get_suma_digito(to_number(substr(v_taxid, 8, 1))*1) +
+				sswh_get_suma_digito(to_number(substr(v_taxid, 9, 1))*2) ), 10)) <> 10 THEN
+				RAISE_APPLICATION_ERROR(-20000, '@SSWH_DigitVerfied@');
+			END IF;
+		ELSIF v_dig = '9' then
+			IF (11 - mod(((to_number(substr(v_taxid, 1, 1))*4) + (to_number(substr(v_taxid, 2, 1))*3) +
+			(to_number(substr(v_taxid, 3, 1))*2) + (to_number(substr(v_taxid, 4, 1))*7) +
+			(to_number(substr(v_taxid, 5, 1))*6) + (to_number(substr(v_taxid, 6, 1))*5) +
+			(to_number(substr(v_taxid, 7, 1))*4) + (to_number(substr(v_taxid, 8, 1))*3) +
+			(to_number(substr(v_taxid, 9, 1))*2) ), 11)) <> to_number(substr(v_taxid, 10, 1)) AND
+			(11 - mod(((to_number(substr(v_taxid, 1, 1))*4) + (to_number(substr(v_taxid, 2, 1))*3) +
+			(to_number(substr(v_taxid, 3, 1))*2) + (to_number(substr(v_taxid, 4, 1))*7) +
+			(to_number(substr(v_taxid, 5, 1))*6) + (to_number(substr(v_taxid, 6, 1))*5) +
+			(to_number(substr(v_taxid, 7, 1))*4) + (to_number(substr(v_taxid, 8, 1))*3) +
+			(to_number(substr(v_taxid, 9, 1))*2) ), 11)) <> 11 THEN
+				RAISE_APPLICATION_ERROR(-20000, '@SSWH_DigitVerfied@');
+			END IF;
+		ELSIF v_dig = '6' then
+			IF (11 - mod(((to_number(substr(v_taxid, 1, 1))*3) + (to_number(substr(v_taxid, 2, 1))*2) +
+			(to_number(substr(v_taxid, 3, 1))*7) + (to_number(substr(v_taxid, 4, 1))*6) +
+			(to_number(substr(v_taxid, 5, 1))*5) + (to_number(substr(v_taxid, 6, 1))*4) +
+			(to_number(substr(v_taxid, 7, 1))*3) + (to_number(substr(v_taxid, 8, 1))*2)), 11)) <> to_number(substr(v_taxid, 9, 1)) AND
+			(11 - mod(((to_number(substr(v_taxid, 1, 1))*3) + (to_number(substr(v_taxid, 2, 1))*2) +
+			(to_number(substr(v_taxid, 3, 1))*7) + (to_number(substr(v_taxid, 4, 1))*6) +
+			(to_number(substr(v_taxid, 5, 1))*5) + (to_number(substr(v_taxid, 6, 1))*4) +
+			(to_number(substr(v_taxid, 7, 1))*3) + (to_number(substr(v_taxid, 8, 1))*2)), 11)) <> 11 THEN
+				RAISE_APPLICATION_ERROR(-20000, '@SSWH_DigitVerfied@');
+			END IF;
+		
+
+        	END IF;
+      ELSIF (v_type = 'R') THEN
+    	v_dig:=substr(v_taxid, 3, 1);
+		IF (v_taxid2 <> '') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+		END IF;
+
+		IF(v_length <> 13) THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_CifMustBeLengthNumeric@');
+		END IF;
+		
+		IF (valores <> '001') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_CifMustEndWith@');
+		END IF;
+
+      ELSIF (v_type = 'C') THEN
+        	IF (v_taxid2 <> '') THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+        	ELSIF NOT (v_length = 11) THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_PasMustBeLengthNumeric@');
+            END IF;
+      ELSIF (v_type = 'P') THEN
+        	IF (v_taxid2 <> '') THEN
+            	RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+        	ElSIF NOT (v_length = 10) THEN
+            	RAISE_APPLICATION_ERROR(-20000, '@SSWH_NifMustBeLengthNumeric@');
+          	END IF;
+      END IF;
+      
+END SSRE_VALIDATETAXID_TRG
+]]></body>
+    </trigger>
+  </database>

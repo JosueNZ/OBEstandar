@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_DAYS360">
+    <function name="SSPR_DAYS360" type="NUMERIC">
+      <parameter name="p_start_date" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_end_date" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_mm1    NUMBER;
+  v_dd1    NUMBER;
+  v_yyyy1  NUMBER;
+  v_mm2    NUMBER;
+  v_dd2    NUMBER;
+  v_yyyy2  NUMBER;
+  p_rule_type VARCHAR2(10);
+  v_Rdbms   VARCHAR2(100);
+  v_sql	VARCHAR2(2000);
+  v_result NUMBER;
+BEGIN
+
+    SELECT COALESCE( (Select ad_get_rdbms() from DUAL), 'ND')
+    INTO v_Rdbms 
+    FROM DUAL; 
+
+    IF (v_Rdbms LIKE '%POST%') THEN
+
+	IF (p_end_date= NULL OR  p_start_date = NULL) THEN
+		RETURN 0;
+	ELSE
+		v_sql := 'SELECT date_part(''year'',age(TO_DATE('''||p_end_date||''',''yyyy-mm-dd''),TO_DATE('''|| p_start_date||''',''yyyy-mm-dd'')))*360 
+		+ date_part(''month'',age(TO_DATE('''||p_end_date||''',''yyyy-mm-dd''),TO_DATE('''|| p_start_date||''',''yyyy-mm-dd'')))*30 
+		+ date_part(''day'',age(TO_DATE('''||p_end_date||''',''yyyy-mm-dd''),TO_DATE('''|| p_start_date||''',''yyyy-mm-dd''))) FROM DUAL';
+
+		EXECUTE IMMEDIATE v_sql INTO v_result;
+
+		RETURN v_result;
+	END IF;
+
+    ELSE
+
+  v_yyyy1 := to_number(to_char(p_start_date,'yyyy'));
+  v_mm1   := to_number(to_char(p_start_date,'mm'));
+  v_dd1   := to_number(to_char(p_start_date,'dd'));
+  v_yyyy2 := to_number(to_char(p_end_date,'yyyy'));
+  v_mm2   := to_number(to_char(p_end_date,'mm'));
+  v_dd2   := to_number(to_char(p_end_date,'dd'));
+  p_rule_type   := 'F';
+  
+
+  
+  IF p_rule_type = 'F' THEN
+     IF v_dd1 = 31 THEN v_dd1 := 30; END IF;
+     IF v_mm1 = 2  AND v_dd1 = to_number(to_char(last_day(p_start_date),'dd'))
+          THEN v_dd1 := 30; END IF;
+     IF v_dd2 = 31
+          THEN IF v_dd1 < 30
+                    THEN v_dd2 := 1;
+                         v_mm2 := v_mm2 + 1;
+                         IF v_mm2 = 13 THEN v_mm2 := 1;
+                                            v_yyyy2 := v_yyyy2 +1;
+                         END IF;
+                    ELSE v_dd2 := 30;
+               END IF;
+     END IF;
+     IF v_mm2 = 2  AND v_dd2 = to_number(to_char(last_day(p_end_date),'dd'))
+          THEN v_dd2 := 30;
+               IF  (v_dd1 < 30)
+                   THEN v_dd2 := 1;
+                        v_mm2 := 3;
+               END IF;
+     END IF;
+     IF v_mm2 IN (4, 6, 9, 11) AND v_dd2 = 30
+          AND v_dd1 < 30
+          THEN v_dd2 := 1;
+               v_mm2 := v_mm2 + 1;
+     END IF;
+  ELSIF p_rule_type = 'T' THEN
+     IF v_dd1 = 31 THEN v_dd1 := 30; END IF;
+     IF v_dd1 = 31 THEN v_dd1 := 30; END IF;
+     IF v_mm1 = 2  AND v_dd1 = to_number(to_char(last_day(p_start_date),'dd'))
+          THEN v_dd1 := 30; END IF;
+     IF v_dd2 = 31 THEN v_dd2 := 30; END IF;
+     IF v_mm2 = 2  AND v_dd2 = to_number(to_char(last_day(p_end_date),'dd'))
+          THEN v_dd2 := 30; END IF;
+  ELSE RAISE_APPLICATION_ERROR('-20002','3VL Not Allowed Here');
+  END IF;
+  RETURN (v_yyyy2 - v_yyyy1) * 360
+       + (v_mm2 - v_mm1) * 30
+       + (v_dd2 - v_dd1);
+    
+    END IF;
+END SSPR_DAYS360
+]]></body>
+    </function>
+  </database>

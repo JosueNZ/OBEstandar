@@ -1,0 +1,251 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_SETTL_ADD_PER">
+    <function name="SSPR_SETTL_ADD_PER" type="NUMERIC">
+      <parameter name="p_settlementconfig_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_settlement_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_periodno" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_year_period" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2010-2012 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+  TYPE RECORD IS REF CURSOR;
+    Cur_benefit_dismissal RECORD;
+    Cur_last_payroll RECORD;
+  -- Logistice
+  v_line NUMBER:=0 ;
+  v_sspr_concept_id_get VARCHAR2(32);
+  v_rate NUMBER;
+  v_startdate DATE;
+  v_enddate DATE;
+  v_ReasonEndPeriod sspr_settlementconfig.reasonendperiod%TYPE := null;
+  v_year NUMBER:=0;
+  v_fullyear NUMBER:=0;
+  v_yearmultiplier NUMBER:=1;
+  v_periodno NUMBER;
+  v_year_period VARCHAR2(32);
+  v_c_period_id_concept VARCHAR2(32);
+  v_sspr_payroll_id VARCHAR2(32);
+  v_value NUMBER;
+  v_monthfrom NUMBER:=0;
+  v_yearfrom NUMBER:=0;
+  v_monthto NUMBER:=0;
+  v_yearto NUMBER:=0;
+
+  v_n_insertions NUMBER:=0 ;
+  v_ResultStr VARCHAR2(2000):='';
+  i NUMBER:=0; 
+  v_tempstartdate DATE;
+  v_tempenddate DATE;
+
+BEGIN --BODY
+
+  select  con.reasonendperiod, con.startdate, con.enddate
+  into  v_ReasonEndPeriod, v_startdate, v_enddate
+  from  sspr_contract con
+  where con.sspr_contract_id = p_sspr_contract_id;
+  
+  v_monthfrom := EXTRACT(MONTH FROM v_startdate);
+  v_yearfrom := EXTRACT(YEAR FROM v_startdate);
+  v_monthto := EXTRACT(MONTH FROM v_enddate);
+  v_yearto := EXTRACT(YEAR FROM v_enddate);
+
+  IF (p_sspr_settlement_id IS NOT NULL) THEN
+    SELECT max(sl.line)
+    INTO v_line
+    FROM sspr_settlementline sl
+    WHERE sl.sspr_settlement_id = p_sspr_settlement_id;
+  ELSE
+    RAISE_APPLICATION_ERROR(-20000,'@SSPR_NoSettlement@');
+  END IF;
+      
+  v_line := coalesce(v_line, 0) + 10;
+
+  --DESAHUCIO Y BENEFICIOS
+  		
+  FOR Cur_benefit_dismissal IN(
+    SELECT sspr_benefit_dismissal.peryear, sspr_benefit_dismissal.fullyear, sspr_benefit_dismissal.maxvalue, sspr_benefit_dismissal.rate, sspr_benefit_dismissal.sspr_concept_id, sspr_benefit_dismissal.value, sspr_concept.concepttype, sspr_benefit_dismissal.description,
+    sspr_concept.isincomecalculated, sspr_concept.iscumulative, sspr_concept.isprojected, sspr_concept.isiess
+    FROM sspr_settlementconfigline
+    JOIN sspr_benefit_dismissal on sspr_benefit_dismissal.sspr_benefit_dismissal_id = sspr_settlementconfigline.sspr_benefit_dismissal_id
+    LEFT JOIN sspr_concept on sspr_concept.sspr_concept_id = sspr_benefit_dismissal.sspr_concept_id
+    WHERE sspr_settlementconfigline.sspr_settlementconfig_id = p_settlementconfig_id
+          AND (sspr_benefit_dismissal.value in ('DSH', 'ING'))
+          AND sspr_benefit_dismissal.isactive = 'Y'
+    ORDER BY line)
+  LOOP
+			
+    --VALIDO LOS CONCEPTOS QUE NO SON FORMULA
+    IF (Cur_benefit_dismissal.concepttype <> 'S') THEN
+      RAISE_APPLICATION_ERROR(-20000,'@This concepts type can not be assigned in @'|| Cur_benefit_dismissal.value || ' - ' || Cur_benefit_dismissal.description);
+    END IF;
+    					
+    v_rate := 0;
+    v_rate := coalesce(Cur_benefit_dismissal.rate, 1);
+    v_sspr_concept_id_get := Cur_benefit_dismissal.sspr_concept_id;
+    				
+/*    --OBTENGO EL NUMERO DE DIAS DEL CONTRATO
+    v_year := to_number(v_enddate - v_startdate) + 1;
+    v_year := v_year / 365;
+    v_year_noceiling := v_year;
+*/
+
+    i:=0;
+    v_tempstartdate:= (v_startdate);
+    v_tempenddate:= (v_enddate) + INTERVAL '1' DAY;
+    WHILE (v_tempstartdate < v_tempenddate) LOOP
+      i:=i+1;
+      v_tempstartdate := (v_startdate) + INTERVAL '1' YEAR * i;
+    END LOOP;
+    IF (v_tempstartdate = v_tempenddate) THEN
+      v_year:=i;
+    ELSE
+      v_year:=i-0.5;
+    END IF;
+
+    v_fullyear := ceil (v_year);
+    IF v_fullyear <> v_year AND Cur_benefit_dismissal.fullyear = 'Y' THEN
+      v_fullyear := ceil (v_year) - 1;
+    END IF;
+    IF v_fullyear > 25 THEN
+      v_fullyear := 25;
+    END IF;  
+    IF Cur_benefit_dismissal.peryear = 'Y' THEN
+      v_yearmultiplier := v_fullyear;
+    END IF;
+    
+    If(v_year > 1)Then 
+      v_year := ceil (v_year);
+    End If;
+        
+    --TOMA EL AÑO DEL MES ANTERIOR
+    v_periodno := p_periodno;
+    v_year_period := p_year_period;
+    If (v_periodno <= 0) Then
+      v_periodno := 12;
+      v_year_period := CAST( (CAST( v_year_period AS NUMBER ) - 1) AS VARCHAR2) ;
+    End if;
+
+    --OBTENGO EL ULTIMO SALARIO DEL EMPLEADO
+    -- If(Cur_benefit_dismissal.value = 'DSH' OR  Cur_benefit_dismissal.value = 'ING')Then
+    For Cur_last_payroll In(
+      select sspr_payroll.c_period_id, sspr_payroll.sspr_payroll_id, c_period.name
+      from sspr_payroll
+      left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+      left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+      left join c_bpartner on c_bpartner.c_bpartner_id = sspr_payroll_ticket.c_bpartner_id
+      left join c_year on c_year.c_year_id = c_period.c_year_id
+      where sspr_payroll.ispayroll = 'Y' 
+      and sspr_payroll_ticket.c_bpartner_id =  p_c_bpartner_id 
+      and sspr_payroll.isactive = 'Y'
+      and sspr_payroll.isliquidation = 'N'
+      and (
+        (
+          Cur_benefit_dismissal.maxvalue = 'Y'
+          and (to_number(c_year.year) > v_yearfrom or to_number(c_year.year) = v_yearfrom and c_period.periodno >= v_monthfrom)
+          and (to_number(c_year.year) < v_yearto or to_number(c_year.year) = v_yearto and c_period.periodno <= v_monthto)
+        ) or (
+          c_year.year = v_year_period
+          and c_period.periodno = v_periodno
+        )
+      )
+    )
+    Loop
+      v_c_period_id_concept := coalesce(Cur_last_payroll.c_period_id,Null);
+      v_sspr_payroll_id := coalesce(Cur_last_payroll.sspr_payroll_id,Null);
+    End Loop;
+            
+    --OBTENGO EL ULTIMO INGRESO DE EMPLEADO
+    v_value := 0;
+
+    If(v_sspr_payroll_id is not null)Then			
+      v_value := SSPR_GET_TOTAL_INCOME(v_sspr_concept_id_get, v_sspr_payroll_id, p_c_bpartner_id);
+    Else
+      v_value := 0;
+    End If;
+    					
+    --Recibe Desahucio
+    IF (Cur_benefit_dismissal.value = 'DSH') THEN
+      IF (v_rate > 0 ) THEN
+        IF (v_yearmultiplier <> 0) THEN
+          INSERT INTO sspr_settlementline(sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, 
+                CreatedBy, Updated, UpdatedBy, line, sspr_concept_id, amount, qty, totalnet,
+                isincomecalculated, iscumulative, isprojected,isiess)
+          VALUES (get_uuid(), p_sspr_settlement_id, p_client_id, p_org_id, 'Y', now(), p_user_id, now(), p_user_id,
+            v_line, Cur_benefit_dismissal.sspr_concept_id, v_value * v_rate, v_yearmultiplier, v_value * v_yearmultiplier * v_rate,
+            Cur_benefit_dismissal.isincomecalculated, Cur_benefit_dismissal.iscumulative, Cur_benefit_dismissal.isprojected, Cur_benefit_dismissal.isiess);
+          v_n_insertions := v_n_insertions + 1;
+          v_line := v_line + 10;
+        END IF;
+      ELSE
+        RAISE_APPLICATION_ERROR(-20000,'@No process desahucio, rate field has no value@');
+      END IF;
+    END IF;
+    
+    --Recibe Ingresos
+    IF (Cur_benefit_dismissal.value = 'ING') THEN
+      IF v_yearmultiplier=0 THEN
+			v_yearmultiplier:=1;
+      END IF;  
+
+      INSERT INTO sspr_settlementline(sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, 
+            CreatedBy, Updated, UpdatedBy, line, sspr_concept_id, amount, qty, totalnet,
+            isincomecalculated, iscumulative, isprojected, isiess)
+      VALUES (get_uuid(),p_sspr_settlement_id, p_client_id, p_org_id, 'Y',now(), p_user_id, now(), p_user_id,
+        v_line, Cur_benefit_dismissal.sspr_concept_id, v_value, v_yearmultiplier * v_rate, v_value * v_yearmultiplier * v_rate,
+        Cur_benefit_dismissal.isincomecalculated, Cur_benefit_dismissal.iscumulative, Cur_benefit_dismissal.isprojected, Cur_benefit_dismissal.isiess);
+                    
+      v_n_insertions := v_n_insertions + 1;
+      v_line := v_line + 10;
+                  
+    END IF;
+            
+  END LOOP;
+
+  RETURN v_n_insertions;
+
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  --ROLLBACK;
+  RAISE;
+END SSPR_SETTL_ADD_PER
+]]></body>
+    </function>
+  </database>

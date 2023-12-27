@@ -1,0 +1,275 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_LOAD_PAYROLL_TEMPLATE">
+    <function name="SSPR_LOAD_PAYROLL_TEMPLATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);
+  v_Template_ID VARCHAR2(32);   
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_Period_ID VARCHAR2(32); 
+  v_PRollTemplate_ID VARCHAR2(32);  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP      	  
+	
+      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+        v_StartPeriod_ID := Cur_Parameter.P_String;      
+          
+        v_Client_ID := Cur_Parameter.AD_Client_ID;
+        v_Org_ID := Cur_Parameter.AD_Org_ID;
+        v_User_ID := Cur_Parameter.CreatedBy;
+      ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+        v_EndPeriod_ID := Cur_Parameter.P_String;
+      ELSIF (Cur_Parameter.ParameterName = 'C_BPartner_ID') THEN
+        v_BPartner_ID := Cur_Parameter.P_String;   
+      ELSIF (Cur_Parameter.ParameterName = 'Template') THEN
+        v_Template_ID := Cur_Parameter.P_String;   
+      ELSE  
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;     
+      
+    END LOOP; -- Get Parameter
+
+    SELECT startdate, enddate
+    INTO v_StartPeriod_StartDate, v_StartPeriod_EndDate
+    FROM C_Period
+    WHERE C_Period_ID = v_StartPeriod_ID;
+
+    
+    SELECT startdate, enddate
+    INTO v_EndPeriod_StartDate, v_EndPeriod_EndDate
+    FROM C_Period
+    WHERE C_Period_ID = v_EndPeriod_ID;
+
+    IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+    
+      RAISE_APPLICATION_ERROR(-20000, '@SSPR_EndStartPeriod@');
+      
+    END IF;
+  
+    IF (v_BPartner_ID IS NOT NULL) THEN
+
+      --Create employee periods
+      FOR Cur_Period IN 
+      (SELECT C_Period_ID 
+       FROM C_Period
+       WHERE startdate >= v_StartPeriod_StartDate
+       AND   enddate   <= v_EndPeriod_EndDate
+       AND AD_Client_ID = v_Client_ID
+      )
+      LOOP
+
+        SELECT SSPR_Period_ID INTO v_Period_ID
+        FROM SSPR_Period
+        WHERE C_Period_ID = Cur_Period.C_Period_ID 
+              AND C_BPartner_ID = v_BPartner_ID;
+
+              
+        IF (v_Period_ID IS NULL) THEN
+
+          v_Period_ID := get_uuid(); 
+          INSERT INTO SSPR_Period
+          (SSPR_Period_ID, AD_Client_ID, AD_Org_ID, IsActive,
+          Created, CreatedBy, Updated, UpdatedBy,
+          C_BPartner_ID, C_Period_ID
+          )
+          VALUES
+          (v_Period_ID, v_Client_ID, v_Org_ID, 'Y',
+          now(), v_User_ID, now(), v_User_ID,
+          v_BPartner_ID, Cur_Period.C_Period_ID 
+          );
+
+          v_n_insertions := v_n_insertions + 1;
+
+        END IF;
+
+        --Delete old template.
+        DELETE FROM SSPR_Period_Concept WHERE SSPR_Period_ID = v_Period_ID;
+        
+        --Insert concepts of the template into period. 
+        CASE WHEN v_Template_ID = '1' THEN
+
+               SELECT em_sspr_prolltemplate_id INTO v_PRollTemplate_ID
+               FROM C_BPartner
+               WHERE C_BPartner_ID = v_BPartner_ID;
+
+             WHEN v_Template_ID = '2' THEN
+
+               SELECT em_sspr_prolltemplate2_id INTO v_PRollTemplate_ID
+               FROM C_BPartner
+               WHERE C_BPartner_ID = v_BPartner_ID;
+
+        END CASE;        
+             
+        FOR Cur_Concept IN
+        (SELECT SSPR_Concept_ID
+         FROM SSPR_PRollTem_Lines
+         WHERE SSPR_PRollTemplate_ID = v_PRollTemplate_ID
+        )
+        LOOP
+
+          INSERT INTO SSPR_Period_Concept
+          (SSPR_Period_Concept_ID, AD_Client_ID, AD_Org_ID, IsActive,
+          Created, CreatedBy, Updated, UpdatedBy,
+          SSPR_Period_ID, SSPR_Concept_ID
+          )
+          VALUES
+          (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+          now(), v_User_ID, now(), v_User_ID,
+          v_Period_ID, Cur_Concept.SSPR_Concept_ID 
+          );
+          
+        END LOOP;
+
+      END LOOP;
+
+    ELSE
+
+      FOR Cur_Employee IN
+      (SELECT C_BPartner_ID
+       FROM C_BPartner
+       WHERE IsEmployee = 'Y' AND Ad_Client_ID = v_Client_ID AND Ad_Org_ID = v_Org_ID AND ISACTIVE = 'Y'
+      )
+      LOOP
+
+        --Create employee periods
+        FOR Cur_Period IN 
+        (SELECT C_Period_ID 
+         FROM C_Period
+         WHERE startdate >= v_StartPeriod_StartDate
+         AND   enddate   <= v_EndPeriod_EndDate
+         AND AD_Client_ID = v_Client_ID
+        )
+        LOOP
+
+          SELECT SSPR_Period_ID INTO v_Period_ID
+          FROM SSPR_Period
+          WHERE C_Period_ID = Cur_Period.C_Period_ID 
+                AND C_BPartner_ID = Cur_Employee.C_BPartner_ID;
+
+              
+          IF (v_Period_ID IS NULL) THEN
+
+            v_Period_ID := get_uuid(); 
+            INSERT INTO SSPR_Period
+            (SSPR_Period_ID, AD_Client_ID, AD_Org_ID, IsActive,
+            Created, CreatedBy, Updated, UpdatedBy,
+            C_BPartner_ID, C_Period_ID
+            )
+            VALUES
+            (v_Period_ID, v_Client_ID, v_Org_ID, 'Y',
+            now(), v_User_ID, now(), v_User_ID,
+            Cur_Employee.C_BPartner_ID, Cur_Period.C_Period_ID 
+            );
+
+            v_n_insertions := v_n_insertions + 1;
+
+          END IF;
+
+          --Delete old template.
+          DELETE FROM SSPR_Period_Concept WHERE SSPR_Period_ID = v_Period_ID;
+        
+          --Insert concepts of the template into period. 
+          CASE WHEN v_Template_ID = '1' THEN
+
+                 SELECT em_sspr_prolltemplate_id INTO v_PRollTemplate_ID
+                 FROM C_BPartner
+                 WHERE C_BPartner_ID = Cur_Employee.C_BPartner_ID;
+
+               WHEN v_Template_ID = '2' THEN
+
+                 SELECT em_sspr_prolltemplate2_id INTO v_PRollTemplate_ID
+                 FROM C_BPartner
+                 WHERE C_BPartner_ID = Cur_Employee.C_BPartner_ID;
+
+          END CASE;           
+        
+          FOR Cur_Concept IN
+          (SELECT SSPR_Concept_ID
+           FROM SSPR_PRollTem_Lines
+           WHERE SSPR_PRollTemplate_ID = v_PRollTemplate_ID
+          )
+          LOOP
+
+            INSERT INTO SSPR_Period_Concept
+            (SSPR_Period_Concept_ID, AD_Client_ID, AD_Org_ID, IsActive,
+            Created, CreatedBy, Updated, UpdatedBy,
+            SSPR_Period_ID, SSPR_Concept_ID
+            )
+            VALUES
+            (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+            now(), v_User_ID, now(), v_User_ID,
+            v_Period_ID, Cur_Concept.SSPR_Concept_ID 
+            );
+          
+          END LOOP;
+
+        END LOOP;
+
+      END LOOP;
+      
+    END IF;      
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_LOAD_PAYROLL_TEMPLATE
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSHR_JOB_TRG1">
+    <trigger name="SSHR_JOB_TRG1" table="SSHR_JOB" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_amount NUMBER;		--OBTG:NUMERIC--
+ v_salary_grade varchar(32);	--OBTG:VARCHAR2--
+ v_salary_min NUMBER;		--OBTG:NUMERIC--
+ v_salary_max NUMBER;		--OBTG:NUMERIC--
+ v_Message VARCHAR(60);		--OBTG:VARCHAR2--
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING or UPDATING) THEN
+
+         v_salary_grade := :new.sshr_salary_grade_id;
+	 v_amount := :new.amounts;
+	 
+	 SELECT salary_min,salary_max 
+	 INTO v_salary_min, v_salary_max
+	 FROM sshr_salary_grade
+	 WHERE sshr_salary_grade_id=v_salary_grade;
+
+	 IF(v_amount < v_salary_min )or (v_amount > v_salary_max)
+	 THEN
+	 
+	   v_Message := v_Message || 'Salario debe estar dentro de ' || v_salary_min||' - '||v_salary_max;	 
+
+     RAISE_APPLICATION_ERROR(-20000, v_Message);
+     
+	 END IF;
+	
+	
+  END IF;
+
+  END SSHR_JOB_TRG1
+]]></body>
+    </trigger>
+  </database>

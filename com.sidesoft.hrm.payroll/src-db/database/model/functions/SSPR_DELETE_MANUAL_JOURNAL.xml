@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_DELETE_MANUAL_JOURNAL">
+    <function name="SSPR_DELETE_MANUAL_JOURNAL" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_Payroll VARCHAR2(32);
+  v_NAMEPERIOD VARCHAR2(60):='';
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  V_gl_journalbatch_id VARCHAR2(32);
+  V_gl_journal_id VARCHAR2(32); 
+  V_PROCESSED VARCHAR2(32) ;
+  V_DOCUMENTNO VARCHAR2(30) ; 
+
+BEGIN
+--  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP      	  
+	
+      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+        v_StartPeriod_ID := Cur_Parameter.P_String;        
+        v_Client_ID := Cur_Parameter.AD_Client_ID;
+        v_Org_ID := Cur_Parameter.AD_Org_ID;
+        v_User_ID := Cur_Parameter.CreatedBy;
+      ELSIF (Cur_Parameter.ParameterName = 'Payroll') THEN
+        v_Payroll := Cur_Parameter.P_String;
+      ELSE  
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;     
+      
+    END LOOP; -- Get Parameter
+
+    IF v_StartPeriod_ID IS NOT NULL THEN   
+
+	    SELECT NAME INTO v_NAMEPERIOD  FROM C_PERIOD WHERE C_PERIOD_ID = v_StartPeriod_ID;
+
+	    --OBTENGO REFERENCIA DEL ASIENTO
+	    SELECT A.GL_JOURNALBATCH_ID INTO V_gl_journalbatch_id 
+	    FROM SSPR_PAYROLL A
+	    WHERE C_PERIOD_ID = v_StartPeriod_ID AND ISPAYROLL=v_Payroll;
+         
+	    --VALIDO QUE EL ASIENTO NO ESTE CONTABILIZADO
+	    SELECT PROCESSED,DOCUMENTNO INTO V_PROCESSED,V_DOCUMENTNO FROM GL_JOURNALBATCH WHERE GL_JOURNALBATCH_ID = V_gl_journalbatch_id;
+	    IF V_PROCESSED='Y' THEN 
+                RAISE_APPLICATION_ERROR(-20000, 'ASIENTO No.: '||V_DOCUMENTNO||' ESTA PROCESADO, DESPROCESAR MANUALMENTE');
+            ELSE 
+
+	        --ACTUALIZO CABECERA DE LA NOMINA PARA QUE PERMITA GENERAR EL ASIENTO
+    	        UPDATE SSPR_PAYROLL SET GENERATE_ACCOUNTING = 'N',GL_JOURNALBATCH_ID = NULL WHERE ISPAYROLL = v_Payroll AND C_PERIOD_ID = v_StartPeriod_ID;
+
+    	        --OBTENGO REFERENCIA DE LAS LINEAS DEL ASIENTO
+	        SELECT GL_JOURNAL_ID INTO V_gl_journal_id FROM GL_JOURNAL WHERE GL_JOURNALBATCH_ID = V_gl_journalbatch_id;
+	        --ELIMINO LAS LINEAS DEL ASIENTO
+	        DELETE FROM GL_JOURNALLINE WHERE GL_JOURNAL_ID = V_gl_journal_id;
+	        --ELIMINO CABECERA Y AGRUPACION DEL ASIENTO
+                DELETE FROM GL_JOURNAL WHERE GL_JOURNAL_ID =V_gl_journal_id;
+                DELETE FROM GL_JOURNALBATCH WHERE GL_JOURNALBATCH_ID =V_gl_journalbatch_id;
+
+                --ELIMINAR DATOS TABLAS TEMPORALES
+                IF v_Payroll='Y' THEN 
+                  DELETE FROM sspr_asientonomina WHERE PERIODO = v_NAMEPERIOD;
+                ELSE
+	          DELETE FROM sspr_asientonomina_PROV WHERE PERIODO = v_NAMEPERIOD;
+    	        END IF;
+    	    END IF;
+    END IF;
+
+    --v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ') ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+  ROLLBACK;
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_DELETE_MANUAL_JOURNAL
+]]></body>
+    </function>
+  </database>

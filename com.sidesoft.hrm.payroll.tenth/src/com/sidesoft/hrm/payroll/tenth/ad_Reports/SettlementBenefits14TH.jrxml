@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="SettlementBenefits14TH" pageWidth="1295" pageHeight="595" orientation="Landscape" columnWidth="1295" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="68f631a4-dbc6-4cf5-8f2d-a9773c96d2e9">
+	<property name="ireport.zoom" value="2.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="documentno" class="java.lang.String"/>
+	<parameter name="c_year_id" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select  stsl.ad_org_id as "organizationid"
+,bp.taxid as "taxid"
+,bp.EM_Sspr_Lastname as "nombre"
+, bp.em_sspr_firstname as "nombre1"
+, wd.WorkedDays workday
+,pp.year as "year"
+, ssrg.name as "regimentname"
+,bp.EM_Sshr_Gender as "genero"
+, og.name as "organization"
+, oc.value as "iess"
+,
+coalesce(to_char(case  bp.EM_SSPR_Typeofincome
+when 'D' then 'A'
+when 'H' then 'P'
+when 'C' then 'P'
+when 'MDTD' then 'D'
+when 'DPW' then 'RP'
+when 'MDTW' then 'RD'
+when 'AACW' then 'RA'
+end),to_char(' '))  as "tipo_pago"
+
+
+,coalesce( to_char(case (select spc.isparttime from sspr_contract spc where spc.isactive='Y' and spc.c_bpartner_id= bp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isactive='Y' and spc2.c_bpartner_id= bp.c_bpartner_id ) )
+when 'Y' then 'X'
+else ' '
+end),' ') as "jornada_parcial"
+
+,coalesce( (select to_char(spc.weeklyhoursparttime) from sspr_contract spc where spc.isparttime='Y' and spc.isactive='Y' and spc.c_bpartner_id= bp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isparttime='Y' and spc2.isactive='Y' and spc2.c_bpartner_id= bp.c_bpartner_id ) )
+,' ') as "horas_semana_jparcial"
+
+
+,coalesce(to_char(
+case bp.EM_Sspr_Isdisabled
+when 'Y' then 'X'
+end
+),to_char(' ')) as "discapacitado"
+,coalesce(to_char(
+case bp.em_sspr_fourteenth
+when 'N' then 'X'
+end
+),to_char(' ')) as "decimo_cuarto"
+,liq.importe as "total_ganado",
+abs(stsl.judicial_retention) as retencion_judicial
+from ssph_tenth_settlement_line stsl
+left join ssph_tenth_settlement sts on sts.ssph_tenth_settlement_id=stsl.ssph_tenth_settlement_id
+left join c_bpartner bp on bp.c_bpartner_id=stsl.c_bpartner_id
+left join c_year pp on pp.c_year_id=sts.c_year_id
+left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sts.sspr_labor_regime_id
+left join ad_org og on og.ad_org_id=sts.ad_org_id
+left join sspempd_occupational_code oc on oc.sspempd_occupational_code_id = bp.EM_Sspr_Cod_Ocupac_Iess
+left join (
+select
+cbp.c_bpartner_id
+,cbp.name as tercero
+,sum(sptc.amount) as importe
+from sspr_payroll sp
+join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id
+join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id and sct.isactive='Y'
+left join c_period cp on cp.c_period_id = sp.c_period_id
+where
+sc.isiess = 'Y'
+and sp.c_period_id in
+(select
+cp.c_period_id
+from sspr_labor_regime slr
+join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id
+left join c_period cp on
+(cp.startdate>= slrd.startdate and cp.startdate<= slrd.enddate) and (cp.enddate >= slrd.startdate and cp.enddate <=slrd.enddate
+)
+where to_char(slrd.startdate,'dd/MM/yyyy') in (select to_char(sts.startdate,'dd/MM/yyyy')  from ssph_tenth_settlement sts where sts.ssph_tenth_settlement_id = $P{documentno}
+) and
+to_char(slrd.enddate,'dd/MM/yyyy') in (select to_char(enddate,'dd/MM/yyyy')  from ssph_tenth_settlement sts where sts.ssph_tenth_settlement_id = $P{documentno}
+)
+)
+group by cbp.c_bpartner_id
+,cbp.name ) liq on liq.c_bpartner_id = stsl.c_bpartner_id
+
+    LEFT JOIN (
+        SELECT bp.c_bpartner_id, SUM(CASE WHEN co.isparttime = 'Y' THEN pt.WorkingDays ELSE pt.WorkedDays END) WorkedDays
+        FROM sspr_payroll pr
+            JOIN sspr_payroll_ticket pt ON pt.sspr_payroll_id = pr.sspr_payroll_id
+            JOIN c_bpartner bp ON bp.c_bpartner_id = pt.c_bpartner_id
+            JOIN ssph_tenth_settlement ts ON ts.ssph_tenth_settlement_id= $P{documentno}
+                AND ts.c_year_id = $P{c_year_id}
+                AND pr.datedoc::DATE >= ts.startdate
+                AND pr.datedoc::DATE <= ts.enddate
+            JOIN SSPR_Contract co ON co.C_Bpartner_ID = bp.c_bpartner_id AND co.isactive = 'Y'
+                AND pr.datedoc::DATE >= co.startdate
+                AND pr.datedoc::DATE <= co.enddate
+        WHERE ((pr.ispayroll = 'Y' AND pr.isliquidation = 'N') OR (pr.ispayroll ='N' AND pr.isliquidation = 'Y'))
+        GROUP BY bp.c_bpartner_id
+    ) wd ON wd.c_bpartner_id  = stsl.c_bpartner_id
+
+WHERE bp.EM_Sspr_Isexecutive = 'N' and sts.ssph_tenth_settlement_id= $P{documentno}
+AND sts.c_year_id= $P{c_year_id}
+
+union all
+
+SELECT
+distinct
+ sp.ad_org_id as "organizationid"
+,cbp.taxid as "taxid"
+,cbp.EM_Sspr_Lastname as "nombre"
+, cbp.em_sspr_firstname as "nombre1"
+, coalesce(bp_workeddays,0) as "workday"
+,coalesce(pp.year,'') as "year"
+, ssrg.name as "regimentname"
+,cbp.EM_Sshr_Gender as "genero"
+, ao.name as "organization"
+, oc.value as "iess"
+,
+coalesce(to_char(case  cbp.EM_SSPR_Typeofincome
+when 'D' then 'A'
+when 'H' then 'P'
+when 'C' then 'P'
+when 'MDTD' then 'D'
+when 'DPW' then 'RP'
+when 'MDTW' then 'RD'
+when 'AACW' then 'RA'
+end),to_char(' '))  as "tipo_pago"
+,coalesce( to_char(case (select spc.isparttime from sspr_contract spc where spc.isactive='Y' and spc.c_bpartner_id= cbp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isactive='Y' and spc2.c_bpartner_id= cbp.c_bpartner_id ) )
+when 'Y' then 'X'
+else ' '
+end),' ') as "jornada_parcial"
+
+,coalesce( (select to_char(spc.weeklyhoursparttime) from sspr_contract spc where spc.isparttime='Y' and spc.isactive='Y' and spc.c_bpartner_id= cbp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isparttime='Y' and spc2.isactive='Y' and spc2.c_bpartner_id= cbp.c_bpartner_id ) )
+,' ') as "horas_semana_jparcial"
+
+,coalesce(to_char(
+case cbp.EM_Sspr_Isdisabled
+when 'Y' then 'X'
+end
+),to_char(' ')) as "discapacitado"
+,coalesce(to_char(
+case cbp.em_sspr_fourteenth
+when 'N' then 'X'
+end
+),to_char('X')) as "decimo_cuarto"
+,0 as "total_ganado",
+0 as retencion_judicial
+from sspr_payroll sp
+join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+--join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+--join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id
+join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id and sct.isactive='Y'
+left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sct.sspr_labor_regime_id
+left join c_period cp on cp.c_period_id = sp.c_period_id
+left join c_year pp on cp.c_year_id = pp.c_year_id
+left join ad_org ao on ao.ad_org_id = sp.ad_org_id
+left join sspempd_occupational_code oc on oc.sspempd_occupational_code_id = cbp.EM_Sspr_Cod_Ocupac_Iess
+left join sspr_contract scrt on scrt.c_bpartner_id = cbp.c_bpartner_id and sct.isactive='Y'
+left join (
+
+select
+sum(spt.workeddays) as bp_workeddays
+,cbp.c_bpartner_id
+from sspr_payroll sp
+join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id and sct.isactive='Y'
+left join c_period cp on cp.c_period_id = sp.c_period_id
+left join c_year pp on cp.c_year_id = pp.c_year_id
+left join ad_org ao on ao.ad_org_id = sp.ad_org_id
+where
+((sp.ispayroll= 'Y' and sp.isliquidation='N')
+)
+and cbp.em_sspr_status ='A'
+and sp.c_period_id in (select
+cp.c_period_id
+from c_period cp
+where
+(cp.startdate>= (select startdate from ssph_tenth_settlement where ssph_tenth_settlement_id= $P{documentno})
+or cp.startdate<= (select enddate from ssph_tenth_settlement where ssph_tenth_settlement_id= $P{documentno}))
+ and (cp.enddate >= (select startdate from ssph_tenth_settlement where ssph_tenth_settlement_id= $P{documentno})
+  and cp.enddate <=(select enddate from ssph_tenth_settlement where ssph_tenth_settlement_id=$P{documentno}))
+
+)
+group by cbp.c_bpartner_id
+
+) diast on diast.c_bpartner_id = cbp.c_bpartner_id
+where cbp.EM_Sspr_Isexecutive = 'N' and
+((sp.ispayroll= 'Y' and sp.isliquidation='N') )
+AND cp.enddate <=  (select distinct to_char(enddate,'dd/MM/yyyy')  from ssph_tenth_settlement sts where sts.ssph_tenth_settlement_id =  $P{documentno})
+and cbp.em_sspr_status ='A'
+and cp.c_year_id= $P{c_year_id}
+and cbp.c_bpartner_id not in(select a.c_bpartner_id
+	from ssph_tenth_settlement_line a
+	where a.ssph_tenth_settlement_id = $P{documentno})
+and scrt.sspr_labor_regime_id = (select sspr_labor_regime_id from ssph_tenth_settlement where ssph_tenth_settlement_id = $P{documentno})
+Order by 3]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="taxid" class="java.lang.String"/>
+	<field name="nombre" class="java.lang.String"/>
+	<field name="nombre1" class="java.lang.String"/>
+	<field name="workday" class="java.math.BigDecimal"/>
+	<field name="year" class="java.lang.String"/>
+	<field name="regimentname" class="java.lang.String"/>
+	<field name="genero" class="java.lang.String"/>
+	<field name="organization" class="java.lang.String"/>
+	<field name="iess" class="java.lang.String"/>
+	<field name="tipo_pago" class="java.lang.String"/>
+	<field name="jornada_parcial" class="java.lang.String"/>
+	<field name="horas_semana_jparcial" class="java.lang.String"/>
+	<field name="discapacitado" class="java.lang.String"/>
+	<field name="decimo_cuarto" class="java.lang.String"/>
+	<field name="total_ganado" class="java.math.BigDecimal"/>
+	<field name="retencion_judicial" class="java.math.BigDecimal"/>
+	<variable name="COUNT" class="java.math.BigDecimal" calculation="Count">
+		<variableExpression><![CDATA[$F{taxid}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="50" splitType="Stretch">
+			<staticText>
+				<reportElement x="364" y="0" width="70" height="50" uuid="21d25e51-b175-4c42-a3b2-f341e578eaee"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ocupación]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="88" height="50" uuid="b628aff6-f9b3-4ac3-a8df-42649e35915c"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ Cédula (Ejm.:0502366503)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="210" y="0" width="98" height="50" uuid="db1a6fda-95be-4f65-bb6d-b9c92e9e23bf"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Apellidos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1086" y="0" width="71" height="50" uuid="c3f291f4-b383-4c59-9737-b73de3351f23"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor Retención]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="877" y="0" width="106" height="50" uuid="25614c82-8165-4c5a-a15c-19e9675bd3bd"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Solo si su trabajador posee algun tipo de discapacidad ponga una X]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="434" y="0" width="74" height="50" uuid="59c8ddef-cc95-4278-8f3c-df603c22815f"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true" isStrikeThrough="false"/>
+				</textElement>
+				<text><![CDATA[Días laborados (360 días equivalen a un año)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="308" y="0" width="56" height="50" uuid="d0e8e035-c2f6-499c-bc90-64dafb8fd65a"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Genero (Masculino=M ó Femenino=F)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="758" y="0" width="119" height="50" uuid="38b63257-9f7e-4432-badb-eeeb12120a71"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DETERMINE EN HORAS LA JORNADA PARCIAL PERMANENTE SEMANAL ESTIPULADO EN EL CONTRATO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="508" y="0" width="150" height="50" uuid="bdafcc11-c346-4595-8247-0170f02d7a17"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de Deposito(Pago Directo=P  Acreditación en Cuenta=A Retención Pago Directo=RP, Retención Acreditación en Cuenta=RA)]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="88" y="0" width="122" height="50" uuid="be00f9b5-f100-473d-b2ba-cb78b5498f80"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombres]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1157" y="0" width="119" height="50" uuid="98d490b6-12ce-45e2-b018-171c238c96fc"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[SOLO SI SU TRABAJADOR MENSUALIZA EL PAGO DE LA DECIMOCUARTA REMUNERACIÓN PONGA UNA X]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="658" y="0" width="100" height="50" uuid="8f0f1a20-7503-40b6-b172-bc8675d50a40"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Solo si el trabajador posee JORNADA PARCIAL PERMANENTE ponga una X]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="983" y="0" width="103" height="50" uuid="dcd0f217-8fc6-4fd8-8639-396a54fc0af7"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de Jubilación]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="###0" isBlankWhenNull="true">
+				<reportElement x="434" y="0" width="74" height="20" uuid="3976d47f-e521-45b2-a8d0-17c4c62e4624"/>
+				<box rightPadding="5"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{workday}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="364" y="0" width="70" height="20" uuid="46d6e9a2-4f9a-4e6e-be4d-9bcddc0eba5b"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{iess}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="308" y="0" width="56" height="20" uuid="d023877c-f67b-42a2-9fe1-c906bcf60f3f"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{genero}.substring( 0, 1 )]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="210" y="0" width="98" height="20" uuid="cf1b4c19-10fd-498e-b6d9-f078e56b48b0"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{nombre}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="88" height="20" uuid="827c3deb-b825-47c4-bcb7-14d9eade139b"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{taxid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="88" y="0" width="122" height="20" uuid="f65f987f-c86b-4de3-a423-98aef66ebd8b"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{nombre1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="508" y="0" width="150" height="20" uuid="45d912cf-280c-45ee-81da-eb80a1844f03"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{tipo_pago}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="877" y="0" width="106" height="20" uuid="12ae6e82-cda7-4127-88b0-edd6bf989618"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{discapacitado}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1157" y="0" width="119" height="20" uuid="0b77e0db-d635-40f6-99fd-7ba978ad4d17"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{decimo_cuarto}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="1086" y="0" width="71" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="e68d042c-9724-4a9f-a3b9-bd3800d4415f"/>
+				<box rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Top" rotation="None" markup="none">
+					<font fontName="SansSerif" size="8" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{retencion_judicial}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="658" y="0" width="100" height="20" uuid="ffbfc971-664d-4db3-8df6-ce78d816df84"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{jornada_parcial}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="758" y="0" width="119" height="20" uuid="7f6adcaf-c648-4e96-8821-65c46589de2e"/>
+				<box rightPadding="5"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{horas_semana_jparcial}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

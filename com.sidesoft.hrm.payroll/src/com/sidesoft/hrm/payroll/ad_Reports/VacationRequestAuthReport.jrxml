@@ -1,0 +1,514 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="VacationRequestAuthReport" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/opt/importadoradavilapreprod/modules/com.sidesoft.hrm.payroll/src/com/sidesoft/hrm/payroll/ad_Reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DOCUMENT_ID" class="java.lang.String"/>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<parameter name="BASE_WEB" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+	to_char('Usuario: ') || (select coalesce(to_char(cbp.name), to_char(au.name)) from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = $P{AD_USER_ID}) AS "usuario",
+'Fecha de Impresión:  ' || TO_CHAR(NOW(),'dd/MM/yyyy HH24:MI:SS') as fecha_impresion,
+	bp.c_bpartner_id as bpid,
+	org.name as organizaton,
+	bp.taxid as tax,
+	bp.EM_SSPR_Entrydate as startdate,
+	dep.name as department,
+	bp.name as employee,
+	date_part('year',age(now(), cont.startdate)) as yearsofservice,
+	date_part('month',age(now(), cont.startdate)) as monthsofservice,
+	(select sum(Nodaystotal) from sspr_vacations vac where vac.c_bpartner_id = bp.c_bpartner_id group by bp.c_bpartner_id) as acummulateddays,
+	le.Nodays as requestdays,
+	(select sum(Nodaystotal) from sspr_vacations vac where vac.c_bpartner_id = bp.c_bpartner_id group by bp.c_bpartner_id) - le.Nodays as pendingdays,
+	(select min(date_part('year',Startdate)) from sspr_leave_emp_vac where SSPR_Leave_Emp_id = le.SSPR_Leave_Emp_id) as startperiod,
+	(select max(date_part('year',ENDDate)) from sspr_leave_emp_vac where SSPR_Leave_Emp_id = le.SSPR_Leave_Emp_id) as endperiod,
+	to_char(le.Stardate,'dd') as startdaydate,
+	to_char(le.Stardate,'TMMONTH') as startmonthdate,
+	to_char(le.Stardate,'yyyy') as startyeardate,
+	to_char(le.Enddate,'dd') as enddaydate,
+	to_char(le.Enddate,'TMMONTH') as endmonthdate,
+	to_char(le.Enddate,'yyyy') as endyeardate,
+	to_char(le.Enddate+interval '1 day','dd') as returndaydate,
+	to_char(le.Enddate+interval '1 day','TMMONTH') as returnmonthdate,
+	to_char(le.Enddate+interval '1 day','yyyy') as returnyeardate,
+	le.description as observation,
+	bp.name as signemployee,
+	bpa.name as signauth,
+	org.ad_org_id as organizationid
+from SSPR_Leave_Emp le
+inner join ad_org org on org.ad_org_id = le.ad_org_id
+inner join c_bpartner bp on le.c_bpartner_id = bp.c_bpartner_id
+inner join Sshr_Department dep on dep.Sshr_Department_ID = bp.EM_Sshr_Department_ID
+inner join SSPR_Contract cont on cont.c_bpartner_id = bp.c_bpartner_id
+	and cont.isactive = 'Y' and cont.created = (select max(created)
+		from SSPR_Contract where isactive = 'Y' and c_bpartner_id = bp.c_bpartner_id)
+left join c_bpartner bpa on le.Authorizer_ID = bpa.c_bpartner_id
+where le.SSPR_Leave_Emp_id = $P{DOCUMENT_ID}]]>
+	</queryString>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="bpid" class="java.lang.String"/>
+	<field name="organizaton" class="java.lang.String"/>
+	<field name="tax" class="java.lang.String"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="department" class="java.lang.String"/>
+	<field name="employee" class="java.lang.String"/>
+	<field name="yearsofservice" class="java.lang.Double"/>
+	<field name="monthsofservice" class="java.lang.Double"/>
+	<field name="acummulateddays" class="java.math.BigDecimal"/>
+	<field name="requestdays" class="java.math.BigDecimal"/>
+	<field name="pendingdays" class="java.math.BigDecimal"/>
+	<field name="startperiod" class="java.lang.Double"/>
+	<field name="endperiod" class="java.lang.Double"/>
+	<field name="startdaydate" class="java.lang.String"/>
+	<field name="startmonthdate" class="java.lang.String"/>
+	<field name="startyeardate" class="java.lang.String"/>
+	<field name="enddaydate" class="java.lang.String"/>
+	<field name="endmonthdate" class="java.lang.String"/>
+	<field name="endyeardate" class="java.lang.String"/>
+	<field name="returndaydate" class="java.lang.String"/>
+	<field name="returnmonthdate" class="java.lang.String"/>
+	<field name="returnyeardate" class="java.lang.String"/>
+	<field name="observation" class="java.lang.String"/>
+	<field name="signemployee" class="java.lang.String"/>
+	<field name="signauth" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="112" splitType="Stretch">
+			<staticText>
+				<reportElement x="164" y="51" width="238" height="61"/>
+				<textElement textAlignment="Center">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[IMPORTADORA DAVILA SOLICITUD Y AUTORIZACION DE VACACIONES]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="1" y="0" width="207" height="41"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+			<textField isBlankWhenNull="true">
+				<reportElement x="340" y="3" width="210" height="12"/>
+				<textElement textAlignment="Right" verticalAlignment="Top">
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="340" y="16" width="210" height="13"/>
+				<textElement textAlignment="Right" verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="92" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="13" width="123" height="20"/>
+				<box leftPadding="3"/>
+				<textElement/>
+				<text><![CDATA[Nombre de la Empresa:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="35" width="96" height="20"/>
+				<box leftPadding="3"/>
+				<textElement/>
+				<text><![CDATA[C.I. del Empleado:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="57" width="123" height="20"/>
+				<box leftPadding="3"/>
+				<textElement/>
+				<text><![CDATA[Fecha de ingreso:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="123" y="13" width="128" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizaton}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="96" y="35" width="128" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tax}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="123" y="57" width="128" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.util.Date"><![CDATA[$F{startdate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="263" y="13" width="123" height="20"/>
+				<textElement/>
+				<text><![CDATA[Area y/o Departamento:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="224" y="35" width="119" height="20"/>
+				<textElement/>
+				<text><![CDATA[Nombre del Empleado:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="263" y="57" width="123" height="20"/>
+				<textElement/>
+				<text><![CDATA[Años de servicio:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="386" y="13" width="169" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{department}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="343" y="35" width="211" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{employee}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="386" y="57" width="169" height="20" forecolor="#0216FF"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.0f", $F{yearsofservice}) + ($F{yearsofservice}==1.0?" año ":" años ") + String.format("%.0f", $F{monthsofservice}) + ($F{yearsofservice}==1.0?" mes ":" meses ")]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="0" y="5" width="555" height="1" forecolor="#646464"/>
+			</line>
+			<line>
+				<reportElement x="0" y="87" width="555" height="1"/>
+				<graphicElement>
+					<pen lineWidth="2.0"/>
+				</graphicElement>
+			</line>
+			<line>
+				<reportElement x="555" y="6" width="1" height="82"/>
+				<graphicElement>
+					<pen lineWidth="2.0"/>
+				</graphicElement>
+			</line>
+			<line>
+				<reportElement x="-1" y="6" width="1" height="82" forecolor="#646464"/>
+			</line>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="397" splitType="Stretch">
+			<staticText>
+				<reportElement x="42" y="16" width="100" height="20"/>
+				<textElement/>
+				<text><![CDATA[Días que acumula: ]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="142" y="16" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.2f", $F{acummulateddays}.add($F{requestdays}))]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="196" y="16" width="100" height="20"/>
+				<textElement/>
+				<text><![CDATA[Días a disfrutar: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="350" y="16" width="100" height="20"/>
+				<textElement/>
+				<text><![CDATA[Pendientes:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="15" y="46" width="127" height="20"/>
+				<textElement/>
+				<text><![CDATA[Período a Disfrutar año:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="196" y="46" width="100" height="20"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[al año:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="142" y="46" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.0f", $F{startperiod})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="296" y="16" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.0f", $F{requestdays})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="296" y="46" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.0f", $F{endperiod})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="450" y="16" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.2f", $F{pendingdays}.add($F{requestdays}))]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="81" width="555" height="20"/>
+				<textElement/>
+				<text><![CDATA[Días que inicia sus Vacaciones:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="81" y="113" width="37" height="20"/>
+				<textElement/>
+				<text><![CDATA[del]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="402" y="113" width="60" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startyeardate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="174" y="113" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[de]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="372" y="113" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[del]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="120" y="113" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startdaydate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="207" y="113" width="153" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startmonthdate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="120" y="151" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{enddaydate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="372" y="151" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[del]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="81" y="151" width="37" height="20"/>
+				<textElement/>
+				<text><![CDATA[hasta]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="174" y="151" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[de]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="402" y="151" width="60" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{endyeardate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="207" y="151" width="153" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{endmonthdate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="1" y="185" width="555" height="20"/>
+				<textElement/>
+				<text><![CDATA[Fecha en que deberá presentarse a trabajar:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="402" y="218" width="60" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{returnyeardate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="207" y="218" width="153" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{returnmonthdate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="174" y="218" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[de]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="372" y="218" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[del]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="120" y="218" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{returndaydate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="15" y="270" width="81" height="20"/>
+				<textElement/>
+				<text><![CDATA[Observación]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="96" y="270" width="437" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{observation}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="-1" y="318" width="555" height="27"/>
+				<textElement/>
+				<text><![CDATA[Por el presente expreso mi conformidad de solicitar y gozar mis vacaciones de acuerdo a lo que se establece en el código del trabajo.]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="454" y="361" width="60" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startyeardate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="259" y="361" width="153" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startmonthdate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="226" y="361" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[de]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="424" y="361" width="22" height="20"/>
+				<textElement/>
+				<text><![CDATA[del]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="172" y="361" width="44" height="20" forecolor="#0216E1"/>
+				<box>
+					<bottomPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+					<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#646464"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startdaydate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="21" y="361" width="141" height="20"/>
+				<textElement/>
+				<text><![CDATA[Importadora Dávila, Quito:]]></text>
+			</staticText>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="200" splitType="Stretch">
+			<staticText>
+				<reportElement x="42" y="103" width="122" height="29"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Firma de Conformidad del Empleado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="221" y="103" width="139" height="29"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Firma de Autorizacion del Jefe Inmediato]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="394" y="103" width="122" height="29"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Firma Recursos Humanos]]></text>
+			</staticText>
+			<line>
+				<reportElement x="221" y="86" width="139" height="1"/>
+			</line>
+			<line>
+				<reportElement x="394" y="85" width="139" height="1"/>
+			</line>
+			<textField>
+				<reportElement x="20" y="88" width="176" height="15" forecolor="#0216E1"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{signemployee}]]></textFieldExpression>
+			</textField>
+			<subreport>
+				<reportElement x="1" y="155" width="553" height="26"/>
+				<subreportParameter name="DOCUMENT_ID">
+					<subreportParameterExpression><![CDATA[$F{bpid}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$P{BASE_WEB}.replace("web","src-loc/design") + "/com/sidesoft/hrm/payroll/ad_Reports/VacationRequestAuthReport_resume.jasper"]]></subreportExpression>
+			</subreport>
+			<textField>
+				<reportElement x="372" y="88" width="176" height="15" forecolor="#0216E1"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{signauth}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="38" y="86" width="139" height="1"/>
+			</line>
+		</band>
+	</summary>
+</jasperReport>

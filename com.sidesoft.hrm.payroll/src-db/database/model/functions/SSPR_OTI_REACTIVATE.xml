@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_OTI_REACTIVATE">
+    <function name="SSPR_OTI_REACTIVATE" type="NULL">
+      <parameter name="p_instance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+    v_ResultStr VARCHAR2(2000):='';
+    v_Message VARCHAR2(2000):='';
+    v_Result NUMBER:=1;
+    v_Record_ID VARCHAR2(32);
+    v_User_ID VARCHAR2(32):='0';
+    
+    TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+BEGIN
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || P_Instance_ID);
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(P_Instance_ID, NULL, 'Y', NULL, NULL);
+    
+    BEGIN --BODY
+        -- Get Parameters
+        v_ResultStr:='ReadingParameters';
+        FOR Cur_Parameter IN (
+            SELECT i.Record_ID, i.AD_User_ID, p.ParameterName, p.P_String, p.P_Number, p.P_Date
+            FROM AD_PInstance i
+                LEFT JOIN AD_PInstance_Para p ON i.AD_PInstance_ID = p.AD_PInstance_ID
+            WHERE i.AD_PInstance_ID = P_Instance_ID
+            ORDER BY p.SeqNo
+        ) LOOP
+            v_Record_ID := Cur_Parameter.Record_ID;
+            v_User_ID := Cur_Parameter.AD_User_ID;
+        END LOOP; -- Get Parameter
+        
+        UPDATE sspr_other_tax_income SET processed = 'N' WHERE sspr_other_tax_income_id = v_Record_ID;
+
+        DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message);
+        AD_UPDATE_PINSTANCE(P_Instance_ID, NULL, 'N', v_Result, v_Message);
+
+        RETURN;
+    END; --BODY
+    
+    EXCEPTION WHEN OTHERS THEN
+        v_ResultStr:= '@ERROR=' || SQLERRM;
+        DBMS_OUTPUT.PUT_LINE( v_ResultStr) ;
+        ROLLBACK;
+        AD_UPDATE_PINSTANCE(P_Instance_ID, NULL, 'N', 0, v_ResultStr);
+END SSPR_OTI_REACTIVATE
+]]></body>
+    </function>
+  </database>

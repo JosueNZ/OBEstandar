@@ -1,0 +1,267 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFPR_SURROGATE_CALCULATE">
+    <function name="SFPR_SURROGATE_CALCULATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);  
+  v_SSconcept_ID VARCHAR2(32);  
+  
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_Period_ID VARCHAR2(32); 
+  v_PRollTemplate_ID VARCHAR2(32);  
+  v_n_insertions NUMBER;	--OBTG:NUMBER--
+  v_count NUMBER;		--OBTG:NUMBER--
+  v_Message VARCHAR2(2000):='';
+  V_DAYSPERIOD_INI NUMBER;
+
+BEGIN
+  --  Update AD_PInstance
+  --RAISE NOTICE '%','Updating PInstance - Processing ' || PInstance_ID ;
+  --v_ResultStr := 'PInstanceNotFound';
+  --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;    
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,p.ParameterName,p.P_String,p.P_Number,p.P_Date,p.AD_Client_ID,
+	p.AD_Org_ID,p.CreatedBy       
+	FROM AD_PInstance i
+	LEFT JOIN AD_PInstance_Para p
+	   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+	WHERE i.AD_PInstance_ID = PInstance_ID
+	ORDER BY p.SeqNo
+	)
+	LOOP      	  
+
+		IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+
+			v_StartPeriod_ID := Cur_Parameter.P_String;      
+			v_Client_ID := Cur_Parameter.AD_Client_ID;
+			v_Org_ID := Cur_Parameter.AD_Org_ID;
+			v_User_ID := Cur_Parameter.CreatedBy;
+			
+		ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+		
+			v_EndPeriod_ID := Cur_Parameter.P_String;
+			
+		ELSIF (Cur_Parameter.ParameterName = 'C_Bpartner_ID') THEN
+		
+			v_BPartner_ID := Cur_Parameter.P_String; 
+			     
+		ELSIF (Cur_Parameter.ParameterName = 'Em_Sfpr_Concept_ID') THEN
+		
+			v_SSconcept_ID := Cur_Parameter.P_String;  
+			
+		ELSE  
+		
+			DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+			
+		END IF;     
+
+	END LOOP; -- Get Parameter
+
+	SELECT startdate, enddate
+	INTO v_StartPeriod_StartDate, v_StartPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_StartPeriod_ID;
+
+	V_DAYSPERIOD_INI:=TO_NUMBER((v_StartPeriod_EndDate - v_StartPeriod_StartDate))+1;
+	
+	SELECT startdate, enddate
+	INTO v_EndPeriod_StartDate, v_EndPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_EndPeriod_ID;
+
+	IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+
+	RAISE_APPLICATION_ERROR(-20000, '@SSPR_EndStartPeriod@');
+
+	END IF;
+  
+
+	IF (v_BPartner_ID IS NOT NULL and v_SSconcept_ID IS NOT NULL) THEN
+
+	--Copy Concepts by employee
+		FOR Cur_Period IN 
+			(SELECT ES.C_BPARTNER_ID,TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1 AS NODAYS,
+				'Y' AS ISACTIVE
+                --,VT.SSFL_VESSEL_TYPE_ID AS VESSEL_TYPE
+                ,to_char('') AS VESSEL_TYPE
+                ,ES.SFPR_MOVEMENT_TYPE_ID AS MOVEMENT_TYPE_ID,
+				SEP.SSPR_POSITION_ID,GS.RMU AS RMU_BPARTNER,GES.RMU AS RMU_SURROGATE, (GES.RMU - GS.RMU) AS RMU_DIFERENCE,
+				/*(CASE WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) < 30 THEN trunc((GES.RMU - GS.RMU)/30 * ((TO_NUMBER(ES.ENDDATE - ES.STARTDATE))+1),2)
+				     WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) = 30 THEN (GES.RMU - GS.RMU)*/ -- CAMBIO X PEDIDO DE FLOPEC
+				(CASE WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) < V_DAYSPERIOD_INI THEN trunc((GES.RMU - GS.RMU)/V_DAYSPERIOD_INI * ((TO_NUMBER(ES.ENDDATE - ES.STARTDATE))+1),2)
+				     WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) = V_DAYSPERIOD_INI THEN (GES.RMU - GS.RMU)
+				 END)  AS GRANDTOTAL,SFPR_MOVEMENT_TYPE_ID AS MOVEMENT_ID,
+				ES.SFPR_EMPLOYEE_SURROGATE_ID,( TO_CHAR(ES.ENDDATE) || ' / ' || TO_CHAR(ES.STARTDATE) --|| ' - ' || VT.NAME 
+                ) AS DETAIL,
+				ES.startdate as startdatesurrogate, ES.enddate as enddatesurrogate,CBP.em_sspr_category_acct_id ,CBP.name as employeename
+				FROM SFPR_EMPLOYEE_SURROGATE ES
+				--LEFT JOIN SSFL_VESSEL_TYPE VT ON SSFL_VESSEL_TYPE_ID = EM_SSFL_VESSEL_TYPE_ID
+				LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = ES.C_BPartner_id
+				LEFT JOIN SSPR_CONTRACT CC ON CC.C_BPARTNER_ID = CBP.C_BPARTNER_ID
+				LEFT JOIN SSPR_CONTRACT_POSITION CP ON CP.SSPR_CONTRACT_ID = CC.SSPR_CONTRACT_ID
+				LEFT JOIN SSPR_POSITION SP ON SP.SSPR_POSITION_ID = CP.SSPR_POSITION_ID
+				LEFT JOIN SFPR_GRADE GS ON GS.sfpr_employee_position_id = SP.SSPR_POSITION_ID
+				LEFT JOIN SSPR_POSITION SEP ON SEP.SSPR_POSITION_ID = ES.SURROGATE_TO_ID
+				LEFT JOIN SFPR_GRADE GES ON GES.sfpr_employee_position_id = SEP.SSPR_POSITION_ID
+				WHERE ES.C_BPARTNER_ID = v_BPartner_ID AND (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_StartPeriod_EndDate)
+				AND ES.PROCESSED = 'N'
+				AND(( CC.STARTDATE <=  v_StartPeriod_StartDate  AND CC.ENDDATE >= v_StartPeriod_StartDate) OR
+				(CC.STARTDATE = (SELECT MAX(STARTDATE) FROM SSPR_CONTRACT WHERE C_BPARTNER_ID =  CBP.C_BPARTNER_ID)))			 
+				AND(( CP.STARTDATE <=  v_StartPeriod_StartDate   AND CP.ENDDATE >= v_StartPeriod_StartDate) OR
+				(CP.STARTDATE = (SELECT MAX(STARTDATE) FROM SSPR_CONTRACT_POSITION WHERE SSPR_CONTRACT_ID =  CP.SSPR_CONTRACT_ID )))
+			)
+		LOOP
+
+			IF (Cur_Period.RMU_SURROGATE IS NOT NULL ) THEN 
+				SELECT count(*)
+				INTO v_count
+				FROM SFPR_SURROGATE_DETAIL
+				WHERE CONCEPT_SURROGATE =v_SSconcept_ID AND C_BPartner_ID = v_BPartner_ID
+				AND SFPR_EMPLOYEE_SURROGATE_ID = Cur_Period.SFPR_EMPLOYEE_SURROGATE_ID
+				AND C_Period_ID = v_EndPeriod_ID;
+
+				IF v_count = 0 THEN
+				
+					INSERT INTO SFPR_SURROGATE_DETAIL 
+					(ad_client_id,ad_org_id,created,createdby,updated,updatedby,isactive,
+					sfpr_surrogate_detail_id,sfpr_movement_type_id
+					,c_period_id,c_bpartner_id,sfpr_employee_position_id,surrogate_rmu,bpartner_rmu,diference_rmu
+					,nodays,grandtotal,concept_surrogate,processed,status_surrogate,period_processed,SFPR_EMPLOYEE_SURROGATE_ID
+					,DESCRIPTION,
+					startdate, enddate,sspr_category_acct_id)
+					VALUES(v_Client_ID, v_Org_ID,now(), v_User_ID, now(), v_User_ID,'Y' 
+					,get_uuid(),Cur_Period.movement_type_id,v_EndPeriod_ID, Cur_Period.c_bpartner_id,Cur_Period.sspr_position_id
+					,Cur_Period.rmu_surrogate,Cur_Period.rmu_bpartner,Cur_Period.rmu_diference,Cur_Period.nodays,
+					Cur_Period.GRANDTOTAL,v_SSconcept_ID,'N','CO',v_EndPeriod_ID,Cur_Period.SFPR_EMPLOYEE_SURROGATE_ID,Cur_Period.DETAIL,
+					Cur_Period.startdatesurrogate, Cur_Period.enddatesurrogate,Cur_Period.em_sspr_category_acct_id);   
+
+					v_n_insertions := v_n_insertions+1; 
+					
+				END IF;
+				
+			ELSE 
+				ROLLBACK;
+				RAISE_APPLICATION_ERROR(-20000, '@Error: La columna Surrogate RMU es obligatoria y no se puede dejar en blanco. Empleado- @'||Cur_Period.employeename);
+			
+			END IF;	
+				
+		END LOOP;
+ELSE
+	IF (v_BPartner_ID IS NULL AND v_SSconcept_ID IS NOT NULL) THEN
+
+	      --Copy Concepts by employee
+		FOR Cur_Period IN 
+		(SELECT ES.C_BPARTNER_ID,TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1 AS NODAYS,
+				'Y' AS ISACTIVE
+                --,VT.SSFL_VESSEL_TYPE_ID AS VESSEL_TYPE
+                ,to_char('') AS VESSEL_TYPE
+                ,ES.SFPR_MOVEMENT_TYPE_ID AS MOVEMENT_TYPE_ID,
+				SEP.SSPR_POSITION_ID,GS.RMU AS RMU_BPARTNER,GES.RMU AS RMU_SURROGATE, (GES.RMU - GS.RMU) AS RMU_DIFERENCE,
+				/*(CASE WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) < 30 THEN trunc((GES.RMU - GS.RMU)/30 * ((TO_NUMBER(ES.ENDDATE - ES.STARTDATE))+1),2)
+				     WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) = 30 THEN (GES.RMU - GS.RMU)*/ -- CAMBIO X PEDIDO DE FLOPEC
+				(CASE WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) < V_DAYSPERIOD_INI THEN trunc((GES.RMU - GS.RMU)/V_DAYSPERIOD_INI * ((TO_NUMBER(ES.ENDDATE - ES.STARTDATE))+1),2)
+				     WHEN TO_NUMBER(ES.ENDDATE - ES.STARTDATE) = V_DAYSPERIOD_INI THEN (GES.RMU - GS.RMU)
+				END)  AS GRANDTOTAL,SFPR_MOVEMENT_TYPE_ID AS MOVEMENT_ID,
+				ES.SFPR_EMPLOYEE_SURROGATE_ID,( TO_CHAR(ES.ENDDATE) || ' / ' || TO_CHAR(ES.STARTDATE)-- || ' - ' || VT.NAME 
+                ) AS DETAIL,
+				ES.startdate as startdatesurrogate, ES.enddate as enddatesurrogate,CBP.em_sspr_category_acct_id,CBP.name as employeename				
+				FROM SFPR_EMPLOYEE_SURROGATE ES
+				--LEFT JOIN SSFL_VESSEL_TYPE VT ON SSFL_VESSEL_TYPE_ID = EM_SSFL_VESSEL_TYPE_ID
+				LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = ES.C_BPartner_id
+				LEFT JOIN SSPR_CONTRACT CC ON CC.C_BPARTNER_ID = CBP.C_BPARTNER_ID
+				LEFT JOIN SSPR_CONTRACT_POSITION CP ON CP.SSPR_CONTRACT_ID = CC.SSPR_CONTRACT_ID
+				LEFT JOIN SSPR_POSITION SP ON SP.SSPR_POSITION_ID = CP.SSPR_POSITION_ID
+				LEFT JOIN SFPR_GRADE GS ON GS.sfpr_employee_position_id = SP.SSPR_POSITION_ID
+				LEFT JOIN SSPR_POSITION SEP ON SEP.SSPR_POSITION_ID = ES.SURROGATE_TO_ID
+				LEFT JOIN SFPR_GRADE GES ON GES.sfpr_employee_position_id = SEP.SSPR_POSITION_ID
+				WHERE (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_StartPeriod_EndDate)
+				AND ES.PROCESSED = 'N'
+				AND(( CC.STARTDATE <=  v_StartPeriod_StartDate  AND CC.ENDDATE >= v_StartPeriod_StartDate) OR
+				(CC.STARTDATE = (SELECT MAX(STARTDATE) FROM SSPR_CONTRACT WHERE C_BPARTNER_ID =  CBP.C_BPARTNER_ID)))			 
+				AND(( CP.STARTDATE <=  v_StartPeriod_StartDate   AND CP.ENDDATE >= v_StartPeriod_StartDate) OR
+				(CP.STARTDATE = (SELECT MAX(STARTDATE) FROM SSPR_CONTRACT_POSITION WHERE SSPR_CONTRACT_ID =  CP.SSPR_CONTRACT_ID )))
+			 
+		)
+		LOOP
+
+		  IF (Cur_Period.RMU_SURROGATE IS NOT NULL ) THEN 
+
+			SELECT count(*)
+			INTO v_count
+			FROM SFPR_SURROGATE_DETAIL
+			WHERE CONCEPT_SURROGATE =v_SSconcept_ID AND C_BPartner_ID = Cur_Period.c_bpartner_id
+			AND SFPR_EMPLOYEE_SURROGATE_ID = Cur_Period.SFPR_EMPLOYEE_SURROGATE_ID
+			AND C_Period_ID = v_EndPeriod_ID;		
+
+			IF v_count = 0 THEN
+			
+				INSERT INTO SFPR_SURROGATE_DETAIL 
+				(ad_client_id,ad_org_id,created,createdby,updated,updatedby,isactive,
+				sfpr_surrogate_detail_id,sfpr_movement_type_id
+				,c_period_id,c_bpartner_id,sfpr_employee_position_id,surrogate_rmu,bpartner_rmu,diference_rmu
+				,nodays,grandtotal,concept_surrogate,processed,status_surrogate,period_processed,SFPR_EMPLOYEE_SURROGATE_ID
+				,DESCRIPTION,
+				startdate, enddate,sspr_category_acct_id)
+				VALUES(v_Client_ID, v_Org_ID,now(), v_User_ID, now(), v_User_ID,'Y' 
+				,get_uuid(),Cur_Period.movement_type_id,v_EndPeriod_ID, Cur_Period.c_bpartner_id,Cur_Period.sspr_position_id
+				,Cur_Period.rmu_surrogate,Cur_Period.rmu_bpartner,Cur_Period.rmu_diference,Cur_Period.nodays,
+				Cur_Period.GRANDTOTAL,v_SSconcept_ID,'N','CO',v_EndPeriod_ID,Cur_Period.SFPR_EMPLOYEE_SURROGATE_ID
+				,Cur_Period.DETAIL,
+				Cur_Period.startdatesurrogate, Cur_Period.enddatesurrogate,Cur_Period.em_sspr_category_acct_id);   
+				
+				v_n_insertions := v_n_insertions+1;
+				 
+			END IF;
+			           
+		ELSE 
+				ROLLBACK;
+				RAISE_APPLICATION_ERROR(-20000, '@Error: La columna Surrogate RMU es obligatoria y no se puede dejar en blanco. Empleado- @'|| Cur_Period.employeename);
+			
+			END IF;		
+
+		END LOOP;
+
+	END IF;
+END IF;      
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --END BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SFPR_SURROGATE_CALCULATE
+]]></body>
+    </function>
+  </database>

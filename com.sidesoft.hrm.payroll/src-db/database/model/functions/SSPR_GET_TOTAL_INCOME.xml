@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GET_TOTAL_INCOME">
+    <function name="SSPR_GET_TOTAL_INCOME" type="NUMERIC">
+      <parameter name="p_sspr_concept_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_payroll_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_value VARCHAR2(40);
+  v_concepttype VARCHAR2(60);
+  v_formula VARCHAR2(1500);
+  v_sql VARCHAR2(1500);
+  v_amount NUMBER;  
+    v_Concept VARCHAR2(1200);
+    v_PartnerName VARCHAR2(1200);
+
+BEGIN  
+
+  IF (p_SSPR_Concept_ID IS NULL OR p_sspr_payroll_id IS NULL OR p_C_BPartner_ID IS NULL) THEN
+
+    RAISE_APPLICATION_ERROR(-20000, '@ParametersError@');
+    
+  ELSE  
+
+    SELECT concepttype, value INTO v_concepttype, v_value
+    FROM SSPR_Concept
+    WHERE SSPR_Concept_ID = p_SSPR_Concept_ID;
+    --RAISE_APPLICATION_ERROR(-20000, ' primer select PRUEBA '||p_SSPR_Concept_ID);
+  
+    IF (v_concepttype <> 'S') THEN
+
+      --SELECT amount INTO v_amount
+      --FROM SSPR_Concept_Amount
+      --WHERE SSPR_Concept_ID = p_SSPR_Concept_ID AND C_Period_ID = p_C_Period_ID 
+      --      AND C_BPartner_ID = p_C_BPartner_ID;
+
+     /*select coalesce(to_number((SELECT to_number(amount) 
+     FROM SSPR_Concept_Amount
+      WHERE SSPR_Concept_ID = p_SSPR_Concept_ID AND C_Period_ID = 'D19726D85271496284A5B1DA1A9E729B'--p_C_Period_ID 
+          AND C_BPartner_ID = p_C_BPartner_ID)),0) INTO v_amount from dual;    */        
+
+      SELECT sptc.amount
+      INTO v_amount 
+      FROM sspr_payroll sp
+      LEFT JOIN sspr_payroll_ticket spt on spt.sspr_payroll_id = sp.sspr_payroll_id
+      LEFT JOIN sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id   
+      WHERE sptc.SSPR_Concept_ID = p_SSPR_Concept_ID 
+        AND sp.sspr_payroll_id = p_sspr_payroll_id 
+        AND spt.C_BPartner_ID = p_C_BPartner_ID;
+       
+
+--      RAISE_APPLICATION_ERROR(-20000, ' primer select '||v_amount);
+
+      IF (v_amount IS NULL) THEN
+
+          v_amount := 0;
+
+      END IF;             
+
+    ELSE   
+
+   
+      --  410003C363934E178024704B9B9501F3
+      -- Replacement concept values to amounts.
+      SELECT formula INTO v_formula
+      FROM SSPR_Concept
+      WHERE SSPR_Concept_ID = p_SSPR_Concept_ID;
+
+      v_value:= SSPR_SUBSTR_FORMULA(v_formula);    
+      --RAISE_APPLICATION_ERROR(-20000, ' formula '||v_value || ' - ' || p_sspr_payroll_id || ' - ' || p_C_BPartner_ID);
+      WHILE (v_value IS NOT NULL) LOOP  
+        --RAISE_APPLICATION_ERROR(-20000, ' segundo select '||v_value);
+        SELECT COALESCE(
+          (
+            SELECT sptc.amount
+            FROM sspr_payroll sp
+            LEFT JOIN sspr_payroll_ticket spt on spt.sspr_payroll_id = sp.sspr_payroll_id
+            LEFT JOIN sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id   
+            LEFT JOIN sspr_concept c on c.sspr_concept_id = sptc.sspr_concept_id
+            WHERE c.value = v_value 
+            AND sp.sspr_payroll_id = p_sspr_payroll_id 
+            AND spt.C_BPartner_ID = p_C_BPartner_ID
+          ), 0)
+        INTO v_amount
+        FROM dual;
+                            
+        IF (v_amount IS NULL) THEN
+          v_amount := 0;
+        END IF;
+        
+        IF (COALESCE(v_amount,0) =0) THEN
+          v_amount := 0;
+        END IF;                 
+
+        v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+        v_value:= SSPR_SUBSTR_FORMULA(v_formula);
+        v_formula:= REPLACE(v_formula,',', '.');
+  
+      END LOOP;  
+      -- End replacement concept values to amounts.
+            
+      BEGIN
+
+        EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+        -- RAISE_APPLICATION_ERROR(-20000, 'INGRESO LOOP 2'|| TO_CHAR(v_amount)||' FORMULA '||v_formula);
+
+      EXCEPTION  
+      WHEN OTHERS THEN
+      
+
+      
+      select
+      coalesce(to_char((SELECT NAME FROM SSPR_CONCEPT WHERE SSPR_CONCEPT_ID = p_SSPR_Concept_ID )),to_char('ND'))
+      into v_Concept
+      from dual;
+      
+      
+      select
+      coalesce(to_char((SELECT NAME FROM C_BPARTNER WHERE C_BPARTNER_ID =p_C_BPartner_ID)),to_char('ND'))
+      into v_PartnerName
+      from dual;
+
+        RAISE_APPLICATION_ERROR(-20000, '@FormulaSyntaxError o Division by zero in concept @'|| ( v_Concept ||' EMPLEADO: '|| v_PartnerName));
+ --RAISE notice '%', '@FormulaSyntaxError@'; --OBTG:-20000--*/
+      END;    
+          
+    END IF;
+
+    IF (v_amount IS NULL) THEN
+      
+      RETURN 0; 
+
+    ELSE  
+
+      RETURN v_amount;
+
+    END IF;    
+
+  END IF;
+END SSPR_GET_TOTAL_INCOME
+]]></body>
+    </function>
+  </database>

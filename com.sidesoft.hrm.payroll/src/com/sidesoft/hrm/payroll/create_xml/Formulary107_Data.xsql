@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<SqlClass name="Formulary107Data" package="com.sidesoft.hrm.payroll.create_xml">
+  <SqlMethod name="select" type="preparedStatement" return="multiple" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[  
+    select anio_entrega
+,mes_entrega
+,dia_entrega
+,taxid_org
+,org
+,f107general.year as anio
+,c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+,discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad
+,sum(sueldo) as sueldo
+,sum(bonos) as bonos
+,sum(utilidades) as utilidades
+,sum(impuestorenta) as impuestorenta
+,sum(decimotercero) as decimotercero
+,sum(decimocuarto) as decimocuarto
+,sum(fondosreserva) as fondosreserva
+,sum(compensacionsalariodigno) as compensacionsalariodigno
+,sum(otrosing_rentagravada) as otrosing_rentagravada
+,sum( ingresosgrav349) as ingresosgrav349
+,to_number(1) as sistemasalariodigno
+,sum(aportepersonal) as aportepersonal
+,sum(impuestorentacausado) as impuestorentacausado
+,sum(valorimprettrabajador) as valorimprettrabajador
+,sum(gastosvivienda) as gastosvivienda
+,sum(gastossalud) as gastossalud
+,sum(gastoseducacion) as gastoseducacion
+,sum(gastoalimentacion) as gastoalimentacion
+,sum(gastosvestimenta) as gastosvestimenta
+,sum(gastosturismo) as gastosturismo
+,sum(ingresosgravados) as ingresosgravados
+,sum(aportepersonalo) as aportepersonalo
+,sum(exoneracionpordiscapacidad) as exoneracionpordiscapacidad
+,sum(exoneracionportercerasedad) as exoneracionportercerasedad
+,sum(valorimpret403) as valorimpret403
+,sum(valorimpasumido405) as valorimpasumido405
+,sum(baseimponiblegrav) as baseimponiblegrav     
+,em_sspr_galapagosbenf as galapagosbenf
+,em_sspr_workwci as   workwci
+,em_sspr_netsalarysys    as sspr_netsalarysys   
+,sum(rebajagastospersonales) as rebajagastospersonales   
+,sum(despuesrebajagastospersonales) as despuesrebajagastospersonales   
+from   
+( select sspr_formulary107_detail_v_id
+,anio_entrega
+,mes_entrega
+,to_char(dia_entrega) as dia_entrega
+,taxid_org
+,to_char(org) as org
+,sspr_formulary107_detail_v.year
+,sspr_formulary107_detail_v.c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+, case when em_sspr_work_spouse='Y' then to_char('04') else discapacitado  end as discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad
+,trunc(sueldo,4) as sueldo
+,trunc(bonos,4) as bonos
+,trunc(utilidades,4) as utilidades
+,impuestorenta
+,decimotercero,decimocuarto,fondosreserva,compensacionsalariodigno
+,otrosing_rentagravada
+,trunc(sueldo + bonos + utilidades,4) as ingresosgrav349
+,to_number(1) as sistemasalariodigno
+,aportepersonal
+,impuestorentacausado
+,valorimprettrabajador
+,gastosvivienda
+,gastossalud
+,gastoseducacion
+,gastoalimentacion
+,gastosvestimenta
+,gastosturismo
+,ingresosgravados
+,aportepersonalo
+,exoneracionpordiscapacidad
+,exoneracionportercerasedad
+,valorimpret403
+,valorimpasumido405
+,baseimponiblegrav
+,documentno
+,ruccontador       
+,case when CBP.em_sspr_galapagosbenf='Y' then to_char('SI') else to_char('NO') end as em_sspr_galapagosbenf  
+,case when CBP.em_sspr_workwci='Y' then to_char('SI') else to_char('NO') end as em_sspr_workwci  
+,case when CBP.em_sspr_netsalarysys='Y' then to_char('2') else to_char('1') end em_sspr_netsalarysys      
+,rebajagastospersonales   
+,despuesrebajagastospersonales   
+from sspr_formulary107_detail_v     
+JOIN c_bpartner cbp on cbp.c_bpartner_id = sspr_formulary107_detail_v.c_bpartner_id      
+where sspr_formulary107_detail_v.c_year_id = ?      
+    
+union all    
+    
+select  to_char('') as sspr_formulary107_detail_v_id
+,to_char(now(),'yyyy') as anio_entrega
+,to_char(now(),'mm') as mes_entrega
+,to_char(now(),'dd') as dia_entrega
+,aoi.taxid as taxid_org
+,to_char(ao.name) as org
+,to_char(to_number(c_y.year) +1)  as year
+,? as c_year_id
+,cbp.taxid as taxid_employee
+,cbp.name as empleado
+,to_char(   
+        CASE   
+            WHEN cbp.em_sspr_documenttype = 'NI' THEN 'C'   
+            WHEN cbp.em_sspr_documenttype = 'P' THEN 'P'   
+            WHEN cbp.em_sspr_documenttype = 'SRT' THEN 'E'   
+            ELSE NULL   
+        END) as tipoidentificacion  
+, cbp.em_sspr_documentno as numeroidentificacion   
+, cbp.em_sspr_lastname as empleadoapellido
+,cbp.em_sspr_firstname as empleadonombre
+,se.value AS codigoestab
+, to_char(CASE  
+            WHEN cc.countrycode = 'EC' THEN '01'  
+            ELSE '02'  
+        END) pais
+,cc.em_sspr_coderesidence as codigopais
+,to_char(
+        CASE  
+            WHEN cc.em_sspr_applyagreement = 'Y' THEN 'SI'   
+            ELSE 'NA'  
+        END) AS aplicaconvenio   
+, (case when CBP.em_sspr_work_spouse = 'Y' then to_char('04') else (to_char(
+        CASE
+            WHEN cbp.em_sspr_isdisabled = 'Y' THEN '02'
+            ELSE '01'
+        END)) end) AS discapacitado
+, coalesce(cbp.em_sspr_disability,'0') AS porcentajediscapacidad   
+, to_char(COALESCE(
+        CASE    
+            WHEN cbp.em_sspr_representsdisabled = 'Y' THEN   
+            CASE   
+                WHEN p.em_sspr_documenttype = 'NI' THEN 'C'   
+                WHEN p.em_sspr_documenttype = 'P' THEN 'P'   
+                WHEN p.em_sspr_documenttype = 'SRT' THEN 'E'  
+                ELSE NULL  
+            END   
+            ELSE NULL   
+        END, 'N')) AS tipoidentdiscapacidad  
+, to_char(COALESCE(
+        CASE 
+            WHEN cbp.em_sspr_representsdisabled = 'Y' THEN p.taxid   
+            ELSE NULL   
+        END, '999')) AS numeroidentifdiscapacidad
+,to_number(0) as sueldo
+,to_number(0) as bonos
+,trunc(SU.TOTALPROFITS,4) as utilidades
+,to_number(0) as impuestorenta
+,to_number(0) as decimotercero,to_number(0) as decimocuarto  
+,to_number(0) as fondosreserva,su.Wagecompensation as compensacionsalariodigno  
+,to_number(0) as otrosing_rentagravada
+,to_number(0) as  ingresosgrav349
+,to_number(1) as  sistemasalariodigno
+,to_number(0) as aportepersonal
+,to_number(0) as impuestorentacausado
+,to_number(0) as valorimprettrabajador
+,to_number(0) as gastosvivienda
+,to_number(0) as gastossalud
+,to_number(0) as gastoseducacion
+,to_number(0) as gastoalimentacion
+,to_number(0) as gastosturismo
+,to_number(0) as gastosvestimenta
+,to_number(0) as ingresosgravados
+,to_number(0) as aportepersonalo
+,to_number(0) as exoneracionpordiscapacidad
+,to_number(0) as exoneracionportercerasedad
+,to_number(0) as valorimpret403
+,to_number(0) as valorimpasumido405
+,to_number(0) as baseimponiblegrav
+,to_char('') as documentno
+,to_char('') as ruccontador   
+,case when CBP.em_sspr_galapagosbenf='Y' then to_char('SI') else to_char('NO') end as em_sspr_galapagosbenf   
+,case when CBP.em_sspr_workwci='Y' then to_char('SI') else to_char('NO') end as em_sspr_workwci    
+,case when CBP.em_sspr_netsalarysys='Y' then to_char('2') else to_char('1') end em_sspr_netsalarysys        
+,to_number(0) as rebajagastospersonales   
+,to_number(0) as despuesrebajagastospersonales   
+FROM sspr_utilities SU    
+LEFT JOIN C_YEAR C_Y ON C_Y.C_YEAR_ID = SU.C_YEAR_ID    
+LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = SU.C_BPARTNER_ID     
+LEFT JOIN c_bpartner_location cbpl ON cbpl.c_bpartner_id = cbp.c_bpartner_id AND cbpl.isactive = 'Y'    
+LEFT JOIN c_location cl ON cbpl.c_location_id = cl.c_location_id     
+LEFT JOIN c_country cc ON cl.c_country_id = cc.c_country_id    
+LEFT JOIN sspr_establishmentcode se ON cbp.em_sspr_establishmentcode_id = se.sspr_establishmentcode_id    
+LEFT JOIN c_bpartner p ON cbp.em_sspr_bpartner_disabled_id = p.c_bpartner_id    
+LEFT JOIN ad_org ao ON ao.ad_org_id = su.ad_org_id   
+LEFT JOIN ad_clientinfo y ON ao.ad_client_id = y.ad_client_id    
+LEFT JOIN c_bpartner z ON y.em_sspr_c_bpartner_id = z.c_bpartner_id   
+LEFT JOIN ad_orginfo aoi ON ao.ad_org_id = aoi.ad_org_id   
+WHERE TO_NUMBER(trim(c_y.YEAR)) = (SELECT TO_NUMBER(CY.YEAR)-1  AS ANIO FROM C_YEAR CY WHERE CY.C_YEAR_ID = ?   
+)     
+and su.sspr_codeformulary107_id in ( select sspr_codeformulary107_id from sspr_codeformulary107  where typeconcept = 'UT')   
+and SU.C_BPARTNER_ID is not null   
+order by 10  
+) f107general  
+group by  anio_entrega
+,mes_entrega
+,dia_entrega
+,taxid_org
+,org
+,f107general.year
+,c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+,discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad    
+,em_sspr_galapagosbenf
+,em_sspr_workwci 
+,em_sspr_netsalarysys     
+order by  empleado
+ ]]>
+    </Sql>
+    <Parameter name="cYearID"/>
+    <Parameter name="cYearID"/>
+    <Parameter name="cYearID"/>
+  </SqlMethod>
+  
+</SqlClass>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<SqlClass name="DocLinePayrollCostCenterData" package="com.sidesoft.hrm.payroll.accounting">
+  <SqlClassComment></SqlClassComment>
+  <SqlMethod name="selected" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+            SELECT PRTC.SSPR_PAYROLL_TICKET_CONCEPT_ID, PRT.AD_ORG_ID, 10 AS LINE, PR.DESCRIPTION, 
+            (case when coalesce(dstcostcenter.percentage,0) =0 then Round(PRTC.AMOUNT,3)
+            else ((TRUNC(PRTC.AMOUNT,3)*coalesce(dstcostcenter.percentage,0))/100)  
+            end) as amount, '100' AS C_CURRENCY_ID, 
+            case when coalesce(dstcostcenter.percentage,0) =0 then BP.EM_SSPR_COSTCENTER_ID     
+            else dstcostcenter.c_costcenter_id end AS C_COSTCENTER_ID, BP.EM_SSPR_USER1_ID AS USER1_ID, BP.EM_SSPR_USER2_ID AS USER2_ID, 
+            PRTC.SSPR_CONCEPT_ID, BP.EM_SSPR_CATEGORY_ACCT_ID AS SSPR_CATEGORY_ACCT_ID, BP.C_BPARTNER_ID
+            , coalesce(dstcostcenter.percentage,0) as percentage 
+            , coalesce(catg_acct,BP.EM_SSPR_CATEGORY_ACCT_ID)  as catg_acct    
+            FROM SSPR_PAYROLL PR    
+            LEFT JOIN SSPR_PAYROLL_TICKET PRT ON PR.SSPR_PAYROLL_ID = PRT.SSPR_PAYROLL_ID    
+            LEFT JOIN SSPR_PAYROLL_TICKET_CONCEPT PRTC ON PRTC.SSPR_PAYROLL_TICKET_ID = PRT.SSPR_PAYROLL_TICKET_ID    
+            LEFT JOIN C_BPARTNER BP ON PRT.C_BPARTNER_ID = BP.C_BPARTNER_ID     
+            LEFT JOIN   
+            (   select sp.c_period_id,spe.c_bpartner_id, spc.percentage, spc.c_costcenter_id       
+                ,spc.em_sspr_category_acct_id as catg_acct       
+                from sspd_pctdist sp     
+                join sspd_pctdist_emp spe on spe.sspd_pctdist_id = sp.sspd_pctdist_id    
+                join sspd_pctdist_costcenter  spc on spe.sspd_pctdist_emp_id = spc.sspd_pctdist_emp_id    
+            ) dstcostcenter ON dstcostcenter.c_period_id =pr.c_period_id and dstcostcenter.c_bpartner_id =prt.c_bpartner_id     
+            WHERE PR.SSPR_PAYROLL_ID= ?    
+            AND PRTC.AMOUNT <> 0    
+            AND PRT.C_BPARTNER_ID = ?    
+            AND PRTC.SSPR_CONCEPT_ID = ?   
+            AND coalesce(dstcostcenter.percentage,0) > 0    
+            ORDER BY BP.C_BPARTNER_ID, PRTC.SSPR_CONCEPT_ID 
+      ]]>
+    </Sql>
+    <Parameter name="payroll"/>
+    <Parameter name="bpartner"/>
+    <Parameter name="concept"/>
+  </SqlMethod>
+</SqlClass>

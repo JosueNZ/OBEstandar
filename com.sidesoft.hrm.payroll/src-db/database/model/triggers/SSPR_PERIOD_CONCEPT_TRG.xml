@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_PERIOD_CONCEPT_TRG">
+    <trigger name="SSPR_PERIOD_CONCEPT_TRG" table="SSPR_PERIOD_CONCEPT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_count NUMBER;
+
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;
+
+   IF (UPDATING OR INSERTING) THEN
+
+     SELECT count(*) INTO v_count
+     FROM SSPR_CONCEPT
+     WHERE affectationtype = 'N' AND SSPR_Concept_ID = :new.SSPR_Concept_ID;
+
+     IF (v_count > 0) THEN
+
+       RAISE_APPLICATION_ERROR(-20000, '@SSPR_ConceptNoAffectation@');
+
+     END IF;
+     
+   END IF;
+   
+   END SSPR_PERIOD_CONCEPT_TRG
+]]></body>
+    </trigger>
+  </database>

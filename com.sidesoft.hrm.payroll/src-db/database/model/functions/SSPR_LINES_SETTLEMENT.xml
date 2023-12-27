@@ -1,0 +1,339 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_LINES_SETTLEMENT">
+    <function name="SSPR_LINES_SETTLEMENT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_payroll           RECORD;
+  Cur_benefit_dismissal RECORD;
+  Cur_Parameter 	      RECORD;  
+  Cur_payroll_provision RECORD;
+  Cur_benefit_dismissal_validate RECORD;
+  Cur_last_payroll RECORD;
+  Cur_benefits RECORD;
+  Cur_SettlCfgLine RECORD;
+
+
+  v_sspr_settlement_id VARCHAR2(32);
+  v_sspr_payroll_id VARCHAR2(32);
+  v_sspr_payroll_id_normal VARCHAR2(32);
+  v_sspr_payroll_id_provision VARCHAR2(32);
+  v_sspr_payroll_ticket_id VARCHAR2(32);
+  v_sspr_payroll_ticket_concept VARCHAR2(32);
+  v_settlement_org_id VARCHAR2(32);
+  v_settlementconfig_id VARCHAR2(32);
+  v_sspr_benefit_dismissal_id VARCHAR2(32);
+  v_qty NUMBER:=1;
+  v_line NUMBER:=0;
+  v_sspr_settlementline_id VARCHAR2(32);
+  v_processed_settlement CHAR(1);--OBTG:VARCHAR2--
+  v_c_bpartner_id	VARCHAR2(32);
+  v_startdate DATE;
+  v_enddate DATE;
+  v_reasonendperiod VARCHAR2(60);
+  v_val_cero NUMBER:=0;
+  v_daysno NUMBER:=0;
+  v_totalincome NUMBER:=0;
+  v_year NUMBER:=0;
+  v_month NUMBER:=0;
+  v_year_noceiling NUMBER:=0;
+  v_qty_count NUMBER:=0;
+  v_sspr_contract_id VARCHAR2(32);
+  v_startdate_regime DATE;
+  v_enddate_regime DATE;
+  v_value_month NUMBER:=0;
+  v_sspr_concept_id_bedefits VARCHAR2(32);
+  v_value_benefit	VARCHAR2(32);
+  v_date_val DATE;
+  v_year_regime NUMBER:=0;
+  v_date_str VARCHAR2(32);
+  v_amount_concept NUMBER:=0;
+  v_count_concept NUMBER:=0;
+  v_conceptsubtype VARCHAR2(60);
+  v_amount_conceptsubtype NUMBER:=0;
+  v_em_sspr_currentsalary NUMBER:=0;
+  v_value NUMBER;
+  v_c_period_id_concept VARCHAR2(32);
+  v_rate NUMBER;
+  v_sspr_concept_id_get VARCHAR2(32);
+  v_year_period VARCHAR2(32);
+  v_periodno NUMBER;
+  v_startdate_period DATE;
+  v_enddate_period DATE;
+  v_Period_ID_prov VARCHAR2(32);
+  v_Processed_prov VARCHAR2(32);
+  v_startdate_period_prov DATE;
+  v_enddate_period_prov DATE;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+    
+  v_ResultStr VARCHAR2(2000) := '';
+  v_Payroll_ID VARCHAR2(32);
+  v_Processed VARCHAR2(60);
+  v_Ticket_ID VARCHAR2(32); 
+  v_Period_ID VARCHAR2(32);   
+  v_Concept_ID VARCHAR2(32);
+    
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  --  --valornull_exception  Exception;
+  v_amount NUMBER:= 0;
+  V_AMOUNT_CONCEP NUMBER;
+
+  v_isliquidation CHARACTER(1);       --OBTG:VARCHAR2--
+  v_c_partner_id_payroll VARCHAR2(32);
+  v_sbstr VARCHAR(20);
+  v_amount_vacations NUMBER;
+  v_nodays_vacations NUMBER;
+  v_amount_loans NUMBER;
+  v_nocuotas_loans NUMBER;
+  v_status_payroll VARCHAR2(32);
+  i NUMBER:= 0;
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_sspr_settlement_id := Cur_Parameter.Record_ID;	  
+     
+    END LOOP; -- Get Parameter
+
+    --Obtengo datos settlement
+    select  sspr_settlement_id, processed, c_bpartner_id, status_payroll, 
+            sspr_contract_id, ad_org_id
+    into  v_sspr_settlement_id, v_processed_settlement, v_c_bpartner_id, v_status_payroll, 
+          v_sspr_contract_id, v_settlement_org_id
+    from sspr_settlement
+    where sspr_settlement_id =  v_sspr_settlement_id;
+
+    select coalesce(
+      (
+        select sspr_payroll_id_normal
+        from sspr_settlement
+        where sspr_settlement_id =  v_sspr_settlement_id
+      ), Null
+    )
+    into v_sspr_payroll_id_normal
+    from dual ;
+
+    select coalesce(
+      (
+        select sspr_payroll_id_provision
+        from sspr_settlement
+        where sspr_settlement_id =  v_sspr_settlement_id
+      ), Null
+    )
+    into v_sspr_payroll_id_provision
+    from dual ;
+
+    --DATOS AUDITORIA
+    SELECT AD_ORG_ID, AD_CLIENT_ID,CREATEDBY
+    INTO v_Org_ID, v_Client_ID, v_User_ID
+    FROM SSPR_SETTLEMENT
+    WHERE SSPR_SETTLEMENT_ID = v_sspr_settlement_id;
+    
+   --OBTENGO DATOS DE LA NOMINA - PERIODO, ESTADO
+    If (v_sspr_payroll_id_normal is null) Then
+    
+	    select c_period.c_period_id, c_year.year, c_period.periodno
+	    into v_Period_ID, v_year_period, v_periodno
+	    from sspr_settlement  
+	    left join c_period on movementdate between c_period.startdate and c_period.enddate 
+	    left join c_year on c_year.c_year_id = c_period.c_year_id
+	    where sspr_settlement.sspr_settlement_id = v_sspr_settlement_id;
+
+    Else
+		
+	    SELECT SSPR_Payroll.C_Period_ID, Processed, c_year.year, c_period.periodno - 1
+	    INTO v_Period_ID, v_Processed, v_year_period, v_periodno
+	    FROM SSPR_Payroll
+	    left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+	    left join c_year on c_year.c_year_id = c_period.c_year_id
+	    WHERE SSPR_Payroll_ID = v_sspr_payroll_id_normal;
+      
+    End If; 
+
+    IF v_sspr_payroll_id_provision IS NOT NULL THEN
+      --OBTENGO DATOS DE LA NOMINA  DE PROVISIONES- PERIODO, ESTADO
+      SELECT C_Period_ID, Processed 
+      INTO v_Period_ID_prov, v_Processed_prov
+      FROM SSPR_Payroll
+      WHERE SSPR_Payroll_ID = v_sspr_payroll_id_provision;
+    END IF;
+
+    --OBTENGO DATOS DEL CONTRATO
+    SELECT coalesce(startdate, null), coalesce(enddate, null), coalesce(reasonendperiod, null)
+    INTO v_startdate, v_enddate, v_reasonendperiod
+    FROM sspr_contract
+    WHERE c_bpartner_id = v_c_bpartner_id 
+          and sspr_contract_id = v_sspr_contract_id
+          AND isactive = 'Y';
+    
+    --VALIDACION FECHA FIN DEL CONTRATO VS FECHA DE LA NOMINA DE LIQUIDACION NORMAL 
+    --OBTENGO FECHA INICIO Y FECHA FIN DE PERIODO
+    SELECT c_period.startdate, c_period.enddate
+    INTO v_startdate_period, v_enddate_period
+    FROM c_period
+    WHERE c_period_id = v_Period_ID;
+  	
+    If (v_enddate < v_startdate_period or v_enddate > v_enddate_period) Then
+      RAISE_APPLICATION_ERROR(-20000,'@date to contract out the payroll period@');
+    End If; 
+
+    IF v_Period_ID_prov IS NOT NULL THEN
+      --VALIDACION FECHA FIN DEL CONTRATO VS FECHA DE LA NOMINA DE LIQUIDACION PROVISIONES
+      --OBTENGO FECHA INICIO Y FECHA FIN DE PERIODO
+      SELECT c_period.startdate, c_period.enddate
+      INTO v_startdate_period_prov, v_enddate_period_prov
+      FROM c_period
+      WHERE c_period_id = v_Period_ID_prov;
+    END IF;
+  	
+    If (v_enddate < v_startdate_period_prov and v_enddate > v_enddate_period_prov ) Then
+      RAISE_APPLICATION_ERROR(-20000,'@Date to contract out the payroll provision period@');
+    End If;
+
+    If(v_startdate is null)Then
+      RAISE_APPLICATION_ERROR(-20000,'@Field start date of contract is null@');
+    End If;
+
+    If(v_enddate is null )Then
+      RAISE_APPLICATION_ERROR(-20000,'@Field End date of contract is null@');
+    End If;	
+
+    If(v_reasonendperiod is null or v_reasonendperiod = '')Then
+      RAISE_APPLICATION_ERROR(-20000,'@Field reason end is null@');
+    End If;
+  	
+    -- Obtengo datos de la configuracion
+    v_settlementconfig_id := sspr_get_settlementconfig(v_settlement_org_id, v_sspr_contract_id);
+    
+    If (v_settlementconfig_id is null ) Then
+      RAISE_APPLICATION_ERROR(-20000,'@SSPR_NoSettlementConfig@');
+    End If; 
+    
+    --VALIDACION DESPROCESO DE NOMINA
+    -- IF (v_Processed = 'Y'  and v_Processed_prov = 'Y'AND v_startdate IS NOT NULL AND v_enddate IS NOT NULL AND v_reasonendperiod IS NOT NULL) THEN
+    IF (v_startdate IS NOT NULL AND v_enddate IS NOT NULL AND v_reasonendperiod IS NOT NULL) THEN
+  	
+      IF (v_processed_settlement = 'Y') THEN 
+  	
+        delete 
+        from sspr_settlementline
+        where sspr_settlement_id = v_sspr_settlement_id;
+
+        delete 
+        from sspr_settlementdata
+        where sspr_settlement_id = v_sspr_settlement_id;
+
+        UPDATE sspr_settlement
+        SET Processed = 'N',
+            Updated = now(),          
+            UpdatedBy=TO_CHAR(v_User_ID)
+        WHERE sspr_settlement_id = v_sspr_settlement_id;
+    	    
+      ELSE
+  		
+        --ELIMINO REGISTROS ANTERIORES
+        delete 
+        from sspr_settlementline
+        where sspr_settlement_id = v_sspr_settlement_id;
+
+        delete 
+        from sspr_settlementdata
+        where sspr_settlement_id = v_sspr_settlement_id;
+    
+        v_n_insertions := v_n_insertions + sspr_settl_add_payroll(v_sspr_settlement_id, v_User_ID, v_Client_ID, v_Org_ID, v_sspr_payroll_id_normal, v_c_bpartner_id, v_status_payroll);
+        -- Obtengo Beneficios
+        FOR Cur_SettlCfgLine IN (
+          SELECT  
+            case 
+              when bda.value in ('13TH', '14TH') then '10TH' 
+              when bda.value in ('DSH', 'ING') then 'PER' 
+              when bda.value in ('VAC', 'LOA', 'IT') then 'ADI'
+              else bda.value 
+            end as value
+          FROM  sspr_settlementconfigline scl
+          JOIN  sspr_benefit_dismissal bda on bda.sspr_benefit_dismissal_id = scl.sspr_benefit_dismissal_id
+          WHERE scl.sspr_settlementconfig_id = v_settlementconfig_id
+          GROUP BY  
+            case 
+              when bda.value in ('13TH', '14TH') then '10TH' 
+              when bda.value in ('DSH', 'ING') then 'PER' 
+              when bda.value in ('VAC', 'LOA', 'IT') then 'ADI'
+              else bda.value 
+            end
+        )
+        LOOP
+
+          IF Cur_SettlCfgLine.value = '10TH' THEN
+            v_n_insertions := v_n_insertions + sspr_settl_add_tenth(v_settlementconfig_id, v_sspr_contract_id, v_User_ID, v_c_bpartner_id, v_sspr_settlement_id, v_Client_ID, v_Org_ID, v_sspr_payroll_id_provision, v_enddate);
+          ELSIF Cur_SettlCfgLine.value = 'PER' THEN
+            v_n_insertions := v_n_insertions + sspr_settl_add_per(v_settlementconfig_id, v_sspr_contract_id, v_User_ID, v_c_bpartner_id, v_sspr_settlement_id, v_Client_ID, v_Org_ID, v_periodno, v_year_period);
+          ELSIF Cur_SettlCfgLine.value = 'ADI' THEN
+            v_n_insertions := v_n_insertions + sspr_settl_add_adi(v_settlementconfig_id, v_sspr_contract_id, v_User_ID, v_c_bpartner_id, v_sspr_settlement_id, v_Client_ID, v_Org_ID);
+          ELSIF Cur_SettlCfgLine.value = 'SB' THEN
+            v_n_insertions := v_n_insertions + sspr_settl_add_spe(v_settlementconfig_id, v_sspr_contract_id, v_User_ID, v_c_bpartner_id, v_sspr_settlement_id, v_Client_ID, v_Org_ID, v_periodno, v_year_period);
+          END IF;
+        
+        END LOOP; 
+		
+        v_ResultStr:='UpdatingRecord';
+        IF (v_n_insertions > 0) THEN
+              UPDATE sspr_settlement
+              SET    Processed = 'Y',
+               Updated = now(),          
+               UpdatedBy=TO_CHAR(v_user_id)
+              WHERE sspr_settlement_id = v_sspr_settlement_id;
+        END IF;
+        
+      END IF;
+    ELSE
+		
+	    RAISE_APPLICATION_ERROR(-20000,'@ERROR NO PROCESS@');
+	
+    END IF;    
+    If(v_value = 0)Then
+	    v_Message := '@sspr_RowsInsertedwarning@: ' || v_n_insertions;
+    Else
+	    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    End If;
+	
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SSPR_LINES_SETTLEMENT
+]]></body>
+    </function>
+  </database>

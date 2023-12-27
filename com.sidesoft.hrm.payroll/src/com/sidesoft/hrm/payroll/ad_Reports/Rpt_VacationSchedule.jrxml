@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_VacationSchedule" pageWidth="792" pageHeight="612" orientation="Landscape" columnWidth="752" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="c_year_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ad_user_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select a.name as nombrecomercial, a.em_sspr_entrydate as fechaingreso,
+       coalesce(to_char(b.name), 'No definido') as ciudad,
+       coalesce(to_char(e.name), 'No defindo') as cargo, f.name as centrocosto,
+       coalesce((select sspr_getdependencies_area(a.c_bpartner_id) from dual),'No definido') as area,
+       coalesce(g.name, 'No definido') as departamento,
+       (select year from c_year where c_year_id = $P{c_year_id}) as ejercicio,
+       to_char(a.em_sspr_entrydate,'dd') || '-' || to_char(a.em_sspr_entrydate,'mm') || '-' ||
+		case when (select year from c_year where c_year_id = $P{c_year_id})  = to_char(a.em_sspr_entrydate,'yyyy')
+		then (select to_char(to_number(year)) from c_year where c_year_id = $P{c_year_id})
+		else (select to_char(to_number(year) -1) from c_year where c_year_id = $P{c_year_id}) end as fechainicio,
+       to_char(a.em_sspr_entrydate,'dd') || '-' || to_char(a.em_sspr_entrydate,'mm') || '-' ||
+       case when (select year from c_year where c_year_id = $P{c_year_id})  = to_char(a.em_sspr_entrydate,'yyyy')
+		then (select to_char(to_number(year) + 1) from c_year where c_year_id = $P{c_year_id})
+		else (select to_char(to_number(year)) from c_year where c_year_id = $P{c_year_id}) end as fechafin,
+	to_char('Usuario: ') || (select coalesce(to_char(cbp.name), to_char(au.name)) from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = $P{ad_user_id}) AS "usuario",
+	'Fecha de Impresión:  ' || TO_CHAR(NOW(),'dd/MM/yyyy HH24:MI:SS') as fecha_impresion,
+a.ad_org_id
+from c_bpartner a
+left join c_city b on b.c_city_id = a.em_sspr_city
+left join sspr_contract c on c.c_bpartner_id = a.c_bpartner_id and c.isactive = 'Y'
+left join sspr_contract_position d on d.sspr_contract_id = c.sspr_contract_id
+left join sspr_position e on e.sspr_position_id = d.sspr_position_id
+left join c_costcenter f on f.c_costcenter_id = a.EM_Sspr_Costcenter_ID
+left join sshr_department g on g.sshr_department_id = a.em_sshr_department_id
+where isemployee = 'Y'
+AND a.em_sspr_status = 'A'
+and c.statusliquidation = 'N'
+and d.startdate = (select max(aa.startdate)
+from sspr_contract_position aa
+left join sspr_contract bb on bb.sspr_contract_id = aa.sspr_contract_id
+where bb.c_bpartner_id = a.c_bpartner_id
+and bb.statusliquidation = 'N')]]>
+	</queryString>
+	<field name="nombrecomercial" class="java.lang.String"/>
+	<field name="fechaingreso" class="java.sql.Timestamp"/>
+	<field name="ciudad" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="centrocosto" class="java.lang.String"/>
+	<field name="area" class="java.lang.String"/>
+	<field name="departamento" class="java.lang.String"/>
+	<field name="ejercicio" class="java.lang.String"/>
+	<field name="fechainicio" class="java.lang.String"/>
+	<field name="fechafin" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="84" splitType="Stretch">
+			<staticText>
+				<reportElement x="179" y="27" width="573" height="15"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CRONOGRAMA DE VACACIONES]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="0" y="55" width="179" height="10"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="65" width="179" height="12"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+			<image>
+				<reportElement x="0" y="1" width="100" height="50"/>
+				<imageExpression class="java.lang.String"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{ad_org_id})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="30" splitType="Stretch">
+			<frame>
+				<reportElement mode="Opaque" x="0" y="0" width="752" height="29" backcolor="#C0C0C0"/>
+				<staticText>
+					<reportElement x="0" y="0" width="179" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[NOMBRE COMERCIAL]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="179" y="0" width="47" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[F. INGRESO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="226" y="0" width="47" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CIUDAD]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="273" y="0" width="82" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CARGO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="355" y="0" width="79" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CENTRO COSTO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="434" y="0" width="83" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[AREA]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="517" y="0" width="99" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[DEPARTAMENTO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="616" y="0" width="26" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[AÑO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="642" y="0" width="55" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[FECHA INICIO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="697" y="0" width="55" height="29"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle" lineSpacing="Single">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[FECHA FIN]]></text>
+				</staticText>
+			</frame>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="179" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nombrecomercial}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="179" y="0" width="47" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaingreso}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="226" y="0" width="47" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ciudad}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="273" y="0" width="82" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cargo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="355" y="0" width="79" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{centrocosto}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="434" y="0" width="83" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{area}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="517" y="0" width="99" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{departamento}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="616" y="0" width="26" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ejercicio}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="642" y="0" width="55" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechainicio}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="697" y="0" width="55" height="13"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechafin}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

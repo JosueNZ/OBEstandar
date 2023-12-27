@@ -1,0 +1,253 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAM_PROCESS_ALIENATE">
+    <function name="SSAM_PROCESS_ALIENATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_Alienateline RECORD;
+Cur_DeleteAmortization RECORD;
+Cur_Assettype RECORD;
+Cur_Alienatelinestatus RECORD;
+  
+v_ResultStr VARCHAR2(2000) := '';
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+
+v_ssam_alienate_id VARCHAR2(32);
+v_ssam_alienateline_id VARCHAR2(32);
+v_processed CHAR(1);--OBTG:VARCHAR2--
+v_createline CHAR(1);--OBTG:VARCHAR2--
+v_countprocessed NUMBER;
+v_countunprocessed NUMBER;
+v_ad_user_id VARCHAR2(32);
+v_em_ssam_assettype  VARCHAR2(60);
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,
+	i.AD_User_ID, 
+	i.AD_Client_ID,
+	i.AD_Org_ID                    
+	FROM AD_PInstance i      
+	WHERE i.AD_PInstance_ID = PInstance_ID      
+	)
+	LOOP
+		v_ssam_alienate_id := Cur_Parameter.Record_ID;
+		v_ad_user_id := Cur_Parameter.AD_User_ID;
+		
+	END LOOP;
+
+	select createline
+	into v_createline
+	from ssam_alienate 
+	where ssam_alienate_id = v_ssam_alienate_id;
+
+	If(v_createline = 'N')Then
+
+	v_countprocessed := 0;
+
+	--EJECUTA VALIDACIONES EN LA LÍNEAS DE ACTIVOS
+	For Cur_Alienateline In(
+		select b.ssam_alienate_id, a.ssam_alienateline_id, a.a_asset_id, b.datedoc,  b.status, a.description, b.typereason, c.name, a.line,
+			c.em_ssam_alienated, coalesce(c.em_ssam_assettype,'ND') as em_ssam_assettype, c.assetvalueamt as valoractivo, c.depreciatedvalue as amortizacionreal,
+			c.depreciatedpreviousamt as amortizadoanterior,
+			(c.assetvalueamt + c.depreciatedvalue + c.depreciatedpreviousamt) as totalactivo
+		from ssam_alienateline a
+		left join ssam_alienate b on b.ssam_alienate_id = a.ssam_alienate_id
+		left join a_asset c on c.a_asset_id = a.a_asset_id
+		where a.ssam_alienate_id = v_ssam_alienate_id
+		order by a.line asc
+
+	)
+	Loop
+			--VALIDA QUE EXISTA CONFIGURACION EN EL CAMPO TIPO DE ACTIVO 
+			If(Cur_Alienateline.em_ssam_assettype = 'ND')Then
+				RAISE_APPLICATION_ERROR(-20000,'@No existe configración en el campo Tipo de Activo: @' || Cur_Alienateline.name || ' - Line ' || Cur_Alienateline.line);
+			ElsIf(Cur_Alienateline.em_ssam_assettype = 'AC')Then
+			
+					If(Cur_Alienateline.totalactivo > 0)Then
+					
+						RAISE_APPLICATION_ERROR(-20000,'@El activo es un bien de control y no debe tener datos de Amortización”: @' || Cur_Alienateline.name || ' - Line ' || Cur_Alienateline.line);
+
+					End If;
+			End If;
+			
+			--BUSCA SI EXISTEN AMORTIZACIONES PROCESADAS MAYORES A LA FECHA DE LA ENAJEACION 
+			select count(c.a_amortization_id)
+			into v_countprocessed
+			from a_amortization c
+			left join a_amortizationline l on l.a_amortization_id = c.a_amortization_id
+			where  c.posted = 'Y'--c.processed = 'Y'
+			and c.dateacct >= Cur_Alienateline.datedoc
+			and l.a_asset_id = Cur_Alienateline.a_asset_id;
+			---order by c.dateacct;
+ 
+ 			--BUSCA SI EXISTEN AMORTIZACIONES SIN PROCESAR
+			select count(c.processed)
+			into v_countunprocessed
+			from a_amortization c
+			left join a_amortizationline l on l.a_amortization_id = c.a_amortization_id
+			where c.posted = 'N'  --c.processed = 'N'
+			and c.dateacct  < Cur_Alienateline.datedoc
+			and l.a_asset_id = Cur_Alienateline.a_asset_id;
+			--order by c.dateacct;
+
+				 If(v_countprocessed > 0)Then
+					--update ssam_alienateline 
+					--set status = 'N', description = description || ' - ' || 'Existes Amortizaciones contabilizadas > ' || to_char(Cur_Alienateline.datedoc,'dd-mm-yyyy')
+					--where ssam_alienateline_id = Cur_Alienateline.ssam_alienateline_id;
+
+					RAISE_APPLICATION_ERROR(-20000,'@Existes Amortizaciones contabilizadas futuras a la fecha de Enajenación: @' || Cur_Alienateline.name || ' - Line ' || Cur_Alienateline.line);
+				End If;
+				
+				If(v_countunprocessed > 0)Then
+				    --update ssam_alienateline 
+				    --set status = 'N', description = description || ' - ' || 'Existes Amortizaciones sin contabilizar < ' || to_char(Cur_Alienateline.datedoc,'dd-mm-yyyy')
+				    --where ssam_alienateline_id = Cur_Alienateline.ssam_alienateline_id;
+
+				    RAISE_APPLICATION_ERROR(-20000,'@Existes Amortizaciones anteriores sin contabilizar: @' || Cur_Alienateline.name || ' - Line ' || Cur_Alienateline.line);
+				
+				End If;
+				If(Cur_Alienateline.em_ssam_alienated = 'Y')Then
+
+				    --update ssam_alienateline 
+				    --set status = 'N', description = description || ' - ' || 'Activo ya se encuentra enajenado '
+				    --where ssam_alienateline_id = Cur_Alienateline.ssam_alienateline_id;
+
+				    RAISE_APPLICATION_ERROR(-20000,'@Activo ya se encuentra enajenado: @' || Cur_Alienateline.name || ' - Line ' || Cur_Alienateline.line);
+				
+				End If;
+			  
+	End Loop;
+  
+  --ACTUALIZA ESTADOS PARA MOSTRAR BOTON CONTABILIZAR
+  For Cur_Assettype In(
+		select to_number(case when assettype = 'AC' Then '1' 
+			    when assettype = 'AA' Then '2'
+			    else '3' end) as assettype,  assettype as  assettypec
+		from (select coalesce(b.em_ssam_assettype,'ND') as assettype
+			from ssam_alienateline a
+			left join a_asset b on b.a_asset_id = a.a_asset_id
+			where a.ssam_alienate_id = v_ssam_alienate_id-- 'BF92BFDF48F9468E809B568BB9CC8D48'
+			group by b.em_ssam_assettype
+			order by b.em_ssam_assettype asc
+		     ) alienate
+		 order by assettype asc
+	)	     
+	Loop
+
+		If(Cur_Assettype.assettypec = 'AC')Then
+		
+			update ssam_alienate
+			set assettypepost = 'Y'
+			where ssam_alienate_id = v_ssam_alienate_id;
+			
+		ElsIf(Cur_Assettype.assettypec = 'AA' or Cur_Assettype.assettypec = 'ND')Then
+		
+			update ssam_alienate
+			set assettypepost = 'N'
+			where ssam_alienate_id = v_ssam_alienate_id;
+			
+		End If;
+			
+	End Loop;
+  
+  --ACTUALIZA ESTADOS Y ELIMINA AMORTIZACIONES
+  For Cur_Alienatelinestatus In(
+		select b.ssam_alienate_id, a.ssam_alienateline_id, a.a_asset_id, b.datedoc,  b.status, a.description, b.typereason, c.name, a.line,
+			c.em_ssam_alienated, coalesce(c.em_ssam_assettype,'ND') as em_ssam_assettype, c.assetvalueamt as valoractivo, c.depreciatedvalue as amortizacionreal,
+			c.depreciatedpreviousamt as amortizadoanterior,
+			(c.assetvalueamt + c.depreciatedvalue + c.depreciatedpreviousamt) as totalactivo,
+            b.description AS low_reason
+		from ssam_alienateline a
+		left join ssam_alienate b on b.ssam_alienate_id = a.ssam_alienate_id
+		left join a_asset c on c.a_asset_id = a.a_asset_id
+		where a.ssam_alienate_id = v_ssam_alienate_id
+		order by a.line asc
+
+	)
+	Loop
+		
+				update ssam_alienateline 
+				set status = 'Y', datecancelled = Cur_Alienatelinestatus.datedoc
+				where ssam_alienateline_id = Cur_Alienatelinestatus.ssam_alienateline_id;
+
+                --ACTUALIZAMOS EL ACTIVO
+                UPDATE a_asset SET EM_Ssal_Lowreason=Cur_Alienatelinestatus.low_reason, EM_Ssal_Lowdate=Cur_Alienatelinestatus.datedoc,
+                    EM_Ssal_Lowstatus='Procesado', EM_Ssam_Alienateline_ID=Cur_Alienatelinestatus.ssam_alienateline_id
+                WHERE a_asset_id=Cur_Alienatelinestatus.a_asset_id;
+
+				--ELIMINA LINEAS DE AMORTIZACION
+				For Cur_DeleteAmortization In(
+					select c.dateacct, l.a_asset_id, l.a_amortizationline_id
+					from a_amortization c
+					left join a_amortizationline l on l.a_amortization_id = c.a_amortization_id
+					where c.dateacct  >= Cur_Alienatelinestatus.datedoc
+					and l.a_asset_id = Cur_Alienatelinestatus.a_asset_id
+					order by c.dateacct
+				)
+				Loop
+
+					delete
+					from a_amortizationline
+					where a_amortizationline_id = Cur_DeleteAmortization.a_amortizationline_id;
+				
+				End Loop;
+
+				v_n_insertions := v_n_insertions + 1;
+				
+				--CAMBIA DE ESTADO AL ACTIVO A ENAJENADO
+           
+				update a_asset
+				set em_ssam_alienated = 'Y', 
+				datecancelled = Cur_Alienatelinestatus.datedoc, 
+				isfullydepreciated = 'N',
+				em_ssam_alienateline_id = Cur_Alienatelinestatus.ssam_alienateline_id,
+				em_ssam_status = (case when Cur_Alienatelinestatus.typereason = 'S'  and Cur_Alienatelinestatus.em_ssam_assettype = 'AC' Then 'W' else Cur_Alienatelinestatus.typereason end)
+				where a_asset_id = Cur_Alienatelinestatus.a_asset_id;
+        
+	End Loop;
+
+		--ACTUALIZA EL ESTADO DE LA ENAJEACION A PROCESADO
+		v_ResultStr:='UpdatingRecord';
+		IF (v_n_insertions > 0) THEN
+		      UPDATE ssam_alienate
+		      SET    Processed = 'Y',
+		       Updated = now(),          
+		       UpdatedBy=TO_CHAR(v_ad_user_id)
+		      WHERE ssam_alienate_id = v_ssam_alienate_id;
+		END IF;
+
+	End If;
+
+ 	    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+ 	
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SSAM_PROCESS_ALIENATE
+]]></body>
+    </function>
+  </database>

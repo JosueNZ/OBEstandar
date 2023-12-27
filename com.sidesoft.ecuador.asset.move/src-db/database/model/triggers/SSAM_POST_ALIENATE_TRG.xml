@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAM_POST_ALIENATE_TRG">
+    <trigger name="SSAM_POST_ALIENATE_TRG" table="SSAM_ALIENATE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+vDocTypeID VARCHAR2(32);
+vCurrentNext VARCHAR2(30);
+vSeq RECORD;
+  
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF INSERTING THEN
+	        vDocTypeID = :NEW.c_doctype_id ; --OBTG:-20000--
+
+		SELECT s.* INTO vSeq
+		FROM ad_sequence s
+			JOIN c_doctype dt ON dt.docnosequence_id = s.ad_sequence_id
+		WHERE dt.c_doctype_id = vDocTypeID;
+		vCurrentNext := vSeq.currentnext;
+
+		IF vSeq.name IS NOT NULL THEN
+			SELECT ad_sequence_doc(vSeq.name, :NEW.ad_client_id, 'Y') INTO :NEW.documentNo;
+		END IF;
+		        
+  END IF;
+
+  IF DELETING THEN
+
+    IF(:old.processed = 'Y') THEN
+     
+        RAISE_APPLICATION_ERROR(-20000, '@20501@') ;
+        
+    END IF;
+  
+  END IF;
+END SSAM_POST_ALIENATE_TRG
+]]></body>
+    </trigger>
+  </database>

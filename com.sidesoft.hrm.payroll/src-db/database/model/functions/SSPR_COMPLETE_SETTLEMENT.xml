@@ -1,0 +1,309 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_COMPLETE_SETTLEMENT">
+    <function name="SSPR_COMPLETE_SETTLEMENT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD; 
+Cur_loans RECORD;
+Cur_settlement_tenth RECORD;
+Cur_payroll RECORD;
+
+v_ResultStr VARCHAR2(2000) := '';
+v_sspr_settlement_id VARCHAR2(32);
+v_c_bpartner_id VARCHAR2(32);
+v_Processed VARCHAR2(60);
+v_user_id VARCHAR2(60);
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+v_sspr_payroll_id_normal VARCHAR2(32);
+v_sspr_payroll_id_provision VARCHAR2(32);
+v_sspr_contract_id  VARCHAR2(32);
+v_datesettlement DATE;
+
+begin
+ 
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || pinstance_id) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(pinstance_id, NULL, 'Y', NULL, NULL) ;
+  
+  begin 
+  
+      v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+
+  FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+      i.AD_User_ID
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = pinstance_id      
+      )
+  LOOP
+
+      v_sspr_settlement_id := Cur_Parameter.Record_ID;	 
+      v_user_id  := Cur_Parameter.AD_User_ID;
+      
+  END LOOP; -- Get Parameter
+
+	--OBTENGO EL EMPLEADO LIQUIDACION
+	select c_bpartner_id, complete, sspr_payroll_id_normal, sspr_payroll_id_provision, sspr_contract_id, movementdate
+	into v_c_bpartner_id, v_Processed, v_sspr_payroll_id_normal, v_sspr_payroll_id_provision, v_sspr_contract_id,v_datesettlement
+	from sspr_settlement
+	where sspr_settlement_id = v_sspr_settlement_id;
+
+	IF (v_Processed = 'Y') THEN --Process
+    
+		--CAMBIA DE ESTADO NOMINA NORMAL A LIQUIDADO
+		update sspr_payroll
+		set complete_liquidation = 'N'
+		where sspr_payroll_id = v_sspr_payroll_id_normal;
+
+		--CAMBIA DE ESTADO NOMINA DE PROVISIONES A LIQUIDADO
+		update sspr_payroll
+		set complete_liquidation = 'N'
+		where sspr_payroll_id = v_sspr_payroll_id_provision;
+
+		--CAMBIA DE ESTADO EMPLEADO LIQUIDADO NOMINA NORMAL
+		update sspr_payroll_emp
+		set liquidated = 'N'
+		where sspr_payroll_id = v_sspr_payroll_id_normal
+		and c_bpartner_id = v_c_bpartner_id;
+
+		--CAMBIA DE ESTADO EMPLEADO LIQUIDADO NOMINA DE PROVISIONES
+		update sspr_payroll_emp
+		set liquidated = 'N'
+		where sspr_payroll_id = v_sspr_payroll_id_provision
+		and c_bpartner_id = v_c_bpartner_id;
+		
+
+		--REVERSA VACACIONES
+		--update sspr_vacations
+		--set  nodaystotal = nodaystotal_liq
+		--where c_bpartner_id = v_c_bpartner_id
+		--and cancelliquidation = 'N'
+		--and sspr_contract_id = v_sspr_contract_id;
+
+		update sspr_vacations 
+		set cancelliquidation = 'N',
+		    nodaystotal = nodaystomados + noadditionaltomados,
+		    nodays = nodaystomados,
+		    nodaystomados = 0,
+		    noadditionaltotal = noadditionaltomados,
+		    noadditionaltomados = 0
+		where c_bpartner_id = v_c_bpartner_id
+		and sspr_contract_id = v_sspr_contract_id;
+
+		--REVERSA PRESTAMOS
+		update sspr_line_loans
+		set total_balance = total_balance_liq, 
+		    cancelliquidation  = 'N',
+			status = 'Pending'
+		where cancelliquidation = 'Y';
+      
+		--REVERSA EL ESTADO DEL EMPLEADO A BAJA
+		UPDATE c_bpartner
+		set em_sspr_status = 'L'
+		where c_bpartner_id = v_c_bpartner_id;
+
+		UPDATE sspr_settlement
+		SET  complete = 'N',
+		Updated = now(),          
+		UpdatedBy=tO_CHAR(v_user_id)
+		WHERE sspr_settlement_id = v_sspr_settlement_id;
+
+		--CAMBIA DE ESTADO CONTRATO A LIQUIDAR
+		update sspr_contract
+		set statusliquidation = 'N'
+		where sspr_contract_id = v_sspr_contract_id;
+
+		--LIQUIDACION DE DECIMOS
+		For Cur_settlement_tenth In
+		(
+			select sl.line, sl.sspr_concept_id, bd.value, s.c_bpartner_id, s.sspr_contract_id, lrd.typeconcept,
+			lrd.startdate, lrd.enddate
+			from sspr_settlementline sl
+			left join sspr_settlement s on s.sspr_settlement_id = sl.sspr_settlement_id
+			left join sspr_benefit_dismissal bd on bd.sspr_concept_id = sl.sspr_concept_id
+			left join c_bpartner bp on bp.c_bpartner_id = s.c_bpartner_id
+			left join sspr_contract c on c.c_bpartner_id = bp.c_bpartner_id and c.sspr_contract_id = s.sspr_contract_id
+			LEFT JOIN sspr_labor_regime lr on lr.sspr_labor_regime_id = c.sspr_labor_regime_id
+			LEFT JOIN sspr_labor_regime_detail lrd on lrd.sspr_labor_regime_id = lr.sspr_labor_regime_id and lrd.typeconcept = bd.value
+			where sl.sspr_settlement_id = v_sspr_settlement_id
+			and bd.value in('13TH','14TH')			
+		)
+		Loop
+
+			For Cur_payroll In(
+					select p.documentno, p.datedoc, c.startdate, c.enddate, pt.c_bpartner_id,cp.name, ptc.sspr_payroll_ticket_concept_id
+					from sspr_payroll p
+					left join c_period c on c.c_period_id = p.c_period_id
+					left join sspr_payroll_ticket pt on pt.sspr_payroll_id = p.sspr_payroll_id
+					left join sspr_payroll_ticket_concept ptc on ptc.sspr_payroll_ticket_id = pt.sspr_payroll_ticket_id
+					left join sspr_concept cp on cp.sspr_concept_id = ptc.sspr_concept_id
+					where p.ispayroll = 'N' --and p.isliquidation = 'N'
+					and pt.c_bpartner_id = Cur_settlement_tenth.c_bpartner_id
+				and p.datedoc<= (v_datesettlement)
+				and ptc.sspr_concept_id = Cur_settlement_tenth.sspr_concept_id
+				and ptc.reference_settlement= v_sspr_settlement_id
+				order by p.documentno
+			)
+			Loop
+
+				update sspr_payroll_ticket_concept prtc 
+				set em_ssph_earned = 'N', em_ssph_tenth_sett_line_id = Null
+				,reference_settlement= null
+				where prtc.sspr_payroll_ticket_concept_id = Cur_payroll.sspr_payroll_ticket_concept_id;
+
+			End Loop;
+			
+		End Loop;
+			
+		v_Message := '@Reactive@';
+
+	Else --Unprocess
+
+		--CAMBIA DE ESTADO NOMINA NORMAL A LIQUIDADO
+		update sspr_payroll
+		set complete_liquidation = 'Y'
+		where sspr_payroll_id = v_sspr_payroll_id_normal;
+
+		--CAMBIA DE ESTADO NOMINA DE PROVISIONES A LIQUIDADO
+		update sspr_payroll
+		set complete_liquidation = 'Y'
+		where sspr_payroll_id = v_sspr_payroll_id_provision;
+
+		--CAMBIA DE ESTADO EMPLEADO LIQUIDADO NOMINA NORMAL
+		update sspr_payroll_emp
+		set liquidated = 'Y'
+		where sspr_payroll_id = v_sspr_payroll_id_normal
+		and c_bpartner_id = v_c_bpartner_id;
+
+		--CAMBIA DE ESTADO EMPLEADO LIQUIDADO NOMINA DE PROVISIONES
+		update sspr_payroll_emp
+		set liquidated = 'Y'
+		where sspr_payroll_id = v_sspr_payroll_id_provision
+		and c_bpartner_id = v_c_bpartner_id;
+
+		--CAMBIA DE ESTADO CONTRATO A LIQUIDAR
+		update sspr_contract
+		set statusliquidation = 'Y'
+		where sspr_contract_id = v_sspr_contract_id;
+		
+		--CAMBIA DE ESTADO VACACIONES
+		update sspr_vacations 
+		set cancelliquidation = 'Y',
+		    nodaystomados = nodays,
+		    nodays = 0,
+		    noadditionaltomados = noadditionaltotal,
+		    noadditionaltotal = 0,
+		    nodaystotal = 0
+		    --nodaystotal_liq = nodaystotal, 
+		    --nodaystotal = 0.00
+		where c_bpartner_id = v_c_bpartner_id
+		and sspr_contract_id = v_sspr_contract_id;
+   
+		--ACTUALIZA PRESTAMOS
+    
+		For  Cur_loans IN(
+				select sspr_line_loans_id
+			       from (select case when b.loan_advance + b.total_balance = to_number(b.amount,'999999999.99') and b.status = 'Cancel'  then 0.00
+				     when  b.loan_advance + b.total_balance = 0 and b.status = 'Cancel' then 0.00
+				    when  b.loan_advance + b.total_balance  = to_number(b.amount,'999999999.99') and b.status = 'Pending'  then b.total_balance
+				    when b.loan_advance = b.total_balance and b.status = 'Pending' then b.total_balance
+				    end as sumatoria,
+				    b.sspr_line_loans_id
+				    from sspr_loans a
+				    left join sspr_line_loans  b on b.sspr_loans_id = a.sspr_loans_id
+				    where a.c_bpartner_id = v_c_bpartner_id
+				    and a.status = 'ap') loans
+				where sumatoria > 0)
+
+		Loop
+
+		update sspr_line_loans
+		set cancelliquidation  = 'Y' ,status = 'Cancel', total_balance_liq = total_balance , total_balance = 0.00
+		where sspr_line_loans_id = Cur_loans.sspr_line_loans_id;
+		      
+		End Loop;
+
+		--ACTUALIZA EL ESTADO DEL EMPLEADO A LIQUIDADO
+		UPDATE c_bpartner
+		set em_sspr_status = 'F'
+		where c_bpartner_id = v_c_bpartner_id;
+
+		UPDATE sspr_settlement
+		SET    complete = 'Y',
+		     Updated = now(),          
+		     UpdatedBy=TO_CHAR(v_user_id)
+		WHERE sspr_settlement_id = v_sspr_settlement_id;
+
+		--LIQUIDACION DE DECIMOS
+		For Cur_settlement_tenth In
+		(
+			select sl.line, sl.sspr_concept_id, bd.value, s.c_bpartner_id, s.sspr_contract_id, lrd.typeconcept,
+			lrd.startdate, lrd.enddate
+			from sspr_settlementline sl
+			left join sspr_settlement s on s.sspr_settlement_id = sl.sspr_settlement_id
+			left join sspr_benefit_dismissal bd on bd.sspr_concept_id = sl.sspr_concept_id
+			left join c_bpartner bp on bp.c_bpartner_id = s.c_bpartner_id
+			left join sspr_contract c on c.c_bpartner_id = bp.c_bpartner_id and c.sspr_contract_id = s.sspr_contract_id
+			LEFT JOIN sspr_labor_regime lr on lr.sspr_labor_regime_id = c.sspr_labor_regime_id
+			LEFT JOIN sspr_labor_regime_detail lrd on lrd.sspr_labor_regime_id = lr.sspr_labor_regime_id and lrd.typeconcept = bd.value
+			where sl.sspr_settlement_id = v_sspr_settlement_id
+			and bd.value in('13TH','14TH')			
+		)
+		Loop
+
+
+			For Cur_payroll In(
+				select p.documentno, p.datedoc, c.startdate, c.enddate, pt.c_bpartner_id,cp.name, ptc.sspr_payroll_ticket_concept_id
+				from sspr_payroll p
+				left join c_period c on c.c_period_id = p.c_period_id
+				left join sspr_payroll_ticket pt on pt.sspr_payroll_id = p.sspr_payroll_id
+				left join sspr_payroll_ticket_concept ptc on ptc.sspr_payroll_ticket_id = pt.sspr_payroll_ticket_id
+				left join sspr_concept cp on cp.sspr_concept_id = ptc.sspr_concept_id
+				where p.ispayroll = 'N' --and p.isliquidation = 'N'
+				--and c.startdate >= Cur_settlement_tenth.startdate and c.enddate <= Cur_settlement_tenth.enddate
+				and pt.c_bpartner_id = Cur_settlement_tenth.c_bpartner_id
+				and p.datedoc<= (v_datesettlement)
+				and ptc.sspr_concept_id = Cur_settlement_tenth.sspr_concept_id
+				and ptc.em_ssph_earned = 'N'
+				order by p.documentno
+
+			)
+			Loop
+
+				update sspr_payroll_ticket_concept prtc 
+				set em_ssph_earned = 'Y', em_ssph_tenth_sett_line_id = Null 
+				,reference_settlement= v_sspr_settlement_id
+				where prtc.sspr_payroll_ticket_concept_id = Cur_payroll.sspr_payroll_ticket_concept_id;
+
+
+			End Loop;
+			
+		End Loop;
+
+		v_Message := '@Complete@';
+
+	End If;
+  
+  
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_COMPLETE_SETTLEMENT
+]]></body>
+    </function>
+  </database>

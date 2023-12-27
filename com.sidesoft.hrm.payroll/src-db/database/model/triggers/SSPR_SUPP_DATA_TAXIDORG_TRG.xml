@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_SUPP_DATA_TAXIDORG_TRG">
+    <trigger name="SSPR_SUPP_DATA_TAXIDORG_TRG" table="SSPR_SUPPLEMENTARY_DATA" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+	v_dig varchar2(1);
+	v_dig1 integer;
+	v_dig2 integer; 
+	v_dig3 integer;
+	v_dig4 integer; 
+	v_result varchar2(1);
+	v_taxid varchar2(255);
+	v_type char(1);
+	v_taxid2 varchar2(255);
+	v_length NUMBER;
+	v_bpartner_id varchar2(32);
+	valores	varchar2(3);
+	valubica varchar2(2);
+	v_valor NUMBER;
+
+BEGIN 
+	v_type:='R';
+	v_taxid:=:NEW.taxid_company;
+	v_taxid2:= replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(v_taxid,'0',''),'1',''),'2',''),'3',''),'4',''),'5',''),'6',''),'7',''),'8',''),'9','');
+	v_length:= length(v_taxid);
+	valores := substr(:NEW.taxid_company, 11,3) ;
+	valubica := substr(:NEW.taxid_company, 1,2) ;
+
+      IF (v_type = 'D') THEN
+        	IF (v_taxid2 <> '') THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+        	ELSIF NOT (v_length = 10) THEN
+          		RAISE_APPLICATION_ERROR(-20000, '@SSWH_NifMustBeLengthNumeric@');
+          	END IF;
+
+		v_valor := (case when ((to_number(substr(v_taxid,1,1)) * 2) >= 10) Then ((to_number(substr(v_taxid,1,1)) * 2) -9) else (to_number(substr(v_taxid,1,1)) * 2) end
+			  + case when ((to_number(substr(v_taxid,2,1)) * 1) >= 10) Then ((to_number(substr(v_taxid,2,1)) * 1) -9) else (to_number(substr(v_taxid,2,1)) * 1) end
+			  + case when ((to_number(substr(v_taxid,3,1)) * 2) >= 10) Then ((to_number(substr(v_taxid,3,1)) * 2) -9) else (to_number(substr(v_taxid,3,1)) * 2) end 
+			  + case when ((to_number(substr(v_taxid,4,1)) * 1) >= 10) Then ((to_number(substr(v_taxid,4,1)) * 1) -9) else (to_number(substr(v_taxid,4,1)) * 1) end 
+			  + case when ((to_number(substr(v_taxid,5,1)) * 2) >= 10) Then ((to_number(substr(v_taxid,5,1)) * 2) -9) else (to_number(substr(v_taxid,5,1)) * 2) end 
+			  + case when ((to_number(substr(v_taxid,6,1)) * 1) >= 10) Then ((to_number(substr(v_taxid,6,1)) * 1) -9) else (to_number(substr(v_taxid,6,1)) * 1) end 
+			  + case when ((to_number(substr(v_taxid,7,1)) * 2) >= 10) Then ((to_number(substr(v_taxid,7,1)) * 2) -9) else (to_number(substr(v_taxid,7,1)) * 2) end 
+			  + case when ((to_number(substr(v_taxid,8,1)) * 1) >= 10) Then ((to_number(substr(v_taxid,8,1)) * 1) -9) else (to_number(substr(v_taxid,8,1)) * 1) end 
+			  + case when ((to_number(substr(v_taxid,9,1)) * 2) >= 10) Then ((to_number(substr(v_taxid,9,1)) * 2) -9) else (to_number(substr(v_taxid,9,1)) * 2) end);
+
+
+		If(v_valor >= 10)Then
+
+			v_valor := to_number(to_number(substr(to_char(v_valor),1,1)) + 1 || '0') - v_valor;
+
+			If(v_valor = 10)Then
+
+				v_valor := 0;
+			Else 
+				v_valor := v_valor;
+			End If;
+			
+		Else
+			v_valor := 10 - v_valor;
+		End If; 
+		
+		If(v_valor <> (to_number(substr(v_taxid,10,1))))Then
+				RAISE_APPLICATION_ERROR(-20000, '@SSWH_DigitVerfied@');
+		END IF;		
+				
+      ELSIF (v_type = 'R') THEN
+    	v_dig:=substr(v_taxid, 3, 1);
+		IF (v_taxid2 <> '') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_MustBeNumeric@');
+		END IF;
+
+		IF(v_length <> 13) THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_CifMustBeLengthNumeric@');
+		END IF;
+		
+		IF (valores <> '001') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_CifMustEndWith@');
+		END IF;
+		
+      END IF;
+      
+END SSPR_SUPP_DATA_TAXIDORG_TRG
+]]></body>
+    </trigger>
+  </database>

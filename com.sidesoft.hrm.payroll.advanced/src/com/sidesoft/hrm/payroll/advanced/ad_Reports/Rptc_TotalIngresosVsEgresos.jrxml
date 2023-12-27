@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptc_TotalIngresosVsEgresos" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.7715610000000013"/>
+	<property name="ireport.x" value="490"/>
+	<property name="ireport.y" value="48"/>
+	<parameter name="C_BPartner_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Status_Filter" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Month_Filter" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+employee_id as "employee_id",
+employee_value as "employee_value",
+employee_name as "employee_name",
+employee_taxid as "employee_taxid",
+employee_status as "employee_status",
+employee_entrydate as "employee_entrydate",
+coalesce(to_number(income),0) as "income",
+coalesce(to_number(expense),0) as "expense",
+coalesce((to_number((case when expense > income then diference end))),0) as "diference"
+from (Select
+cbp.c_bpartner_id as employee_id,
+cbp.value as employee_value,
+cbp.name as employee_name,
+cbp.em_sspr_documentno as employee_taxid,
+(Case When cbp.em_sspr_status = 'A' then 'Activo'
+else 'Inactivo' end) as employee_status,
+cbp.em_sspr_entrydate as employee_entrydate,
+(select concept_amount
+from
+(select
+sum(ptcp.amount) as concept_amount,
+py.c_period_id,
+pyt.c_bpartner_id
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'In'
+group by py.c_period_id,
+pyt.c_bpartner_id) tamount_expense where tamount_expense.c_period_id= (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate) and tamount_expense.c_bpartner_id= cbp.c_bpartner_id) as income
+,
+(select concept_amount
+from
+(select
+sum(ptcp.amount) as concept_amount,
+py.c_period_id,
+pyt.c_bpartner_id
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'Out'
+group by py.c_period_id,
+pyt.c_bpartner_id) tamount_expense where tamount_expense.c_period_id= (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate) and tamount_expense.c_bpartner_id= cbp.c_bpartner_id) as expense
+,
+(
+(select concept_amount
+from
+(select
+sum(ptcp.amount) as concept_amount,
+py.c_period_id,
+pyt.c_bpartner_id
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'In'
+group by py.c_period_id,
+pyt.c_bpartner_id) tamount_expense where tamount_expense.c_period_id= (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate) and tamount_expense.c_bpartner_id= cbp.c_bpartner_id)
+-
+(select concept_amount
+from
+(select
+sum(ptcp.amount) as concept_amount,
+py.c_period_id,
+pyt.c_bpartner_id
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'Out'
+group by py.c_period_id,
+pyt.c_bpartner_id) tamount_expense where tamount_expense.c_period_id= (select c_period_id from c_period where ($P{Month_Filter}) between startdate and enddate) and tamount_expense.c_bpartner_id= cbp.c_bpartner_id)) as diference
+From c_bpartner cbp
+where cbp.isactive = 'Y'
+and cbp.em_sspr_create_payroll = 'Y'
+and cbp.isemployee = 'Y'
+and (cbp.c_bpartner_id = $P{C_BPartner_ID} or $P{C_BPartner_ID} is null)
+and cbp.em_sspr_status = $P{Status_Filter}
+) Totalincome_expense]]>
+	</queryString>
+	<field name="employee_id" class="java.lang.String"/>
+	<field name="employee_value" class="java.lang.String"/>
+	<field name="employee_name" class="java.lang.String"/>
+	<field name="employee_taxid" class="java.lang.String"/>
+	<field name="employee_status" class="java.lang.String"/>
+	<field name="employee_entrydate" class="java.sql.Timestamp"/>
+	<field name="income" class="java.math.BigDecimal"/>
+	<field name="expense" class="java.math.BigDecimal"/>
+	<field name="diference" class="java.math.BigDecimal"/>
+	<group name="HEAD Employee">
+		<groupExpression><![CDATA[$F{employee_id}]]></groupExpression>
+		<groupHeader>
+			<band height="21">
+				<rectangle>
+					<reportElement x="0" y="0" width="58" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="58" y="0" width="174" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="232" y="0" width="58" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="290" y="0" width="107" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="397" y="0" width="107" height="20"/>
+				</rectangle>
+				<rectangle>
+					<reportElement x="504" y="0" width="68" height="20"/>
+				</rectangle>
+				<staticText>
+					<reportElement x="0" y="0" width="58" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[VALUE]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="58" y="0" width="174" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[NOMBRE]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="504" y="0" width="68" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Diference]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="397" y="0" width="107" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[TOTAL EXPENSE]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="290" y="0" width="107" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[TOTAL INCOME]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="232" y="0" width="58" height="20"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[STATUS]]></text>
+				</staticText>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="50"/>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="51" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="572" height="41"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="18"/>
+				</textElement>
+				<text><![CDATA[TOTAL INCOME VS TOTAL EXPENSE]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="54" splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="18" splitType="Stretch">
+			<rectangle>
+				<reportElement x="58" y="0" width="174" height="17"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="504" y="0" width="68" height="17"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="397" y="0" width="107" height="17"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="0" y="0" width="58" height="17"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="290" y="0" width="107" height="17"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="232" y="0" width="58" height="17"/>
+			</rectangle>
+			<textField>
+				<reportElement x="58" y="0" width="174" height="17"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_name}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="504" y="0" width="68" height="17"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diference}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="397" y="0" width="107" height="17"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{expense}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="290" y="0" width="107" height="17"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{income}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="232" y="0" width="58" height="17"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_status}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="0" width="58" height="17"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{employee_value}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="35" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="54" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

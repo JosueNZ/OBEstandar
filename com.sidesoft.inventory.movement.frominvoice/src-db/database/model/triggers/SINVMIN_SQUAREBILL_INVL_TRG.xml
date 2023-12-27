@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SINVMIN_SQUAREBILL_INVL_TRG">
+    <trigger name="SINVMIN_SQUAREBILL_INVL_TRG" table="C_INVOICELINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[	vCheck BOOLEAN;
+BEGIN
+
+	IF AD_isTriggerEnabled() = 'N' THEN RETURN;END IF;
+
+	IF DELETING THEN
+	
+		SELECT COUNT(*) > 0 INTO vCheck
+		FROM sinvmin_square_bill
+		WHERE ad_table_id = '319' AND c_invoiceline_id = :OLD.c_invoiceline_id;
+		
+		IF vCheck THEN
+			RAISE_APPLICATION_ERROR(-20000, 'No se puede eliminar la línea '||:OLD.line||' ya que se encuentra relacionada a un despachado');
+		END IF;
+
+		DELETE FROM sinvmin_square_bill
+		WHERE ad_table_id = '318' AND c_invoiceline_id = :OLD.c_invoiceline_id;
+
+		RETURN OLD;
+
+	END IF;
+
+	END SINVMIN_SQUAREBILL_INVL_TRG
+]]></body>
+    </trigger>
+  </database>

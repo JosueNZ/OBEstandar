@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_BPARTNER_RFIESS_TRG">
+    <trigger name="SSPR_BPARTNER_RFIESS_TRG" table="C_BPARTNER" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_RefundIEss VARCHAR2(1);
+v_ConceptID VARCHAR2(32);
+
+
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;
+
+   IF (INSERTING OR UPDATING )  THEN
+
+	v_RefundIEss:= coalesce(to_char(:new.em_sspr_reservefundsiess),to_char('N'));
+	v_ConceptID:= coalesce(to_char(:new.em_sspr_concept_id),to_char('ND'));
+	
+	IF (v_RefundIEss='Y') THEN
+		IF (v_ConceptID='ND') THEN
+			RAISE_APPLICATION_ERROR(-20000, '@Sspr_ValidateRefundIess@');
+		END IF;
+	END IF;	
+	
+   END IF;
+   
+   END SSPR_BPARTNER_RFIESS_TRG
+]]></body>
+    </trigger>
+  </database>

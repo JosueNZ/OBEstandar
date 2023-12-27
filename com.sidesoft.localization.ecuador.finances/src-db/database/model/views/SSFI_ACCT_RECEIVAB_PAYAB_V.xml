@@ -1,0 +1,1089 @@
+<?xml version="1.0"?>
+  <database name="VIEW SSFI_ACCT_RECEIVAB_PAYAB_V">
+    <view name="SSFI_ACCT_RECEIVAB_PAYAB_V"><![CDATA[SELECT 'FC'                                                          AS doc_code
+       ,
+       'Factura Cliente'                                             AS
+       doc_type
+       ,
+       bp.name                                                       AS
+       bpartner_name,
+       i.documentno                                                  AS invoice,
+       i.documentno                                                  AS applied,
+       i.dateinvoiced                                                AS
+       documentdate,
+       i.dateacct,
+       i.poreference,
+       To_char(i.description)                                        AS
+       description,
+       psiv.duedate,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.expected
+         ELSE Abs(psiv.expected) * ( -1 )
+       END                                                           AS
+       grandtotal,
+       CASE
+         WHEN dt.isreversal = 'N' THEN C_currency_convert(i.grandtotal,
+                                       i.c_currency_id, '100', i.dateinvoiced,
+                                       NULL,
+i.ad_client_id,
+i.ad_org_id)
+ELSE C_currency_convert(i.grandtotal, i.c_currency_id, '100', i.dateinvoiced,
+NULL,
+i.ad_client_id, i.ad_org_id) * ( -1 )
+END                                                           AS
+       grandtotalconverted,
+dt.name                                                       AS doctype,
+cc.name                                                       AS costcenter,
+i.issotrx                                                     AS isclient,
+i.posted,
+i.c_bpartner_id,
+NULL                                                          AS fin_payment_id,
+i.c_currency_id,
+i.ad_client_id,
+i.ad_org_id,
+i.c_invoice_id,
+To_char('')                                                   AS
+       em_sswh_withholdingref,
+To_number(0)                                                  AS
+       em_sswh_totalwithholdingincome,
+To_number(0)                                                  AS
+       em_sswh_totalwithholdingvat,
+u1.name                                                       AS u1_name,
+u1.user1_id,
+CASE
+WHEN dt.isreversal = 'N' THEN psiv.received
+ELSE Abs(psiv.received) * ( -1 )
+END                                                           AS received,
+CASE
+WHEN dt.isreversal = 'N' THEN psiv.outstanding
+ELSE Abs(psiv.outstanding) * ( -1 )
+END                                                           AS outstanding,
+bp.taxid                                                      AS cif_nif,
+CASE
+WHEN i.ispaid = 'Y' THEN To_char('PAGADO')
+ELSE To_char('PENDIENTE')
+END                                                           AS status_doc,
+to_char(i.description)                                                 AS concept,
+To_number(0)                                                  AS value_advanced,
+Trunc(To_number(( i.dateinvoiced + cpt.netdays ) - Now()), 0) AS no_duedate,
+(SELECT to_char(c_invoice.documentno)
+FROM   c_invoice
+WHERE  c_invoice.c_invoice_id = i.em_scnr_invoice_id
+AND c_invoice.docstatus = 'CO')                       AS nota_credito
+FROM   c_invoice i
+       left join c_bpartner bp
+              ON i.c_bpartner_id = bp.c_bpartner_id
+       left join fin_payment_sched_inv_v psiv
+              ON i.c_invoice_id = psiv.c_invoice_id
+                 AND psiv.expected <> 0
+       left join c_doctype dt
+              ON i.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON i.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON i.user1_id = u1.user1_id
+       left join c_paymentterm cpt
+              ON cpt.c_paymentterm_id = i.c_paymentterm_id
+WHERE  i.issotrx = 'Y'
+       AND i.docstatus = 'CO'
+       
+
+--1
+UNION ALL
+
+
+
+SELECT 'CC'                                                          AS doc_code
+       ,
+       'Cobro Cliente'                                               AS
+       doc_type
+       ,
+       bp.name                                                       AS
+       bpartner_name,
+       i.documentno                                                  AS invoice,
+       pdv.paymentno                                                 AS applied,
+       pdv.paymentdate                                               AS
+       documentdate,
+       pdv.paymentdate                                               AS dateacct
+       ,
+       i.poreference,
+       To_char(i.description)                                        AS
+       description,
+       psiv.duedate,
+       pdv.paidconverted * ( -1 )                                    AS
+       grandtotal,
+       C_currency_convert(pdv.paidconverted, pdv.c_currency_id, '100',
+       pdv.paymentdate,
+       NULL, pdv.ad_client_id, pdv.ad_org_id) * ( -1 )               AS
+       grandtotalconverted,
+       dt.name                                                       AS doctype,
+       cc.name                                                       AS
+       costcenter,
+       i.issotrx                                                     AS isclient
+       ,
+       i.posted,
+       i.c_bpartner_id,
+       NULL                                                          AS
+       fin_payment_id,
+       pdv.c_currency_id,
+       pdv.ad_client_id,
+       pdv.ad_org_id,
+       i.c_invoice_id,
+       To_char('')                                                   AS
+       em_sswh_withholdingref,
+       To_number(0)                                                  AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                  AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                       AS u1_name,
+       u1.user1_id,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.received
+         ELSE Abs(psiv.received) * ( -1 )
+       END                                                           AS received
+       ,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.outstanding
+         ELSE Abs(psiv.outstanding) * ( -1 )
+       END                                                           AS
+       outstanding,
+       bp.taxid                                                      AS cif_nif,
+       CASE
+         WHEN i.ispaid = 'Y' THEN To_char('PAGADO')
+         ELSE To_char('PENDIENTE')
+       END                                                           AS
+       status_doc,
+       to_char(i.description)                                                 AS concept,
+       To_number(0)                                                  AS
+       value_advanced,
+       Trunc(To_number(( i.dateinvoiced + cpt.netdays ) - Now()), 0) AS
+       no_duedate,
+       ''                                                            AS
+       nota_credito
+FROM   c_invoice i
+       left join c_bpartner bp
+              ON i.c_bpartner_id = bp.c_bpartner_id
+       left join fin_payment_sched_inv_v psiv
+              ON i.c_invoice_id = psiv.c_invoice_id
+                 AND psiv.expected <> 0
+       left join fin_payment_detail_v pdv
+              ON psiv.fin_payment_sched_inv_v_id =
+                 pdv.fin_payment_sched_inv_v_id
+                 AND pdv.fin_payment_detail_v_id IS NOT NULL
+       left join c_doctype dt
+              ON i.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON i.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON i.user1_id = u1.user1_id
+       left join c_paymentterm cpt
+              ON cpt.c_paymentterm_id = i.c_paymentterm_id
+WHERE  pdv.paidconverted IS NOT NULL
+       AND i.issotrx = 'Y'
+       AND i.docstatus = 'CO'
+       
+
+--2       
+UNION ALL
+
+
+
+SELECT 'ACSI'                                                       AS doc_code,
+       'Anticipo Cliente'                                           AS doc_type,
+       bp.name                                                      AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       p.paymentdate                                                AS
+       documentdate,
+       p.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       p.paymentdate                                                AS duedate,
+       pd.amount * ( -1 )                                           AS
+       grandtotal,
+       C_currency_convert(pd.amount, p.c_currency_id, '100', p.paymentdate, NULL
+       ,
+       p.ad_client_id, p.ad_org_id) * ( -1 )                        AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       NULL                                                         AS
+       fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       bp.taxid                                                     AS cif_nif,
+       To_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description)                                                AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_bpartner bp
+              ON p.c_bpartner_id = bp.c_bpartner_id
+       left join fin_financial_account fa
+              ON p.fin_financial_account_id = fa.fin_financial_account_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join (SELECT a.value,
+                         b.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b
+                                ON a.ad_ref_list_id = b.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  fa.name LIKE '%Anticipo Cliente SI%'
+
+
+--3
+UNION ALL
+
+
+
+SELECT 'AC'                                                         AS doc_code,
+       'Anticipo Cliente'                                           AS doc_type,
+       (SELECT c_bpartner.name
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       p.paymentdate                                                AS
+       documentdate,
+       p.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       NULL                                                         AS duedate,
+       pdv.paidamt * ( -1 )                                         AS
+       grandtotal,
+       C_currency_convert(pdv.paidamt, p.c_currency_id, '100', p.paymentdate,
+       NULL,
+       p.ad_client_id, p.ad_org_id) * ( -1 )                        AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       p.fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       (SELECT c_bpartner.taxid
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS cif_nif,
+       to_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description)                                                AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join ssfi_fin_payment_detail_v pdv
+              ON p.fin_payment_id = pdv.fin_payment_id
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join fin_payment_credit pc
+              ON p.fin_payment_id = pc.fin_payment_id
+       left join (SELECT a.value,
+                         b.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b
+                                ON a.ad_ref_list_id = b.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  p.amount <> 0
+       AND ( p.status = 'RDNC'
+              OR p.status = 'RPPC'
+              OR p.status = 'RPR' )
+       AND pdv.glitemname IS NULL
+       AND pdv.fin_payment_sched_inv_id IS NULL
+       AND p.isreceipt = 'Y'
+       AND pd.isprepayment = 'Y'
+       AND p.generated_credit = pdv.paidamt
+
+--4       
+UNION ALL
+
+
+SELECT 'AC'                                                         AS doc_code,
+       'Anticipo Cliente'                                           AS doc_type,
+       (SELECT c_bpartner.name
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       c.paymentdate                                                AS
+       documentdate,
+       c.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       NULL                                                         AS duedate,
+       b.amount                                                     AS
+       grandtotal,
+       C_currency_convert(b.amount, p.c_currency_id, '100', p.paymentdate, NULL,
+       p.ad_client_id, p.ad_org_id)                                 AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       NULL                                                         AS
+       fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       (SELECT c_bpartner.taxid
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS cif_nif,
+       to_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description )                                               AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join ssfi_fin_payment_detail_v pdv
+              ON p.fin_payment_id = pdv.fin_payment_id
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join fin_payment_credit b
+              ON p.fin_payment_id = b.fin_payment_id_used
+       left join fin_payment c
+              ON b.fin_payment_id = c.fin_payment_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join (SELECT a.value,
+                         b_1.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b_1
+                                ON a.ad_ref_list_id = b_1.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  p.amount <> 0
+       AND ( p.status = 'RDNC'
+              OR p.status = 'RPPC'
+              OR p.status = 'RPR' )
+       AND pdv.glitemname IS NULL
+       AND pdv.fin_payment_sched_inv_id IS NULL
+       AND p.isreceipt = 'Y'
+       AND pd.isprepayment = 'Y'
+       AND p.generated_credit = pdv.paidamt
+       
+--5       
+UNION ALL
+
+
+SELECT 'FP'                                                          AS doc_code
+       ,
+       'Factura Proveedor'                                           AS
+       doc_type
+       ,
+       bp.name                                                       AS
+       bpartner_name,
+       i.documentno                                                  AS invoice,
+       i.documentno                                                  AS applied,
+       i.dateinvoiced                                                AS
+       documentdate,
+       i.dateacct,
+       i.poreference,
+       To_char(i.description)                                        AS
+       description,
+       psiv.duedate,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.expected
+         ELSE Abs(psiv.expected) * ( -1 )
+       END                                                           AS
+       grandtotal,
+       CASE
+         WHEN dt.isreversal = 'N' THEN C_currency_convert(psiv.expected,
+                                       i.c_currency_id, '100', i.dateinvoiced,
+                                       NULL,
+i.ad_client_id,
+i.ad_org_id)
+ELSE Abs(C_currency_convert(psiv.expected, i.c_currency_id, '100',
+i.dateinvoiced,
+NULL,
+i.ad_client_id, i.ad_org_id)) * ( -1 )
+END                                                           AS
+       grandtotalconverted,
+dt.name                                                       AS doctype,
+cc.name                                                       AS costcenter,
+i.issotrx                                                     AS isclient,
+i.posted,
+i.c_bpartner_id,
+NULL                                                          AS fin_payment_id,
+i.c_currency_id,
+i.ad_client_id,
+i.ad_org_id,
+i.c_invoice_id,
+i.em_sswh_withholdingref,
+i.em_sswh_totalwithholdingincome,
+i.em_sswh_totalwithholdingvat,
+u1.name                                                       AS u1_name,
+u1.user1_id,
+CASE
+WHEN dt.isreversal = 'N' THEN psiv.received
+ELSE Abs(psiv.received) * ( -1 )
+END                                                           AS received,
+CASE
+WHEN dt.isreversal = 'N' THEN psiv.outstanding
+ELSE Abs(psiv.outstanding) * ( -1 )
+END                                                           AS outstanding,
+bp.taxid                                                      AS cif_nif,
+CASE
+WHEN i.ispaid = 'Y' THEN To_char('PAGADO')
+ELSE To_char('PENDIENTE')
+END                                                           AS status_doc,
+to_char(i.description)                                                 AS concept,
+To_number(0)                                                  AS value_advanced,
+Trunc(To_number(( i.dateinvoiced + cpt.netdays ) - Now()), 0) AS no_duedate,
+''                                                            AS nota_credito
+FROM   c_invoice i
+       left join c_bpartner bp
+              ON i.c_bpartner_id = bp.c_bpartner_id
+       left join fin_payment_sched_inv_v psiv
+              ON i.c_invoice_id = psiv.c_invoice_id
+                 AND psiv.expected <> 0
+       left join c_doctype dt
+              ON i.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON i.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON i.user1_id = u1.user1_id
+       left join c_paymentterm cpt
+              ON cpt.c_paymentterm_id = i.c_paymentterm_id
+WHERE  i.issotrx = 'N'
+       AND i.docstatus = 'CO'
+       
+--6
+UNION ALL
+
+
+
+SELECT 'PP'                                                          AS doc_code
+       ,
+       'Pago Proveedor'                                              AS
+       doc_type
+       ,
+       bp.name                                                       AS
+       bpartner_name,
+       i.documentno                                                  AS invoice,
+       pdv.paymentno                                                 AS applied,
+       pdv.paymentdate                                               AS
+       documentdate,
+       pdv.paymentdate                                               AS dateacct
+       ,
+       i.poreference,
+       To_char(i.description)                                        AS
+       description,
+       psiv.duedate,
+       pdv.paidconverted * ( -1 )                                    AS
+       grandtotal,
+       C_currency_convert(pdv.paidconverted, pdv.c_currency_id, '100',
+       pdv.paymentdate,
+       NULL, pdv.ad_client_id, pdv.ad_org_id) * ( -1 )               AS
+       grandtotalconverted,
+       dt.name                                                       AS doctype,
+       cc.name                                                       AS
+       costcenter,
+       i.issotrx                                                     AS isclient
+       ,
+       i.posted,
+       i.c_bpartner_id,
+       NULL                                                          AS
+       fin_payment_id,
+       pdv.c_currency_id,
+       pdv.ad_client_id,
+       pdv.ad_org_id,
+       i.c_invoice_id,
+       i.em_sswh_withholdingref,
+       i.em_sswh_totalwithholdingincome,
+       i.em_sswh_totalwithholdingvat,
+       u1.name                                                       AS u1_name,
+       u1.user1_id,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.received
+         ELSE Abs(psiv.received) * ( -1 )
+       END                                                           AS received
+       ,
+       CASE
+         WHEN dt.isreversal = 'N' THEN psiv.outstanding
+         ELSE Abs(psiv.outstanding) * ( -1 )
+       END                                                           AS
+       outstanding,
+       bp.taxid                                                      AS cif_nif,
+       CASE
+         WHEN i.ispaid = 'Y' THEN To_char('PAGADO')
+         ELSE To_char('PENDIENTE')
+       END                                                           AS
+       status_doc,
+       to_char(i.description)                                                 AS concept,
+       To_number(0)                                                  AS
+       value_advanced,
+       Trunc(To_number(( i.dateinvoiced + cpt.netdays ) - Now()), 0) AS
+       no_duedate,
+       ''                                                            AS
+       nota_credito
+FROM   c_invoice i
+       left join c_bpartner bp
+              ON i.c_bpartner_id = bp.c_bpartner_id
+       left join fin_payment_sched_inv_v psiv
+              ON i.c_invoice_id = psiv.c_invoice_id
+                 AND psiv.expected <> 0
+       left join fin_payment_detail_v pdv
+              ON psiv.fin_payment_sched_inv_v_id =
+                 pdv.fin_payment_sched_inv_v_id
+                 AND pdv.fin_payment_detail_v_id IS NOT NULL
+       left join c_doctype dt
+              ON i.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON i.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON i.user1_id = u1.user1_id
+       left join c_paymentterm cpt
+              ON cpt.c_paymentterm_id = i.c_paymentterm_id
+WHERE  pdv.paidconverted IS NOT NULL
+       AND i.issotrx = 'N'
+       AND i.docstatus = 'CO'
+       
+--7       
+UNION ALL
+
+
+SELECT 'APSI'                                                       AS doc_code,
+       'Anticipo Proveedor'                                         AS doc_type,
+       c.name                                                       AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       p.paymentdate                                                AS
+       documentdate,
+       p.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       p.paymentdate                                                AS duedate,
+       pd.amount * ( -1 )                                           AS
+       grandtotal,
+       C_currency_convert(pd.amount, p.c_currency_id, '100', p.paymentdate, NULL
+       ,
+       p.ad_client_id, p.ad_org_id) * ( -1 )                        AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       NULL                                                         AS
+       fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       bp.taxid                                                     AS cif_nif,
+       to_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description)                                                AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_bpartner c
+              ON p.c_bpartner_id = c.c_bpartner_id
+       left join fin_financial_account d
+              ON p.fin_financial_account_id = d.fin_financial_account_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join c_bpartner bp
+              ON p.c_bpartner_id = bp.c_bpartner_id
+       left join (SELECT a.value,
+                         b.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b
+                                ON a.ad_ref_list_id = b.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  d.name LIKE '%Anticipo Proveedor SI%'
+
+--8
+UNION ALL
+
+
+SELECT 'AP'                                                         AS doc_code,
+       'Anticipo Proveedor'                                         AS doc_type,
+       (SELECT c_bpartner.name
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       p.paymentdate                                                AS
+       documentdate,
+       p.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       NULL                                                         AS duedate,
+       pdv.paidamt * ( -1 )                                         AS
+       grandtotal,
+       C_currency_convert(pdv.paidamt, p.c_currency_id, '100', p.paymentdate,
+       NULL,
+       p.ad_client_id, p.ad_org_id) * ( -1 )                        AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       NULL                                                         AS
+       fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       (SELECT c_bpartner.taxid
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS cif_nif,
+       to_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description)                                                AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join ssfi_fin_payment_detail_v pdv
+              ON p.fin_payment_id = pdv.fin_payment_id
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join (SELECT a.value,
+                         b.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b
+                                ON a.ad_ref_list_id = b.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  p.amount <> 0
+       AND ( p.status = 'PWNC'
+              OR p.status = 'RPPC'
+              OR p.status = 'PPM' )
+       AND pdv.glitemname IS NULL
+       AND p.isreceipt = 'N'
+       AND pd.isprepayment = 'Y'
+       AND p.generated_credit = pdv.paidamt
+       
+--9       
+UNION ALL
+
+
+SELECT 'AP'                                                         AS doc_code,
+       'Anticipo Proveedor'                                         AS doc_type,
+       (SELECT c_bpartner.name
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS
+       bpartner_name,
+       p.documentno                                                 AS invoice,
+       p.documentno                                                 AS applied,
+       c.paymentdate                                                AS
+       documentdate,
+       c.paymentdate                                                AS dateacct,
+       p.referenceno                                                AS
+       poreference,
+       To_char(p.description)                                       AS
+       description,
+       NULL                                                         AS duedate,
+       b.amount                                                     AS
+       grandtotal,
+       C_currency_convert(b.amount, p.c_currency_id, '100', p.paymentdate, NULL,
+       p.ad_client_id, p.ad_org_id)                                 AS
+       grandtotalconverted,
+       dt.name                                                      AS doctype,
+       cc.name                                                      AS
+       costcenter,
+       p.isreceipt                                                  AS isclient,
+       p.posted,
+       p.c_bpartner_id,
+       NULL                                                         AS
+       fin_payment_id,
+       p.c_currency_id,
+       p.ad_client_id,
+       p.ad_org_id,
+       To_char('')                                                  AS
+       c_invoice_id,
+       To_char('')                                                  AS
+       em_sswh_withholdingref,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                 AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                      AS u1_name,
+       u1.user1_id,
+       p.used_credit                                                AS received,
+       Coalesce(p.generated_credit, 0) - Coalesce(p.used_credit, 0) AS
+       outstanding,
+       (SELECT c_bpartner.taxid
+        FROM   c_bpartner
+        WHERE  c_bpartner.c_bpartner_id = p.c_bpartner_id)          AS cif_nif,
+       to_char(rt.name)                                                      AS
+       status_doc,
+       to_char(p.description)                                                AS concept,
+       p.generated_credit                                           AS
+       value_advanced,
+       To_number(0)                                                 AS
+       no_duedate,
+       ''                                                           AS
+       nota_credito
+FROM   fin_payment p
+       left join ssfi_fin_payment_detail_v pdv
+              ON p.fin_payment_id = pdv.fin_payment_id
+       left join fin_payment_detail pd
+              ON p.fin_payment_id = pd.fin_payment_id
+       left join c_doctype dt
+              ON p.c_doctype_id = dt.c_doctype_id
+       left join c_costcenter cc
+              ON p.c_costcenter_id = cc.c_costcenter_id
+       left join fin_payment_credit b
+              ON p.fin_payment_id = b.fin_payment_id_used
+       left join fin_payment c
+              ON b.fin_payment_id = c.fin_payment_id
+       left join user1 u1
+              ON p.user1_id = u1.user1_id
+       left join (SELECT a.value,
+                         b_1.name
+                  FROM   ad_ref_list a
+                         left join ad_ref_list_trl b_1
+                                ON a.ad_ref_list_id = b_1.ad_ref_list_id
+                  WHERE  a.ad_reference_id = (((SELECT
+                                             ad_reference.ad_reference_id
+                                                FROM   ad_reference
+                                                WHERE  ad_reference.name =
+                                                       'FIN_Payment status'))
+                                             )) rt
+              ON p.status = rt.value
+WHERE  p.amount <> 0
+       AND ( p.status = 'PWNC'
+              OR p.status = 'RPPC'
+              OR p.status = 'PPM' )
+       AND pdv.glitemname IS NULL
+       AND p.isreceipt = 'N'
+       AND pd.isprepayment = 'Y'
+       AND p.generated_credit = pdv.paidamt
+
+
+--10
+UNION ALL
+
+
+SELECT 'RC'                                                           AS
+       doc_code,
+       'RETENCION CLIENTE'                                            AS
+       doc_type,
+       c.name                                                         AS
+       bpartner_name,
+       d.documentno                                                   AS invoice
+       ,
+       a.documentno                                                   AS
+       applied,
+       a.withholdingdate                                              AS
+       documentdate,
+       a.dateacct,
+       d.poreference,
+       To_char(a.description)                                         AS
+       description,
+       a.withholdingdate                                              AS duedate
+       ,
+       ( a.totalwhrentalamt + a.totalwhivaamt ) * ( -1 )              AS
+       grandtotal,
+       C_currency_convert(a.totalwhrentalamt + a.totalwhivaamt, a.c_currency_id,
+       '100',
+       a.withholdingdate, NULL, a.ad_client_id, a.ad_org_id) * ( -1 ) AS
+       grandtotalconverted,
+       e.name                                                         AS doctype
+       ,
+       NULL                                                           AS
+       costcenter,
+       CASE
+         WHEN a.withholdingtype = 'WS' THEN 'Y'
+         ELSE 'N'
+       END                                                            AS
+       isclient,
+       a.posted,
+       a.c_bpartner_id,
+       NULL                                                           AS
+       fin_payment_id,
+       a.c_currency_id,
+       a.ad_client_id,
+       a.ad_org_id,
+       d.c_invoice_id,
+       To_char('')                                                    AS
+       em_sswh_withholdingref,
+       To_number(0)                                                   AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                   AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                        AS u1_name
+       ,
+       u1.user1_id,
+       To_number(0)                                                   AS
+       received,
+       To_number(0)                                                   AS
+       outstanding,
+       c.taxid                                                        AS cif_nif
+       ,
+       To_char('')                                                    AS
+       status_doc,
+       To_char('')                                                    AS concept
+       ,
+       To_number(0)                                                   AS
+       value_advanced,
+       To_number(0)                                                   AS
+       no_duedate,
+       ''                                                             AS
+       nota_credito
+FROM   ssws_withholdingsale a
+       left join c_bpartner c
+              ON a.c_bpartner_id = c.c_bpartner_id
+       left join c_invoice d
+              ON a.c_invoice_id = d.c_invoice_id
+       left join c_doctype e
+              ON a.c_doctype_id = e.c_doctype_id
+       left join user1 u1
+              ON d.user1_id = u1.user1_id
+WHERE  a.docstatus = 'CO'
+       AND a.withholdingtype = 'WS'
+       AND a.paidinvoice = 'N'
+       
+--11       
+UNION ALL
+
+
+SELECT 'RP'                                                           AS
+       doc_code,
+       'RETENCION PROVEEDOR'                                          AS
+       doc_type,
+       c.name                                                         AS
+       bpartner_name,
+       d.documentno                                                   AS invoice
+       ,
+       a.documentno                                                   AS
+       applied,
+       a.withholdingdate                                              AS
+       documentdate,
+       a.dateacct,
+       d.poreference,
+       To_char(a.description)                                         AS
+       description,
+       a.withholdingdate                                              AS duedate
+       ,
+       ( a.totalwhrentalamt + a.totalwhivaamt ) * ( -1 )              AS
+       grandtotal,
+       C_currency_convert(a.totalwhrentalamt + a.totalwhivaamt, a.c_currency_id,
+       '100',
+       a.withholdingdate, NULL, a.ad_client_id, a.ad_org_id) * ( -1 ) AS
+       grandtotalconverted,
+       e.name                                                         AS doctype
+       ,
+       NULL                                                           AS
+       costcenter,
+       CASE
+         WHEN a.withholdingtype = 'WS' THEN 'Y'
+         ELSE 'N'
+       END                                                            AS
+       isclient,
+       a.posted,
+       a.c_bpartner_id,
+       NULL                                                           AS
+       fin_payment_id,
+       a.c_currency_id,
+       a.ad_client_id,
+       a.ad_org_id,
+       d.c_invoice_id,
+       To_char('')                                                    AS
+       em_sswh_withholdingref,
+       To_number(0)                                                   AS
+       em_sswh_totalwithholdingincome,
+       To_number(0)                                                   AS
+       em_sswh_totalwithholdingvat,
+       u1.name                                                        AS u1_name
+       ,
+       u1.user1_id,
+       To_number(0)                                                   AS
+       received,
+       To_number(0)                                                   AS
+       outstanding,
+       c.taxid                                                        AS cif_nif
+       ,
+       To_char('')                                                    AS
+       status_doc,
+       To_char('')                                                    AS concept
+       ,
+       To_number(0)                                                   AS
+       value_advanced,
+       To_number(0)                                                   AS
+       no_duedate,
+       ''                                                             AS
+       nota_credito
+FROM   ssws_withholdingsale a
+       left join c_bpartner c
+              ON a.c_bpartner_id = c.c_bpartner_id
+       left join c_invoice d
+              ON a.c_invoice_id = d.c_invoice_id
+       left join c_doctype e
+              ON a.c_doctype_id = e.c_doctype_id
+       left join user1 u1
+              ON d.user1_id = u1.user1_id
+WHERE  a.docstatus = 'CO'
+       AND a.withholdingtype = 'WP'
+       AND a.paidinvoice = 'N']]></view>
+  </database>

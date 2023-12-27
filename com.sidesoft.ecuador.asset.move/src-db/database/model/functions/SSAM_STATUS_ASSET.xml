@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAM_STATUS_ASSET">
+    <function name="SSAM_STATUS_ASSET" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_InvoiceLine RECORD;
+  cur_params          RECORD;
+
+p_message           VARCHAR2(2000);    
+p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+p_user              VARCHAR2(60);      
+p_result            NUMBER;
+p_docstatus         VARCHAR2(60);
+p_issotrx           VARCHAR2(60);
+v_ResultStr         VARCHAR2(2000):='';
+
+--PROCESO NC
+v_doctype_id        VARCHAR2(32);      
+v_isreversal	    CHAR(1);
+v_docbasetype	    VARCHAR2(60);      
+v_sswh_livelihoodt  VARCHAR2(32);      
+V_refundinvoice_ID  VARCHAR2(32);      
+v_value_livehoodt   VARCHAR2(60);      
+
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para 
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    END IF;
+  END LOOP;
+
+  --OBTENGO DATOS DE FACTURA DE COMPRA
+  SELECT issotrx, docstatus, c_doctype_id, em_sswh_livelihood
+ INTO p_issotrx, p_docstatus, v_doctype_id, v_sswh_livelihoodt
+  from c_invoice where c_invoice_id = p_record_id ;--'DB41BFE69DE24BF28B3A6E8468B4F91F'; 
+
+  --VALIDO QUE SEA FACTURA DE VENTA
+  IF (p_issotrx='Y') THEN 
+
+	For Cur_invoiceline In(
+		select em_ssam_asset, em_ssam_assetalienate, em_ssam_a_asset_id, em_ssam_alienate_id, c_invoiceline_id, c_invoice_id
+		from c_invoiceline
+		where c_invoice_id = p_record_id 
+		and em_ssam_asset = 'Y'
+	)
+	Loop
+
+	      If(p_docaction = 'CO') THEN 
+		If(Cur_invoiceline.em_ssam_assetalienate = 'AS')Then
+
+			--Actualiza estado del actiivo a facturado
+			update a_asset set em_ssam_status = 'I'
+			where a_asset_id = Cur_invoiceline.em_ssam_a_asset_id;
+
+			--Actualiza enajenacion a con el id de la factura
+			update ssam_alienateline
+			set c_invoice_id = Cur_invoiceline.c_invoice_id
+			where a_asset_id = Cur_invoiceline.em_ssam_a_asset_id
+			and c_invoice_id = null;
+			
+
+		ElsIf(Cur_invoiceline.em_ssam_assetalienate = 'AL')Then
+
+			--Actualiza estado del actiivo a facturado
+			update a_asset set em_ssam_status = 'I'
+			where a_asset_id in(select b.a_asset_id 
+					    from ssam_alienate a
+					    left join ssam_alienateline b on b.ssam_alienate_id = a.ssam_alienate_id 
+					    where a.ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+					    and b.c_invoice_id is null
+					   );
+
+			--Actualiza enajenacion con el id de la factura
+			update ssam_alienateline
+			set c_invoice_id = Cur_invoiceline.c_invoice_id
+			where ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+			and a_asset_id in(select b.a_asset_id 
+					    from ssam_alienate a
+					    left join ssam_alienateline b on b.ssam_alienate_id = a.ssam_alienate_id 
+					    where a.ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+					    and b.c_invoice_id is null);
+		 
+		End If;
+			
+	      Else
+
+		If(Cur_invoiceline.em_ssam_assetalienate = 'AS')Then
+			
+			update a_asset set em_ssam_status = 'W'
+			where a_asset_id = Cur_invoiceline.em_ssam_a_asset_id;
+
+			--Actualiza enajenacion a con el id de la factura
+			update ssam_alienateline
+			set c_invoice_id = null
+			where a_asset_id = Cur_invoiceline.em_ssam_a_asset_id
+			and c_invoice_id = Cur_invoiceline.c_invoice_id;
+
+		ElsIf(Cur_invoiceline.em_ssam_assetalienate = 'AL')Then
+
+			update a_asset set em_ssam_status = 'W'
+			where a_asset_id in(select b.a_asset_id 
+					    from ssam_alienate a
+					    left join ssam_alienateline b on b.ssam_alienate_id = a.ssam_alienate_id 
+					    where a.ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+					    and b.c_invoice_id = Cur_invoiceline.c_invoice_id);
+
+			--Actualiza enajenacion con el id de la factura
+			update ssam_alienateline
+			set c_invoice_id = null
+			where ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+			and a_asset_id in(select b.a_asset_id 
+					    from ssam_alienate a
+					    left join ssam_alienateline b on b.ssam_alienate_id = a.ssam_alienate_id 
+					    where a.ssam_alienate_id = Cur_invoiceline.em_ssam_alienate_id
+					    and b.c_invoice_id = Cur_invoiceline.c_invoice_id);
+    
+		End If;
+
+	      End If;
+	  End Loop;
+
+  END IF;
+  
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+  RAISE;
+END SSAM_STATUS_ASSET
+]]></body>
+    </function>
+  </database>

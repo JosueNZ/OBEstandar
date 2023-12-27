@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRBI_NHOUR_50">
+    <function name="SPRBI_NHOUR_50" type="VARCHAR">
+      <parameter name="v_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cur_mark RECORD;
+    v_holiday DATE;
+    v_day NUMBER;
+    v_check VARCHAR2(1);
+    v_overtimeparam DATE;
+    v_auth DATE;
+    v_timecalc DATE;
+    vMaxHourDay DATE;
+    vMaxHourWeeK DATE;
+    vMaxHourMonth NUMBER;
+    vHourWeek DATE;
+    vHourMonth NUMBER;
+	vWorkingHours DATE;
+	v_weekend NUMBER;
+BEGIN
+
+    SET timezone TO '0';
+    
+    FOR cur_mark IN (SELECT * FROM sprov_employee_overtime WHERE sprov_employee_overtime_id = v_Record_ID) LOOP
+    
+        -- Obtenemos el dia de la semana
+        SELECT EXTRACT(DOW FROM cur_mark.datemovement) INTO v_day;
+        
+        -- Obtenemos el check de horas extras del empleado
+        SELECT EM_Sspr_Extra_Hours INTO v_check FROM c_bpartner WHERE c_bpartner_id = cur_mark.c_bpartner_id;
+        
+        -- Verificamos si es feriado
+        SELECT value INTO v_holiday FROM sshd_holidays_period_line WHERE value::DATE = cur_mark.datemovement::DATE;
+		
+		-- Verificamos si tiene el dia configurado
+		SELECT COUNT(D.day) INTO v_weekend FROM c_bpartner AS BP
+			JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+			JOIN sspr_shift AS S ON S.sspr_shift_id = C.sspr_shift_id
+			JOIN sprbi_days AS D ON D.sspr_shift_id = S.sspr_shift_id
+		WHERE BP.c_bpartner_id = cur_mark.c_bpartner_id AND D.day = v_day::VARCHAR;
+        
+        -- Si el dia esta entre lunes y viernes, lo tiene configurado, no es feriado y no tiene el check de horas extras
+        IF (v_day > 0 AND v_day < 6) AND (v_weekend > 0) AND (v_holiday IS NULL) AND (v_check = 'N') AND
+            (cur_mark.output_time_processed::TIME > cur_mark.exit_1::TIME) THEN
+            
+            -- Obtenemos los parametros del turno del empleado
+            SELECT
+                em_sprbi_overtime_param,
+                em_sprbi_hours_max_day,
+                em_sprbi_hours_max_week,
+                em_sprbi_hours_max_month,
+				em_sprov_working_hours
+                INTO
+                v_overtimeparam,
+                vMaxHourDay,
+                vMaxHourWeeK,
+                vMaxHourMonth,
+				vWorkingHours
+            FROM c_bpartner AS BP
+                JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+                JOIN sspr_shift AS S ON S.sspr_shift_id = C.sspr_shift_id
+            WHERE BP.c_bpartner_id = cur_mark.c_bpartner_id;
+            v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.exit_1::TIME);
+			
+			-- Restamos el atraso al sobretiempo
+			IF cur_mark.Delay_1::TIME != '00:00:00' THEN
+				IF cur_mark.Delay_1::TIME > v_timecalc::TIME THEN
+					v_timecalc := '0001-01-01 00:00:00'::TIMESTAMP;
+				ELSE
+					v_timecalc := v_timecalc - cur_mark.Delay_1::TIME;
+				END IF;
+			END IF;
+            
+			-- Verificamos que cumpla con las horas laborales
+            -- Verificamos que la salida procesada sea mayor al parametro de sobretiempo
+            IF (cur_mark.worked_hour::TIME >= vWorkingHours::TIME) AND (v_timecalc::TIME >= v_overtimeparam::TIME) THEN
+            
+                -- Horas Autorizadas
+                SELECT '0001-01-01 '||SUM(PA.n_hour::TIME) INTO v_auth FROM sprov_period AS P
+                    JOIN sprov_employee AS E ON E.sprov_period_id = P.sprov_period_id
+                    JOIN sprov_planned_activity PA ON PA.sprov_employee_id = E.sprov_employee_id
+                WHERE P.status = '1' AND PA.payment = 'Y' AND E.c_bpartner_id = cur_mark.c_bpartner_id
+                    AND PA.date::DATE = cur_mark.datemovement::DATE;
+                
+                -- Validamos que tenga horas extras planificadas
+                IF (v_auth IS NOT NULL) THEN
+					-- Si las horas extras son mayores a las autorizadas
+					IF (v_timecalc::TIME > v_auth::TIME) THEN
+						v_timecalc := '0001-01-01 '||v_auth::TIME;
+					END IF;
+                
+                    -- Horas maximas diarias
+                    IF (vMaxHourDay IS NOT NULL) AND (vMaxHourDay::TIME != '00:00:00') AND (v_timecalc::TIME > vMaxHourDay::TIME) THEN
+                        v_timecalc := '0001-01-01 '||vMaxHourDay::TIME;
+                    END IF;
+                    
+                    -- Acumulado horas extras a la semana
+                    IF (vMaxHourWeeK IS NOT NULL) AND (vMaxHourWeeK::TIME != '00:00:00') THEN
+                        SELECT '0001-01-01 '||SUM(time_50::TIME) INTO vHourWeek
+                        FROM sprov_employee_overtime
+                        WHERE c_bpartner_id=cur_mark.c_bpartner_id
+                            AND datemovement>=date_trunc('week', cur_mark.datemovement)
+                            AND datemovement <= date_trunc('week', cur_mark.datemovement)+'6 days'::INTERVAL;
+                        -- Si el acumulado supera al maximo permitido en la semana
+                        IF ((v_timecalc + vHourWeek::TIME)::TIME > vMaxHourWeeK::TIME) THEN
+                            v_timecalc := '0001-01-01 '||vMaxHourWeeK::TIME - vHourWeek::TIME;
+                        END IF;
+                    END IF;
+                
+                    -- Acumulado horas extras al mes
+                    IF (vMaxHourMonth IS NOT NULL) AND (vMaxHourMonth > 0) THEN
+                        SELECT EXTRACT(epoch FROM SUM(time_50::TIME)::TIME)/3600 INTO vHourMonth
+                        FROM sprov_employee_overtime
+                        WHERE c_bpartner_id=cur_mark.c_bpartner_id
+                            AND datemovement::TEXT LIKE TO_CHAR(cur_mark.datemovement, 'yyyy-mm')||'%';
+                        -- Si el acumulado supera al maximo permitido al mes
+                        IF ((EXTRACT(epoch FROM v_timecalc::TIME)/3600) + vHourMonth > vMaxHourMonth) THEN
+                            v_timecalc := '0001-01-01 '||(INTERVAL '01:00' * (vMaxHourMonth - vHourMonth))::TIME;
+                        END IF;
+                    END IF;
+                
+                    UPDATE sprov_employee_overtime SET
+                        time_50 = (cur_mark.datemovement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+                    WHERE sprov_employee_overtime_id = v_Record_ID;
+                END IF;
+            END IF;
+        END IF;
+    END LOOP;
+    RETURN TRUE;
+END SPRBI_NHOUR_50
+]]></body>
+    </function>
+  </database>

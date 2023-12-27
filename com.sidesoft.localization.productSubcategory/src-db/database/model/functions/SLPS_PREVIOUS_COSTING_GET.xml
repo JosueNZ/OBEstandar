@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SLPS_PREVIOUS_COSTING_GET">
+    <function name="SLPS_PREVIOUS_COSTING_GET" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_warehouse_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="costdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[actualcost NUMBER;
+BEGIN
+  select   coalesce( (
+  
+    select
+ (stock * average_cost) as costo_inicial
+from
+(select name,stock
+,( CASE WHEN stock=0 THEN 0 ELSE total_cost END) as total_cost,
+(case when stock > 0 Then CASE iscostcalculated WHEN 'Y' THEN total_cost / stock ELSE NULL END else  0 end ) AS AVERAGE_COST
+from (
+
+	select p.name, sum(t.movementqty) as stock,t.iscostcalculated
+	,
+     round( (C_CURRENCY_CONVERT_PRECISION (sum(CASE WHEN t.MOVEMENTQTY < 0 THEN- tc.trxcost ELSE tc.trxcost END),tc.c_currency_id,tc.c_currency_id,costdate,NULL,p.AD_CLIENT_ID,p.ad_org_id,'C')),2)
+	AS TOTAL_COST
+	from m_product p
+	left join m_transaction t on t.m_product_id = p.m_product_id
+	left join m_locator l on l.m_locator_id = t.m_locator_id
+	left join m_product_category pc on pc.m_product_category_id = p.m_product_category_id
+	left join c_uom u on u.c_uom_id = p.c_uom_id
+	LEFT JOIN (SELECT sum(cost) AS trxcost, m_transaction_id, c_currency_id
+	FROM M_TRANSACTION_COST
+	GROUP BY m_transaction_id, c_currency_id) tc ON t.m_transaction_id = tc.m_transaction_id
+	where t.m_product_id = p_product_id
+	and t.m_locator_id in (select l.m_locator_id from m_locator l where l.m_warehouse_id = p_warehouse_id)
+	and TO_DATE(t.movementdate) < TO_DATE(costdate)
+	group by 1,3, u.name, tc.c_currency_id, p.AD_CLIENT_ID, p.ad_org_id,  t.iscostcalculated
+	order by 1
+
+) tempstock
+where (total_cost <> 0 or stock <> 0)
+) costo
+
+  ),0) 
+  into actualcost
+  from dual ;
+
+  return actualcost;
+END SLPS_PREVIOUS_COSTING_GET
+]]></body>
+    </function>
+  </database>

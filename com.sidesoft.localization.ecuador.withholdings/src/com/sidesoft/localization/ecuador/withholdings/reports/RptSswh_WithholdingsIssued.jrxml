@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSswh_WithholdingsIssued" pageWidth="1301" pageHeight="595" orientation="Landscape" columnWidth="1261" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="ec860b2e-edc1-4601-be76-ce97ab4c9e24">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.text.truncate.at.char" value="true"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<parameter name="AD_ORG_ID" class="java.lang.String"/>
+	<parameter name="DATE_FROM" class="java.util.Date"/>
+	<parameter name="DATE_TO" class="java.util.Date"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("#####0.00;-#####0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+factura
+,organizacion
+,num_retencion
+,proveedor
+,ordenimp
+,factura_compra.codigo_impuesto
+,sum(rep_retencion.impuesto) as impuesto
+,to_char('factura') as agr_fact
+,to_char(coalesce( to_char(num_retencion ||  ' - '),to_char('')) )|| to_char(coalesce(to_char(proveedor),to_char('') ))as retencion_prov
+from (
+select
+ci.c_invoice_id,abs(ct.rate) as codigo_impuesto, to_number(0) impuesto, em_sswh_orderprint as ordenimp
+from c_tax ct,c_invoice ci
+where ct.istaxdeductable = 'N'  and ct.rate <> 0 and em_sswh_isrepwithhissued = 'Y'
+and  ci.docstatus = 'CO' and ci.issotrx='N'
+and (ci.ad_org_id = $P{AD_ORG_ID} or $P{AD_ORG_ID} is null)
+AND to_date(to_char(ci.dateinvoiced,'dd/MM/yyyy')) between $P{DATE_FROM} and $P{DATE_TO}
+group by ci.c_invoice_id,abs(ct.rate),em_sswh_orderprint
+order by 1,2
+) factura_compra
+left join (select
+to_char(ci.c_invoice_id)  as factura
+,to_char(ci.ad_org_id) as organizacion
+--, ci.poreference as num_pedido
+, coalesce(to_char(ci.em_sswh_withholdingref),to_char('')) as num_retencion
+, cbp.name as proveedor
+, abs(ct.rate) as codigo_impuesto
+, abs(cit.taxamt) as impuesto
+from c_invoice ci
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+join c_invoicetax cit on cit.c_invoice_id = ci.c_invoice_id
+join c_tax ct on ct.c_tax_id = cit.c_tax_id and ct.istaxdeductable = 'N'  and ct.rate <> 0
+join ad_org og on og.ad_org_id = ci.ad_org_id
+where ci.docstatus = 'CO' and ci.issotrx='N'
+AND ad_isorgincluded(og.ad_org_id,$P{AD_ORG_ID},og.ad_client_id) > 0
+order by 1,3
+) rep_retencion on factura_compra.c_invoice_id = rep_retencion.factura and factura_compra.codigo_impuesto = rep_retencion.codigo_impuesto
+where coalesce(to_char(proveedor),to_char('ND'))<>'ND'
+group by factura
+,organizacion
+,num_retencion
+,proveedor
+,ordenimp
+,factura_compra.codigo_impuesto
+order by  factura,ordenimp]]>
+	</queryString>
+	<field name="factura" class="java.lang.String"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="num_retencion" class="java.lang.String"/>
+	<field name="proveedor" class="java.lang.String"/>
+	<field name="ordenimp" class="java.math.BigDecimal"/>
+	<field name="codigo_impuesto" class="java.math.BigDecimal"/>
+	<field name="impuesto" class="java.math.BigDecimal"/>
+	<field name="agr_fact" class="java.lang.String"/>
+	<field name="retencion_prov" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="104" splitType="Stretch">
+			<staticText>
+				<reportElement x="143" y="0" width="1100" height="64" uuid="9cd7c03e-abae-4ada-8a5d-642ceca32e40"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="18" isBold="true"/>
+				</textElement>
+				<text><![CDATA[RETENCIONES EMITIDAS PROVEEEDOR]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="388" y="64" width="99" height="20" uuid="7cb697b8-a36e-45f8-ad97-3a98c2070dd8"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{DATE_FROM}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="143" y="84" width="245" height="20" uuid="e58f6b2e-2c88-420b-b785-8de073c93320"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Hasta:  ]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="388" y="84" width="99" height="20" uuid="b143b8ed-7f72-459c-b96e-e12add20878a"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{DATE_TO}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="143" y="64" width="245" height="20" uuid="56f242f1-bf67-46a3-98ff-aa2282e21967"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Desde:  ]]></text>
+			</staticText>
+			<image>
+				<reportElement x="0" y="0" width="143" height="64" uuid="afea0c7c-2915-4081-82f6-5be96d8d4583"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizacion})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band splitType="Stretch"/>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="118" splitType="Stretch">
+			<crosstab>
+				<reportElement x="0" y="0" width="1233" height="118" uuid="a8f5f11c-e43a-4609-b1d5-365ba846ff8d"/>
+				<crosstabParameter name="NUMBERFORMAT" class="java.text.DecimalFormat"/>
+				<crosstabHeaderCell>
+					<cellContents>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="143" height="30" uuid="f33b246f-e544-4470-b884-930bdb99935f"/>
+							<box>
+								<pen lineWidth="0.5"/>
+								<topPen lineWidth="0.5"/>
+								<leftPen lineWidth="0.5"/>
+								<bottomPen lineWidth="0.5"/>
+								<rightPen lineWidth="0.5"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font isBold="true"/>
+							</textElement>
+							<text><![CDATA[NRO. RETENCIÓN]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="143" y="0" width="245" height="30" uuid="94b8eb3a-80e7-4be5-8557-ccd262462ddb"/>
+							<box>
+								<pen lineWidth="0.5"/>
+								<topPen lineWidth="0.5"/>
+								<leftPen lineWidth="0.5"/>
+								<bottomPen lineWidth="0.5"/>
+								<rightPen lineWidth="0.5"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font isBold="true"/>
+							</textElement>
+							<text><![CDATA[PROVEEDOR]]></text>
+						</staticText>
+					</cellContents>
+				</crosstabHeaderCell>
+				<rowGroup name="agr_fact" width="0" totalPosition="End">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{agr_fact}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" mode="Opaque" x="0" y="0" width="0" height="25" forecolor="#FFFFFF" uuid="18ecf11d-d977-4b04-abe9-eeaacd47fbb2"/>
+								<textFieldExpression><![CDATA[$V{agr_fact}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#005FB3" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="num_retencion" width="143" totalPosition="End">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{num_retencion}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="143" height="25" uuid="92cd12b1-46e4-465f-97a9-036b060a3436"/>
+								<textElement textAlignment="Left" verticalAlignment="Middle"/>
+								<textFieldExpression><![CDATA[$V{num_retencion}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#BFE1FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<staticText>
+								<reportElement x="143" y="0" width="245" height="25" uuid="13655656-2ac8-4919-9e76-0e4f4e08b3a4"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle"/>
+								<text><![CDATA[TOTAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="prov" width="245">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{proveedor}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#664848" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="245" height="25" uuid="777b8f3d-9087-49b6-b251-f1a525a5d3d2"/>
+								<textElement textAlignment="Left" verticalAlignment="Middle"/>
+								<textFieldExpression><![CDATA[$V{prov}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<columnGroup name="codigo_impuesto" height="30" totalPosition="End">
+					<bucket class="java.math.BigDecimal">
+						<bucketExpression><![CDATA[$F{codigo_impuesto}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="99" height="30" uuid="9e4f0036-b92a-45a9-acd9-87ff0afa6f35"/>
+								<textElement verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<textFieldExpression><![CDATA[$V{codigo_impuesto}.toString() + " %"]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#BFE1FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="104" height="30" uuid="be1411a5-a581-4120-b398-210d4d12564c"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<measure name="impuestoMeasure" class="java.math.BigDecimal" calculation="Sum">
+					<measureExpression><![CDATA[$F{impuesto}]]></measureExpression>
+				</measure>
+				<crosstabCell width="99" height="25">
+					<cellContents>
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" stretchType="RelativeToTallestObject" x="0" y="0" width="99" height="25" uuid="912d3216-04cd-47d6-a737-b2d43dc54ab1"/>
+							<textElement textAlignment="Right" verticalAlignment="Middle">
+								<font isBold="false"/>
+							</textElement>
+							<textFieldExpression><![CDATA[$V{impuestoMeasure}]]></textFieldExpression>
+							<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="99" height="0" rowTotalGroup="agr_fact">
+					<cellContents backcolor="#005FB3" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="104" height="25" columnTotalGroup="codigo_impuesto">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="104" height="25" uuid="0c3d1800-f2cc-4fe8-a84e-5d66acde7834"/>
+							<textElement textAlignment="Right" verticalAlignment="Middle">
+								<font isBold="false"/>
+							</textElement>
+							<textFieldExpression><![CDATA[$V{impuestoMeasure}]]></textFieldExpression>
+							<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="104" height="0" rowTotalGroup="agr_fact" columnTotalGroup="codigo_impuesto">
+					<cellContents backcolor="#005FB3" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="99" height="25" rowTotalGroup="num_retencion">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="99" height="25" uuid="26ec3db0-4589-40f1-b486-6068e4a2137c"/>
+							<textElement textAlignment="Right">
+								<font isBold="false"/>
+							</textElement>
+							<textFieldExpression><![CDATA[$V{impuestoMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="104" height="25" rowTotalGroup="num_retencion" columnTotalGroup="codigo_impuesto">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="104" height="25" uuid="ca32cb24-2f12-4e69-bf14-7674f1c90c24"/>
+							<textElement textAlignment="Right">
+								<font isBold="false"/>
+							</textElement>
+							<textFieldExpression><![CDATA[$V{impuestoMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="prov">
+					<cellContents/>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="prov" columnTotalGroup="codigo_impuesto">
+					<cellContents/>
+				</crosstabCell>
+			</crosstab>
+		</band>
+	</summary>
+</jasperReport>

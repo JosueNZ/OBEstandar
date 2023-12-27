@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_LEAVE_REACTIVE">
+    <function name="SSPR_LEAVE_REACTIVE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_hours RECORD;  
+CUR_VACATIONSLINE RECORD;
+  
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  V_LEAVE_ID VARCHAR2(32);
+  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_add_to_vacancies VARCHAR2(1) ;
+  V_STARDATE DATE;
+  V_PERIOD_ID VARCHAR2(32) ;
+  V_PAYROLL_ID NUMBER;
+  v_nodays NUMBER;
+  v_nohours NUMBER;
+  v_hours NUMBER;
+  V_VACATIONS_ID  VARCHAR2(32) ;
+  V_typevacations VARCHAR2(32) ;  
+  V_sspr_leave_emp_vac_ID  VARCHAR2(32) ;
+
+BEGIN
+ --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      V_LEAVE_ID := Cur_Parameter.Record_ID;  
+      
+    END LOOP; -- Get Parameter
+
+    SELECT ADD_TO_VACANCIES,STARDATE,typevacations
+    INTO v_add_to_vacancies,V_STARDATE,V_typevacations
+    FROM SSPR_LEAVE_EMP
+    WHERE SSPR_LEAVE_EMP_ID = V_LEAVE_ID;
+
+
+    --OBTENGO EL PERIODO RELACIONADO A ESE PERMISO
+    SELECT C_PERIOD_ID INTO V_PERIOD_ID
+    FROM C_PERIOD
+    WHERE V_STARDATE BETWEEN STARTDATE AND ENDDATE;
+    
+    --VALIDO SI EXISTE UNA NOMINA PROCESADA PARA ESE PERIODO
+    SELECT COALESCE(TO_NUMBER((SELECT TO_NUMBER(COUNT(*)) FROM SSPR_PAYROLL
+    WHERE C_PERIOD_ID = V_PERIOD_ID AND ISLIQUIDATION='N' AND PROCESSED='Y' AND ISPAYROLL='N'
+    )),0) INTO V_PAYROLL_ID from dual;            
+   
+    IF(v_add_to_vacancies = 'Y' AND V_PAYROLL_ID <> 0)THEN
+
+	RAISE_APPLICATION_ERROR(-20000,'@Cannot Reactive, Transaction is add to vacations and have related payroll@');
+
+    ELSE
+	   --OBTENGO REFERENCIA DE VACAIONES;
+	   FOR CUR_VACATIONSLINE IN
+	   (
+		SELECT SSPR_VACATIONS_ID,sspr_leave_emp_vac_ID ,NODAYS
+		FROM sspr_leave_emp_vac WHERE SSPR_LEAVE_EMP_ID = V_LEAVE_ID
+	   )
+	   LOOP
+	   
+		--OBTENGO DIAS DE PERMISO
+		For Cur_hours in(
+			select hours
+			from sspr_hours_work
+			where value = 'wh'
+		)
+		Loop	    
+			v_hours := Cur_hours.hours;		
+		End Loop;
+
+		--ACTUALIZO DIAS DE VACACIONES normales
+		IF (V_typevacations = 'DN')THEN	    
+
+			update sspr_vacations
+			set nodaystomados =  nodaystomados - CUR_VACATIONSLINE.NODAYS,
+			nodays = nodays + CUR_VACATIONSLINE.NODAYS,
+			nodaystotal =  nodaystotal + CUR_VACATIONSLINE.NODAYS
+			,Vacationsvalue = Vacationsvalue+ dayvalue*CUR_VACATIONSLINE.NODAYS
+			where sspr_vacations_id = CUR_VACATIONSLINE.SSPR_VACATIONS_ID;
+
+			DELETE FROM sspr_leave_emp_vac WHERE sspr_leave_emp_vac_ID = CUR_VACATIONSLINE.sspr_leave_emp_vac_ID;
+		
+		END IF;
+	   
+		--DIAS ADICIONALES
+		IF (V_typevacations = 'DA')THEN	   
+
+			update sspr_vacations
+			set noadditionaltomados = noadditionaltomados - CUR_VACATIONSLINE.NODAYS, 
+			noadditionaltotal = noadditionaltotal + CUR_VACATIONSLINE.NODAYS,
+			nodaystotal =  nodaystotal +  CUR_VACATIONSLINE.NODAYS
+			where sspr_vacations_id = CUR_VACATIONSLINE.SSPR_VACATIONS_ID;
+
+			DELETE FROM sspr_leave_emp_vac WHERE sspr_leave_emp_vac_ID = CUR_VACATIONSLINE.sspr_leave_emp_vac_ID;
+
+		END IF;
+
+	   v_n_insertions := v_n_insertions+1;
+	   
+	END LOOP;	
+		
+    --ACTUALIZO ESTADO DE LA TRANSACCION
+		UPDATE SSPR_LEAVE_EMP SET Status_Approve = 'pe' WHERE SSPR_LEAVE_EMP_ID = V_LEAVE_ID;
+
+    END IF;
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_LEAVE_REACTIVE
+]]></body>
+    </function>
+  </database>

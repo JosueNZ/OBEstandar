@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPD_PROCESS_PCTDIST">
+    <function name="SSPD_PROCESS_PCTDIST" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_pctdist RECORD;
+
+  v_User_ID VARCHAR2(32) ;
+  v_ResultStr VARCHAR2(2000) := '';
+  v_Processed VARCHAR2(60);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_result AD_PINSTANCE.RESULT%TYPE;
+  v_errormsg VARCHAR2(2000):='';
+  v_sspd_pctdist_id VARCHAR2(32);
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_sspd_pctdist_id := Cur_Parameter.Record_ID;	  
+      v_User_ID := Cur_Parameter.AD_User_ID;
+     
+    END LOOP; -- Get Parameter
+
+    select processed
+    into v_Processed
+    from sspd_pctdist
+    where sspd_pctdist_id = v_sspd_pctdist_id;
+
+    If(v_Processed = 'Y')Then
+
+		 v_ResultStr:='UpdatingRecord';
+                  
+	UPDATE sspd_pctdist
+	SET    Processed = 'N',
+	Updated = now(),          
+	UpdatedBy=TO_CHAR(v_User_ID)
+	WHERE sspd_pctdist_id = v_sspd_pctdist_id;
+
+    Else
+
+	For Cur_pctdist In(
+			select d.name,coalesce(sum(c.percentage),0) as percentagetotal
+			from sspd_pctdist a
+			left join sspd_pctdist_emp b on b.sspd_pctdist_id = a.sspd_pctdist_id
+			left join sspd_pctdist_costcenter c on c.sspd_pctdist_emp_id = b.sspd_pctdist_emp_id
+			left join c_bpartner d on d.c_bpartner_id = b.c_bpartner_id
+			where a.sspd_pctdist_id = v_sspd_pctdist_id --'AF91AA1927F94A8C980ED7AA6831FCEE' -- v_sspd_pctdist_id
+			group by d.name
+			order by d.name
+	)
+	Loop
+
+		If(Cur_pctdist.percentagetotal > 100 or Cur_pctdist.percentagetotal < 100)Then
+
+			RAISE_APPLICATION_ERROR(-20000,'Valor incorrecto, El valor de las líneas deben sumar 100% Empleado: ' || Cur_pctdist.name);
+		End If;
+
+		v_n_insertions := v_n_insertions + 1;
+
+	End Loop;
+
+	  v_ResultStr:='UpdatingRecord';
+                  
+	UPDATE sspd_pctdist
+	SET    Processed = 'Y',
+	Updated = now(),          
+	UpdatedBy=TO_CHAR(v_User_ID)
+	WHERE sspd_pctdist_id = v_sspd_pctdist_id;	
+
+    End If;
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPD_PROCESS_PCTDIST
+]]></body>
+    </function>
+  </database>

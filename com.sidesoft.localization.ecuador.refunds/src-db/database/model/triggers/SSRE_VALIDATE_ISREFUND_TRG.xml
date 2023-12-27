@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_VALIDATE_ISREFUND_TRG">
+    <trigger name="SSRE_VALIDATE_ISREFUND_TRG" table="C_INVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_reference               VARCHAR2(20);   
+ v_contador NUMBER:= 0;
+ V_DATETO                  DATE;
+ v_Ssre_Refunded_Id	   VARCHAR2(32);   
+ v_message_a               VARCHAR2(2000); 
+ 
+ V_NEWSTATUS        VARCHAR2(32);
+ V_OLDSTATUS        VARCHAR2(32);
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+  /* Search for document type and validate that check for authorization is required. */
+    v_Ssre_Refunded_Id := :new.Em_Ssre_Refunded_Id;    
+   
+    /*****COMPLETAR*****/
+    IF (:new.Em_Ssre_Isrefund = 'N' and v_Ssre_Refunded_Id = '96C9A2A9DD9D4B8E8CF04A1CE4BD242A' AND (v_Ssre_Refunded_Id is not null OR v_Ssre_Refunded_Id <> '') ) THEN
+
+       IF(:OLD.Docstatus<>:NEW.Docstatus)THEN
+
+        --RECUPERO VALORES
+        V_NEWSTATUS:=:NEW.Docstatus ; 
+        V_OLDSTATUS:=:OLD.Docstatus ;
+
+        --VALIDO NUEVO ESTADO DE LA FACTURA
+           IF(V_NEWSTATUS = 'CO')THEN
+
+	       --VALIDO AUTHORIZATION 
+	      Select COUNT(*) INTO V_CONTADOR From ssre_refundinvoice where c_invoice_id = :new.c_invoice_id;
+	      
+	      IF (V_CONTADOR = 0) THEN 
+
+		  RAISE_APPLICATION_ERROR(-20000, '@SSRE_ReferenceRefund@');
+				
+	      END IF;
+
+	   END IF;
+	END IF;
+END IF; 
+
+  END IF;  /* END TG -INSERT OR UPDATE */
+ 
+  END SSRE_VALIDATE_ISREFUND_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAM_POST_ALIENATETLINE_TRG">
+    <trigger name="SSAM_POST_ALIENATETLINE_TRG" table="SSAM_ALIENATELINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+  v_processed character varying(60); --OBTG:VARCHAR2--
+  
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+    
+  IF DELETING THEN
+
+	select processed
+	into v_processed
+	from ssam_alienate
+	where ssam_alienate_id = :old.ssam_alienate_id;
+
+    IF(v_processed = 'Y') THEN
+     
+        RAISE_APPLICATION_ERROR(-20000, '@20501@') ;
+        
+    END IF;
+  
+  END IF;
+END SSAM_POST_ALIENATETLINE_TRG
+]]></body>
+    </trigger>
+  </database>

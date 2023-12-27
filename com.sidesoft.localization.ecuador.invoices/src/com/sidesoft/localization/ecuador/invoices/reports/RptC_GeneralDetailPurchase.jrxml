@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptC_GeneralDetailPurchase" pageWidth="1849" pageHeight="1603" orientation="Landscape" columnWidth="1809" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="10"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="C_COSTCENTER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="USER1_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="USER2_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="F_DESDE" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="F_HASTA" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+titulo,
+docbase,
+doctype,
+(select name from c_costcenter where c_costcenter_id = unidad) as unidad,
+(select name from user1 where user1_id = proyecto) as proyecto,
+(select name from user2 where user2_id = curso) as curso,
+documento,
+tercero,
+sum(subtotal) as subtotal,
+sum(subtotal_ope) as subtotal_ope,
+sum(iva12) as iva12,
+sum(iva12_ope) as iva12_ope,
+sum(total) as total,
+sum(total_ope) as total_ope,
+fechafac,
+nofactura,
+partida_presupuestaria
+from
+ (select
+case when dt.docbasetype = 'APC' then 'Nota de Credito' else 'Factura' end as titulo,
+dt.docbasetype as docbase,
+dt.name as doctype,
+cc.c_costcenter_id as unidad,
+u1.user1_id as proyecto,
+u2.user2_id as curso,
+ci.documentno as documento,
+cbp.name as tercero,
+(basecero + base12) as subtotal,
+case when dt.docbasetype = 'APC' then (basecero + base12) * (-1) else (basecero + base12) end as subtotal_ope,
+iva12 as iva12,
+case when dt.docbasetype = 'APC' then iva12 * (-1) else iva12 end as iva12_ope,
+grandtotal_imp as total,
+case when dt.docbasetype = 'APC' then grandtotal_imp * (-1) else grandtotal_imp end as total_ope,
+ci.dateinvoiced as fechafac,
+ci.poreference as nofactura,
+sbi.name as partida_presupuestaria
+from c_invoice ci
+left join c_invoiceline cil on ci.c_invoice_id = cil.c_invoice_id
+left join c_doctype dt on ci.c_doctypetarget_id = dt.c_doctype_id
+left join c_costcenter cc on cc.c_costcenter_id = coalesce(cil.c_costcenter_id,ci.c_costcenter_id)
+left join user1 u1 on u1.user1_id = coalesce(cil.user1_id,ci.user1_id)
+left join user2 u2 on u2.user2_id = coalesce(cil.user2_id,ci.user2_id)
+left join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+left join (
+select b.c_invoiceline_id,c.name,c.taxid,a.documentno,d.taxbaseamt,d.taxamt, e.rate,
+case when e.rate = 0 and e.istaxdeductable = 'Y' then d.taxbaseamt else 0 end basecero,
+case when e.rate <> 0 and e.istaxdeductable = 'Y' then d.taxbaseamt else 0 end base12,
+case when e.rate <> 0 and e.istaxdeductable = 'Y' then d.taxamt else 0 end iva12,
+((case when e.rate = 0 and e.istaxdeductable = 'Y' then d.taxbaseamt else 0 end) + (case when e.rate <> 0 and e.istaxdeductable = 'Y' then d.taxbaseamt else 0 end) + case when e.rate <> 0 and e.istaxdeductable = 'Y' then d.taxamt else 0 end) grandtotal_imp
+from c_invoice a left join c_invoiceline b on a.c_invoice_id = b.c_invoice_id
+left join c_bpartner c on a.c_bpartner_id = c.c_bpartner_id
+left join c_invoicelinetax d on b.c_invoiceline_id = d.c_invoiceline_id
+left join c_tax e on d.c_tax_id = e.c_tax_id
+) imp on imp.c_invoiceline_id = cil.c_invoiceline_id
+left join sfb_budget_cert_line sbcl on
+					(
+					   sbcl.sfb_budget_cert_line_id = cil.em_sfb_budget_cert_line_id and
+					   sbcl.c_costcenter_id = cil.c_costcenter_id and
+					   sbcl.user1_id = cil.user1_id
+
+					)
+left join sfb_budget_item sbi on sbi.sfb_budget_item_id = sbcl.sfb_budget_item_id
+WHERE
+ci.issotrx = 'N' and
+ci.posted = 'Y' and
+to_date(to_char(ci.dateinvoiced,'dd-MM-yyyy')) BETWEEN $P{F_DESDE} AND $P{F_HASTA}
+
+ORDER BY cc.name,u1.name,u2.name,2,ci.documentno
+) rep
+where (unidad = $P{C_COSTCENTER_ID} or $P{C_COSTCENTER_ID} is null)
+and (proyecto= $P{USER1_ID} or $P{USER1_ID} is null)
+and (curso =  $P{USER2_ID} or $P{USER2_ID} is null)
+
+group by
+unidad,
+proyecto,
+curso,
+docbase,
+documento,
+tercero,
+fechafac,
+nofactura,
+partida_presupuestaria,
+titulo,
+doctype
+order by
+unidad,
+proyecto,
+curso,
+docbase,
+documento]]>
+	</queryString>
+	<field name="titulo" class="java.lang.String"/>
+	<field name="docbase" class="java.lang.String"/>
+	<field name="doctype" class="java.lang.String"/>
+	<field name="unidad" class="java.lang.String"/>
+	<field name="proyecto" class="java.lang.String"/>
+	<field name="curso" class="java.lang.String"/>
+	<field name="documento" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="subtotal" class="java.math.BigDecimal"/>
+	<field name="subtotal_ope" class="java.math.BigDecimal"/>
+	<field name="iva12" class="java.math.BigDecimal"/>
+	<field name="iva12_ope" class="java.math.BigDecimal"/>
+	<field name="total" class="java.math.BigDecimal"/>
+	<field name="total_ope" class="java.math.BigDecimal"/>
+	<field name="fechafac" class="java.sql.Timestamp"/>
+	<field name="nofactura" class="java.lang.String"/>
+	<field name="partida_presupuestaria" class="java.lang.String"/>
+	<variable name="TOTAL1" class="java.lang.Double" resetType="Group" resetGroup="BASETYPE" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{subtotal}.toString())]]></variableExpression>
+	</variable>
+	<variable name="TOTAL2" class="java.lang.Double" resetType="Group" resetGroup="BASETYPE" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{iva12}.toString())]]></variableExpression>
+	</variable>
+	<variable name="TOTAL3" class="java.lang.Double" resetType="Group" resetGroup="BASETYPE" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{total}.toString())]]></variableExpression>
+		<initialValueExpression><![CDATA[]]></initialValueExpression>
+	</variable>
+	<variable name="TOTAL1_P" class="java.math.BigDecimal" resetType="Group" resetGroup="USER1" calculation="Sum">
+		<variableExpression><![CDATA[$F{subtotal_ope}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL2_P" class="java.lang.Double" resetType="Group" resetGroup="USER1" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{iva12_ope}.toString())]]></variableExpression>
+	</variable>
+	<variable name="TOTAL3_P" class="java.lang.Double" resetType="Group" resetGroup="USER1" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{total_ope}.toString())]]></variableExpression>
+		<initialValueExpression><![CDATA[]]></initialValueExpression>
+	</variable>
+	<variable name="TOTAL2_V" class="java.lang.Double" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{iva12_ope}.toString())]]></variableExpression>
+	</variable>
+	<variable name="TOTAL3_V" class="java.lang.Double" calculation="Sum">
+		<variableExpression><![CDATA[Double.valueOf($F{total_ope}.toString())]]></variableExpression>
+		<initialValueExpression><![CDATA[]]></initialValueExpression>
+	</variable>
+	<variable name="TOTAL1_V" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{subtotal_ope}]]></variableExpression>
+	</variable>
+	<group name="CENTRO DE COSTO">
+		<groupExpression><![CDATA[$F{unidad}]]></groupExpression>
+		<groupHeader>
+			<band/>
+		</groupHeader>
+		<groupFooter>
+			<band/>
+		</groupFooter>
+	</group>
+	<group name="USER1">
+		<groupExpression><![CDATA[$F{proyecto}]]></groupExpression>
+		<groupHeader>
+			<band/>
+		</groupHeader>
+		<groupFooter>
+			<band height="20">
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="639" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL1_P}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="795" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL3_P}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="717" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL2_P}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="433" y="0" width="206" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Total Proyecto]]></text>
+				</staticText>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="USER2">
+		<groupExpression><![CDATA[$F{curso}]]></groupExpression>
+		<groupHeader>
+			<band/>
+		</groupHeader>
+		<groupFooter>
+			<band/>
+		</groupFooter>
+	</group>
+	<group name="BASETYPE">
+		<groupExpression><![CDATA[$F{docbase}]]></groupExpression>
+		<groupHeader>
+			<band height="20">
+				<staticText>
+					<reportElement x="433" y="0" width="206" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Tercero]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="639" y="0" width="78" height="20"/>
+					<textElement textAlignment="Center">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Subtotal]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="717" y="0" width="78" height="20"/>
+					<textElement textAlignment="Center">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[IVA]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="795" y="0" width="78" height="20"/>
+					<textElement textAlignment="Center">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Total]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="1253" y="0" width="190" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Centro de Capacitacion]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="1063" y="0" width="190" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Proyecto]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="873" y="0" width="190" height="20"/>
+					<textElement textAlignment="Center">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Unidad de Gestión]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="0" y="0" width="132" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{titulo}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="133" y="0" width="196" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[No. Factura]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="330" y="0" width="103" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Fecha Factura]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="1443" y="0" width="263" height="20"/>
+					<textElement>
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Partida Presupuestaria]]></text>
+				</staticText>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="20">
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="639" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL1}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="717" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL2}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00" isBlankWhenNull="true">
+					<reportElement x="795" y="0" width="78" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle"/>
+					<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL3}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="433" y="0" width="206" height="20"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[Total]]></text>
+				</staticText>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="74" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="572" height="34"/>
+				<textElement textAlignment="Center">
+					<font size="15" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Reporte General de Compras por Centro de Costo]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="34" width="416" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Fecha Desde: " + (new SimpleDateFormat("dd/MM/yyyy").format($P{F_DESDE})).toString()]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="54" width="416" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Fecha Hasta: " + (new SimpleDateFormat("dd/MM/yyyy").format($P{F_HASTA})).toString()]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="132" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documento}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="433" y="0" width="206" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="639" y="0" width="78" height="12"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{subtotal}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="717" y="0" width="78" height="12"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{iva12}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="795" y="0" width="78" height="12"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{total}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="873" y="0" width="190" height="12"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{unidad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1063" y="0" width="190" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{proyecto}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1253" y="0" width="190" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{curso}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="133" y="0" width="196" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nofactura}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="330" y="0" width="103" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechafac}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1443" y="0" width="263" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partida_presupuestaria}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="639" y="0" width="78" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL1_V}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="795" y="0" width="78" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL3_V}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="717" y="0" width="78" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.Double"><![CDATA[$V{TOTAL2_V}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="433" y="0" width="206" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Compras]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

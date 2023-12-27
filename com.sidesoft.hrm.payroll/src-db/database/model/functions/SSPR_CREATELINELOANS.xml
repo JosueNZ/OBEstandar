@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_CREATELINELOANS">
+    <function name="SSPR_CREATELINELOANS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_loans RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_Record_ID  VARCHAR2(32);
+  v_Period_ID VARCHAR2(32); 
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  v_cbpartner  VARCHAR(32); 
+  V_COUNT NUMBER;
+  v_fecha_fin  DATE;
+  v_firstdate  DATE;
+  v_interest NUMBER(10,5);
+  v_interestanual NUMBER(10,5);
+  v_interestmen NUMBER(10,5);
+  v_time NUMBER(10,0);
+  v_amount NUMBER(10,5);
+  v_payamount NUMBER(10,5);
+  v_MontoCuota NUMBER(10,5);
+  v_MontoInteres NUMBER(10,2);
+  v_m NUMBER;
+  v_count2 NUMBER;
+ BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;  
+      
+   
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+
+	v_count2:=0;
+	SELECT
+	 (
+	 SELECT COUNT(*)  
+	 FROM sspr_loans
+	 WHERE sspr_loans_id = v_Record_ID and status ='dr')
+	 INTO
+	 v_count2
+	 FROM DUAL;
+
+	 if v_count2 = 1 then
+    
+
+				SELECT firstdate,c_bpartner_id,interest, time, amount	
+				INTO v_firstdate, v_cbpartner, v_interest, v_time,v_amount
+				FROM sspr_loans
+				WHERE sspr_loans_id = v_Record_ID;
+
+				
+				V_COUNT :=1;
+				v_interestanual := (v_interest*12);
+				v_interestmen := (v_interestanual/12)/100;
+				v_MontoInteres := (v_amount * v_interestmen);
+				--v_MontoCuota := (v_amount / v_time) + v_MontoInteres;
+				v_MontoCuota := trunc(((v_amount / v_time) + v_MontoInteres),2);
+				v_m:=0;
+				DELETE FROM sspr_line_loans WHERE sspr_loans_id = v_Record_ID AND manual_cancellation = 'N' AND status = 'Pending';
+				WHILE  V_COUNT <= v_time
+					LOOP
+						
+						if V_COUNT = (v_time) then
+							v_MontoCuota:= v_amount - v_m;
+						else
+							v_m:= v_m + v_MontoCuota; 
+						end if;
+							
+							--v_fecha_fin := v_firstdate + 30;
+							SELECT 
+							(SELECT ADD_MONTHS(v_firstdate,1) FROM DUAL)
+							INTO v_fecha_fin							FROM DUAL;
+
+							INSERT INTO sspr_line_loans(sspr_line_loans_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+										    updated, updatedby, line, paydate, amount, status, 
+										    sspr_loans_id, total_balance)
+							VALUES (get_uuid(),v_Client_ID,v_Org_ID,'Y',now(), v_User_ID,
+							        now(), v_User_ID,V_COUNT,v_firstdate,v_MontoCuota,'Pending',v_Record_ID,v_MontoCuota);
+							
+							--v_fecha_fin := v_firstdate + 30;
+							SELECT 
+							(SELECT ADD_MONTHS(v_firstdate,1) FROM DUAL)
+							INTO v_fecha_fin
+							FROM DUAL;							
+							v_firstdate := v_fecha_fin;
+							
+							V_COUNT := (V_COUNT + 1);
+
+					END LOOP;
+				v_n_insertions := v_n_insertions + 1;
+	 end if;	
+			-- END LOOP;
+        
+    v_Message := '@RowsInserted@: ' || V_COUNT || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_CREATELINELOANS
+]]></body>
+    </function>
+  </database>

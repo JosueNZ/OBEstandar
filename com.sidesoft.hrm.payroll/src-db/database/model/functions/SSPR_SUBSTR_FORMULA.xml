@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_SUBSTR_FORMULA">
+    <function name="SSPR_SUBSTR_FORMULA" type="VARCHAR">
+      <parameter name="formula" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cont NUMBER:=0; --OBTG:NUMBER--
+	asterisk VARCHAR2(1000) :='*'; --OBTG:VARCHAR2--
+  v_armar_bsq  VARCHAR2(1000); --OBTG:VARCHAR2--
+	v_formula VARCHAR2(1000); --OBTG:VARCHAR2--
+	v_contar NUMBER; --OBTG:NUMBER--
+	v_sbs_formula  VARCHAR2(1000); --OBTG:VARCHAR2--
+	i NUMBER:=0;
+  
+BEGIN
+
+  
+  v_contar:= COALESCE(TO_NUMBER(LENGTH(formula)),0);
+  v_formula:= formula;
+
+  IF v_contar = 0 THEN
+    
+    RETURN NULL;
+    
+  ELSE
+  
+    FOR i IN 1..v_contar LOOP  
+    
+      v_sbs_formula := substr(trim(v_formula),i,1);
+      
+      IF v_sbs_formula = '<' THEN
+
+        FOR j IN i..v_contar LOOP
+
+          v_sbs_formula:= substr(trim(v_formula),j + 1 ,1); 
+
+          IF  v_sbs_formula <>'>' THEN
+    
+            v_armar_bsq:= coalesce(v_armar_bsq,'') || v_sbs_formula;
+           
+          ELSIF v_sbs_formula = '>' THEN
+
+              RETURN COALESCE(TO_CHAR(v_armar_bsq),'NF');
+            
+          END IF;
+          
+        END LOOP;
+        
+      END IF;
+      
+    END LOOP;
+    
+    RETURN NULL;
+    
+  END IF;
+END SSPR_SUBSTR_FORMULA
+]]></body>
+    </function>
+  </database>

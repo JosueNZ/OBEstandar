@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_COPYPOSITION_TRG">
+    <trigger name="SSPR_COPYPOSITION_TRG" table="SSPR_POSITION" fires="after" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+
+  V_NewPositionID VARCHAR2(32);
+  V_Count NUMBER(12,0);
+  V_OrgID VARCHAR2(32);
+  V_ClientID VARCHAR2(32);
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+  IF INSERTING THEN
+
+	V_NewPositionID:=:new.sspr_position_id;
+	V_OrgID:=:new.ad_org_id;
+	V_ClientID:=:new.ad_client_id;
+
+	
+	SELECT (SELECT count(*) as cont FROM sshr_employee_position WHERE sspr_position_id = V_NewPositionID)
+	INTO V_Count
+	FROM dual;
+
+	--raise exception '%' , 'ID = ' || V_NewPositionID;
+
+	IF (V_Count=0) THEN
+
+
+		INSERT INTO sshr_employee_position (
+		sshr_employee_position_ID, AD_CLIENT_ID, AD_ORG_ID,ISACTIVE,
+		CREATED, CREATEDBY,  UPDATED, UPDATEDBY,sspr_position_id) 
+		VALUES ( get_uuid(), V_ClientID, V_OrgID, 'Y',now(), '100', now(), '100',V_NewPositionID);
+
+	END IF;
+
+  END IF;
+
+END SSPR_COPYPOSITION_TRG
+]]></body>
+    </trigger>
+  </database>

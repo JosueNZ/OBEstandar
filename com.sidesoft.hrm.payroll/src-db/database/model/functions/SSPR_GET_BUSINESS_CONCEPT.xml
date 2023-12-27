@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GET_BUSINESS_CONCEPT">
+    <function name="SSPR_GET_BUSINESS_CONCEPT" type="NUMERIC">
+      <parameter name="p_sspr_concept_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_value VARCHAR2(40);
+  v_concepttype VARCHAR2(60);
+  v_formula VARCHAR2(1500);
+  v_sql VARCHAR2(1500);
+  v_amount NUMBER;
+  V_NAMECONCEPT VARCHAR2(1500);
+  V_NAMEPARTNER VARCHAR2(1500);
+  V_MSJ VARCHAR2(1500);
+
+BEGIN  
+
+  IF (p_SSPR_Concept_ID IS NULL OR p_C_Period_ID IS NULL OR p_C_BPartner_ID IS NULL) THEN
+
+    RAISE_APPLICATION_ERROR(-20000, '@ParametersError@');
+    
+  ELSE  
+
+    SELECT concepttype, value INTO v_concepttype, v_value
+    FROM SSPR_Concept
+    WHERE SSPR_Concept_ID = p_SSPR_Concept_ID;
+  
+    IF (v_concepttype <> 'F') THEN
+
+      --SELECT amount INTO v_amount
+      --FROM SSPR_Concept_Amount
+      --WHERE SSPR_Concept_ID = p_SSPR_Concept_ID AND C_Period_ID = p_C_Period_ID 
+      --      AND C_BPartner_ID = p_C_BPartner_ID;
+
+      select coalesce(to_number((SELECT to_number(amount) 
+      FROM SSPR_Concept_Amount
+      WHERE SSPR_Concept_ID = p_SSPR_Concept_ID AND C_Period_ID = p_C_Period_ID 
+            AND C_BPartner_ID = p_C_BPartner_ID)),0) INTO v_amount from dual;            
+            
+
+      IF (v_amount IS NULL) THEN
+
+          v_amount := 0;
+
+      END IF;             
+
+    ELSE     
+      
+      -- Replacement concept values to amounts.
+      SELECT formula INTO v_formula
+      FROM SSPR_Concept
+      WHERE SSPR_Concept_ID = p_SSPR_Concept_ID;
+
+      v_value:= SSPR_SUBSTR_FORMULA(v_formula);    
+
+      WHILE (v_value IS NOT NULL) LOOP  
+      
+        /*SELECT CA.amount INTO v_amount
+        FROM SSPR_Concept C 
+             LEFT JOIN SSPR_Concept_Amount CA ON C.SSPR_Concept_ID = CA.SSPR_Concept_ID
+        WHERE C.value = v_value AND C_Period_ID = p_C_Period_ID 
+              AND C_BPartner_ID = p_C_BPartner_ID;*/
+        
+         SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(CA.amount)
+        FROM SSPR_Concept C 
+             LEFT JOIN SSPR_Concept_Amount CA ON C.SSPR_Concept_ID = CA.SSPR_Concept_ID
+        WHERE C.value = v_value AND C_Period_ID = p_C_Period_ID 
+              AND C_BPartner_ID = p_C_BPartner_ID),0))  INTO v_amount FROM DUAL;
+                          
+        
+        IF (COALESCE(v_amount,0) =0) THEN
+--RAISE_APPLICATION_ERROR(-20000, 'INGRESO LOOP 2  '||v_amount);
+          v_amount := 0;
+
+        END IF;                 
+
+        v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+        
+        v_value:= SSPR_SUBSTR_FORMULA(v_formula);
+        
+        v_formula:= REPLACE(v_formula,',', '.');
+   --RAISE_APPLICATION_ERROR(-20000, 'INGRESO LOOP 2'|| v_value||' FORMULA '||v_formula);
+      END LOOP;  
+      -- End replacement concept values to amounts.
+            
+      BEGIN
+
+        EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+        
+
+      EXCEPTION  
+      WHEN OTHERS THEN
+      
+      SELECT NAME 
+      INTO V_NAMECONCEPT
+      FROM SSPR_CONCEPT
+      WHERE SSPR_CONCEPT_ID = p_SSPR_Concept_ID;
+      
+      SELECT NAME 
+      INTO V_NAMEPARTNER
+      FROM C_BPARTNER WHERE C_BPARTNER_ID =p_C_BPartner_ID;
+      
+      V_MSJ := '@FormulaSyntaxError o Division by zero in concept @'|| V_NAMECONCEPT ||' EMPLEADO: '|| V_NAMEPARTNER ;
+      ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+	--RAISE notice '%', '@FormulaSyntaxError@'; --OBTG:-20000--*/
+      END;    
+          
+    END IF;
+
+    IF (v_amount IS NULL) THEN
+      
+      RETURN 0; 
+
+    ELSE  
+
+      RETURN v_amount;
+
+    END IF;    
+
+  END IF;
+END SSPR_GET_BUSINESS_CONCEPT
+]]></body>
+    </function>
+  </database>

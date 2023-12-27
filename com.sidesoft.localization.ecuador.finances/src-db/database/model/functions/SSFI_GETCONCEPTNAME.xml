@@ -1,0 +1,171 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_GETCONCEPTNAME">
+    <function name="SSFI_GETCONCEPTNAME" type="VARCHAR">
+      <parameter name="p_invoice_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_amount" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Parameter
+TYPE RECORD IS REF CURSOR;
+  Cur_InvoiceLine RECORD;
+
+
+v_percentage50 NUMBER;
+v_Msg CHARACTER VARYING(2000);
+v_countAmount NUMBER;
+
+v_flag CHARACTER VARYING(60);
+
+BEGIN
+
+	IF COALESCE(p_amount,0)>0 THEN
+		v_percentage50:= (p_amount*50)/100;
+		v_flag:='FALSE';
+
+
+		FOR Cur_InvoiceLine IN(
+		SELECT
+		CEL.NAME AS concept_acct
+		,sum(linenetamt) as amount
+		FROM C_INVOICELINE CIL
+		JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+		JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+		JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+		WHERE CIL.C_INVOICE_ID = p_invoice_id
+		GROUP BY CEL.NAME
+		)LOOP
+			IF (Cur_InvoiceLine.AMOUNT>=v_percentage50) THEN
+				v_Msg:= Cur_InvoiceLine.concept_acct;
+				v_flag:='TRUE';
+			END IF;
+
+		END LOOP;
+
+		IF (v_flag='FALSE') THEN
+
+
+
+			SELECT 
+			COALESCE((select
+			count(*) as amount_eq
+			from 
+			(SELECT
+			CEL.NAME AS concept_acct
+			,sum(linenetamt) as amount
+			FROM C_INVOICELINE CIL
+			JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+			JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+			JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+			WHERE CIL.C_INVOICE_ID = p_invoice_id
+			GROUP BY CEL.NAME
+			) rep_a
+			where rep_a.amount in (
+			SELECT
+			MAX(AMOUNT)
+			FROM
+			((SELECT
+			CEL.NAME AS concept_acct
+			,sum(linenetamt) as amount
+			FROM C_INVOICELINE CIL
+			JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+			JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+			JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+			WHERE CIL.C_INVOICE_ID = p_invoice_id
+			GROUP BY CEL.NAME)
+			) rep_b
+			)),0)
+			INTO v_countAmount
+			FROM DUAL;
+
+			IF (v_countAmount=1) THEN
+
+				SELECT 
+				COALESCE((select
+				to_char(concept_acct)
+				from 
+				(
+					SELECT
+					CEL.NAME AS concept_acct
+					,sum(linenetamt) as amount
+					FROM C_INVOICELINE CIL
+					JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+					JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+					JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+					WHERE CIL.C_INVOICE_ID = p_invoice_id
+					GROUP BY CEL.NAME
+				) rep_a
+				WHERE rep_a.amount in (
+							SELECT
+							MAX(AMOUNT)
+							FROM
+							((SELECT
+							CEL.NAME AS concept_acct
+							,sum(linenetamt) as amount
+							FROM C_INVOICELINE CIL
+							JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+							JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+							JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+							WHERE CIL.C_INVOICE_ID = p_invoice_id
+							GROUP BY CEL.NAME)
+							) rep_b	
+						       )
+				),'SIN LINEA')
+				INTO v_Msg
+				FROM DUAL;
+			ELSE
+
+				FOR Cur_InvoiceLine IN(
+					select
+					concept_acct
+					from 
+					(
+						SELECT
+						CEL.NAME AS concept_acct
+						,sum(linenetamt) as amount
+						FROM C_INVOICELINE CIL
+						JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+						JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+						JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+						WHERE CIL.C_INVOICE_ID = p_invoice_id
+						GROUP BY CEL.NAME
+					) rep_a
+					WHERE rep_a.amount in (
+								SELECT
+								MAX(AMOUNT)
+								FROM
+								((SELECT
+								CEL.NAME AS concept_acct
+								,sum(linenetamt) as amount
+								FROM C_INVOICELINE CIL
+								JOIN M_PRODUCT_aCCT MPA ON MPA.M_PRODUCT_ID = CIL.M_PRODUCT_ID
+								JOIN C_VALIDCOMBINATION CVC ON CVC.C_VALIDCOMBINATION_ID = MPA.P_Revenue_Acct
+								JOIN C_ELEMENTVALUE CEL ON CEL.C_ELEMENTVALUE_ID = CVC.ACCOUNT_ID
+								WHERE CIL.C_INVOICE_ID = p_invoice_id
+								GROUP BY CEL.NAME)
+								) rep_b
+							       )
+				
+				)LOOP
+						v_Msg:= Cur_InvoiceLine.concept_acct;
+				END LOOP;
+
+				IF (COALESCE(v_Msg,TO_CHAR('ND'))='ND') THEN
+					v_Msg:='SIN LINEA';
+				END IF;
+			
+			END IF;
+
+
+		END IF;
+
+	ELSE
+		v_Msg:='SIN LINEA';
+	END IF;
+
+	RETURN v_Msg;
+END SSFI_GETCONCEPTNAME
+]]></body>
+    </function>
+  </database>

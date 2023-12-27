@@ -1,0 +1,216 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPH_TENTH_SETT_PROCESS">
+    <function name="SSPH_TENTH_SETT_PROCESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_Lines RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  V_Record_Id  Varchar2(32);
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_Message VARCHAR2(2000):='';
+
+  V_Labor_Regime_ID VARCHAR2(32):=null; 
+  V_TypeConcept VARCHAR2(60); 
+  V_Year_ID VARCHAR2(32); 
+  V_Year VARCHAR2(10); 
+  V_Line NUMBER(10,0):=0;
+  V_CheckDate NUMBER:=0;
+  V_Processed Varchar2(60);
+  V_Processing Varchar2(60);
+  V_DocumentDate DATE;
+
+--  V_C_BPartner_ID VARCHAR2(32); 
+--  V_Org_Country_ID VARCHAR2(32); 
+--  v_n_insertions NUMBER;
+--  V_Employee_Country_ID VARCHAR2(32); 
+--  V_C_City_ID VARCHAR2(32); 
+--  V_Employee_City_ID VARCHAR2(32); 
+--  V_Position_ID VARCHAR2(32); 
+--  V_DepartureDate DATE;
+--  V_ArrivalDate DATE;
+--  V_ArrivalTime DATE;
+--  V_LimitTime DATE;
+--  V_IsBased CHAR(1);
+--  V_ViaticalRate NUMBER:=1;
+--  V_SubsistenceRate NUMBER:=1;
+--  V_IsBasedRate NUMBER:=1;
+--  V_CountryRate NUMBER:=1;
+--  V_ViaticalValue NUMBER;
+--  V_UnBasedViaticalValue NUMBER;
+--  V_ViaticalDays NUMBER:=0;
+--  V_ViaticalEfectiveDays NUMBER:=0;
+--  V_ViaticalDaysPrevious NUMBER:=0;
+--  V_ViaticalDaysIndex NUMBER:=0;
+--  V_LineAmt NUMBER;
+--  V_Description  VARCHAR2(2000);
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+--    v_n_insertions := 0;  
+
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+
+    -- Get tenth settlement processed status
+    Select th.Processed, th.Processing Into V_Processed, V_Processing From ssph_tenth_settlement th Where th.ssph_tenth_settlement_id = V_Record_Id;
+
+    -- Get Tenth Data
+    select  th.settlementdate, th.sspr_labor_regime_id, th.typeconcept, th.c_year_id, y.year
+    into  V_DocumentDate, V_Labor_Regime_ID, V_TypeConcept, V_Year_ID, V_Year
+    from ssph_tenth_settlement th
+    join c_year y on y.c_year_id = th.c_year_id
+    where th.ssph_tenth_settlement_id = v_Record_ID;
+    
+    If V_Processing = 'Y' Then
+      v_Message := '@Processing@';
+      AD_UPDATE_PINSTANCE(Pinstance_Id, Null, 'N', 0, v_Message);
+      return;
+    End If;
+    
+    -- Set processing 'Y'
+    Update ssph_tenth_settlement th Set Processing = 'Y' Where th.ssph_tenth_settlement_id = V_Record_Id;
+    
+    If V_Processed = 'Y' Then -- Unprocess
+    
+      FOR Cur_Lines IN
+      (
+        select prtc.sspr_payroll_ticket_concept_id as payroll_ticket_concept_id
+        from sspr_payroll pr
+        left join sspr_payroll_ticket prt on pr.sspr_payroll_id = prt.sspr_payroll_id
+        left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'Y'
+        join sspr_concept cp on cp.sspr_concept_id = prtc.sspr_concept_id and cp.concepttypepayroll = (case V_TypeConcept when '14TH' then 'DC' when '13TH' then 'DT' else '' end)
+        left join c_bpartner bp on prt.c_bpartner_id = bp.c_bpartner_id
+        left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, V_DocumentDate)
+        left join sspr_labor_regime lr on con.sspr_labor_regime_id = lr.sspr_labor_regime_id and (V_TypeConcept = '13TH' or lr.sspr_labor_regime_id = V_Labor_Regime_ID)
+        left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept 
+        join c_period per on pr.c_period_id = per.c_period_id
+        join c_year y on y.c_year_id = per.c_year_id
+        join ssph_tenth_settlement_line thl on thl.ssph_tenth_settlement_line_id = prtc.em_ssph_tenth_sett_line_id and thl.ssph_tenth_settlement_id = v_Record_ID
+        where bp.em_sspr_status = 'A'
+        and (
+          y.c_year_id = V_Year_ID 
+          and per.periodno <= (extract (month from lrd.enddate))
+          or (cast (y.year as NUMBER) = cast (V_Year as NUMBER) - 1)
+          and per.periodno >= (extract (month from lrd.startdate))
+        ) and pr.datedoc <= (V_DocumentDate)
+
+      )
+      LOOP
+        update sspr_payroll_ticket_concept prtc 
+        set em_ssph_earned = 'N', em_ssph_tenth_sett_line_id = null 
+        where prtc.sspr_payroll_ticket_concept_id = Cur_Lines.payroll_ticket_concept_id;
+      end loop;
+    
+      -- Unprocess the tenth settlement
+      update ssph_tenth_settlement th 
+      set processed = 'N', Docstatus = 'DR'
+      where th.ssph_tenth_settlement_id = V_Record_Id;
+
+      V_Message := '@Unprocessed@';
+      
+    Elsif V_Processed = 'N' Then -- Process
+    
+      FOR Cur_Lines IN
+      (
+        select prtc.sspr_payroll_ticket_concept_id as payroll_ticket_concept_id, thl.ssph_tenth_settlement_line_id as tenth_sett_line_id
+        ,EM_SSPH_TENTH_SETT_LINE_ID
+        from sspr_payroll pr
+        left join sspr_payroll_ticket prt on pr.sspr_payroll_id = prt.sspr_payroll_id
+        left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+        join sspr_concept cp on cp.sspr_concept_id = prtc.sspr_concept_id and cp.concepttypepayroll = (case V_TypeConcept when '14TH' then 'DC' when '13TH' then 'DT' else '' end)
+        left join c_bpartner bp on prt.c_bpartner_id = bp.c_bpartner_id
+        left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, V_DocumentDate)
+        left join sspr_labor_regime lr on con.sspr_labor_regime_id = lr.sspr_labor_regime_id and (V_TypeConcept = '13TH' or lr.sspr_labor_regime_id = V_Labor_Regime_ID)
+        left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept 
+        join c_period per on pr.c_period_id = per.c_period_id
+        join c_year y on y.c_year_id = per.c_year_id
+        join ssph_tenth_settlement_line thl on thl.sspr_labor_regime_id = lr.sspr_labor_regime_id and thl.c_bpartner_id = bp.c_bpartner_id and thl.ssph_tenth_settlement_id = v_Record_ID
+        where bp.em_sspr_status = 'A'
+        and (
+          y.c_year_id = V_Year_ID 
+          and per.periodno <= (extract (month from lrd.enddate))
+          or (cast (y.year as NUMBER) = cast (V_Year as NUMBER) - 1)
+          and per.periodno >= (extract (month from lrd.startdate))
+        )  and pr.datedoc <= (V_DocumentDate)
+      )
+      LOOP
+
+     -- RAISE_APPLICATION_ERROR(-20000,' Error OB = ' || Cur_Lines.EM_SSPH_TENTH_SETT_LINE_ID);
+
+      --IF (coalesce(trim(Cur_Lines.EM_SSPH_TENTH_SETT_LINE_ID),'1') <> Cur_Lines.tenth_sett_line_id) THEN 
+
+      
+	--RAISE_APPLICATION_ERROR(-20000,'@La transacción está intentando afectar una provisión ya liquidada@');
+	
+      --ELSE
+
+
+      --END IF;
+      
+           update sspr_payroll_ticket_concept prtc 
+        set em_ssph_earned = 'Y', em_ssph_tenth_sett_line_id = Cur_Lines.tenth_sett_line_id 
+        where prtc.sspr_payroll_ticket_concept_id = Cur_Lines.payroll_ticket_concept_id;
+        
+      end loop;
+
+     -- Process the tenth settlement
+      update ssph_tenth_settlement th 
+      set processed = 'Y', Docstatus = 'CO'
+      where th.ssph_tenth_settlement_id = V_Record_Id;
+  
+      V_Message := '@ProcessOK@';
+          
+    END IF;
+        
+    -- Set processing 'N'
+    Update ssph_tenth_settlement th Set Processing = 'N' Where th.ssph_tenth_settlement_id = V_Record_Id;
+    COMMIT;
+    
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    -- Set processing 'N'
+    Update ssph_tenth_settlement th Set Processing = 'N' Where th.ssph_tenth_settlement_id = V_Record_Id;
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPH_TENTH_SETT_PROCESS
+]]></body>
+    </function>
+  </database>

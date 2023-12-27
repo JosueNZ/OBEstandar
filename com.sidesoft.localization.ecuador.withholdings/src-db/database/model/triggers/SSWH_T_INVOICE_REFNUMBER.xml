@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_T_INVOICE_REFNUMBER">
+    <trigger name="SSWH_T_INVOICE_REFNUMBER" table="C_INVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_reference               VARCHAR2(20);   
+ v_contador NUMBER:= 0;
+ v_cantidad NUMBER:= 0;
+ v_sub                     CHAR(1);
+ v_contador2 NUMBER:= 0;
+ V_AUT                     VARCHAR2(40);    
+ v_shell                   VARCHAR2(3);    
+ v_stablishment            VARCHAR2(3);    
+ V_NUMBERFROM              NUMBER;
+ V_NUMBERTO                NUMBER;
+ V_DATETO                  DATE;
+ V_ImplementAut            VARCHAR2(1);    
+ v_sswh_withholding_vendor VARCHAR2(32);   
+ v_establecimiento         VARCHAR2(3);    
+ v_box                     VARCHAR2(3);    
+ v_NoFactura               NUMBER;
+ v_message_a               VARCHAR2(2000); 
+ V_authorizationmanual  VARCHAR2(1);    
+ v_isreturn		CHAR(1);
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+    /* Search for document type and validate that check for authorization is required. */
+    SELECT em_sswh_implementautoriza, isreturn INTO  V_ImplementAut , v_isreturn
+    FROM C_DOCTYPE  
+    WHERE C_DOCTYPE_ID = :new.c_doctypetarget_id;
+    
+    /* Issotrx */
+    IF (:new.issotrx = 'N' AND V_ImplementAut = 'Y' AND :new.posted <> 'Y' AND :new.em_sswh_iseinvoice = 'N' AND v_isreturn='N') THEN
+
+      v_reference := :new.poreference;
+
+      IF (v_reference IS NOT NULL AND COALESCE(v_reference, '0') <> COALESCE('', '0')) THEN -- Oracle interprets '' as NULL
+
+        FOR v_cantidad IN 1..length(v_reference)
+        LOOP
+
+          v_sub := substr(v_reference, v_cantidad, 1);
+                
+	  IF (v_cantidad < 4 and  v_sub = '-' ) THEN
+
+	    v_contador := v_contador + 1;
+
+	  END IF;
+
+	  IF (v_cantidad > 4 AND v_cantidad < 8 AND v_sub = '-') THEN
+
+	    v_contador := v_contador + 1;
+
+	  END IF;
+
+	  IF (v_sub = '-' AND v_cantidad > 8) THEN
+
+	    v_contador := v_contador + 1;
+
+	  END IF;
+
+	  IF (v_sub = '-' AND v_cantidad = 4 OR v_sub = '-' AND v_cantidad = 8) THEN
+
+	    v_contador2 := v_contador2 + 1;
+
+	  END IF;
+
+	  IF (v_sub <> '-' AND v_cantidad = 8) THEN
+
+	    v_contador := v_contador + 1;
+
+	  END IF;  
+
+        END LOOP;
+        
+    
+        IF (v_contador < 0) THEN
+
+          RAISE_APPLICATION_ERROR(-20000, '@SSWH_NoDocumentNoFormat@');
+
+        END IF;
+
+      ELSE-- NULO
+
+        RAISE_APPLICATION_ERROR(-20000, '@SSWH_NoDocumentNoFormat@');
+
+      END IF;
+
+      /* Split authorization */
+      v_establecimiento := substr(v_reference, 1, 3);
+      v_box := substr(v_reference, 5, 3);
+      v_NoFactura := TO_NUMBER(substr(v_reference, 9, 9));
+
+      BEGIN
+      
+        -- Select authorization by business partner, the invoice 'date' must be between authorization 'date from' and 'date to'.
+        SELECT withholdingauthorization, dateto  INTO v_aut, v_dateto 
+        FROM SSWH_WITHHOLDING_VENDOR
+        WHERE c_bpartner_id = :new.c_bpartner_id  
+              AND :new.dateinvoiced BETWEEN datefrom AND dateto
+              AND v_NoFactura BETWEEN numberfrom AND numberto
+              AND stablishment = v_establecimiento 
+              AND shell = v_box 
+              AND isactive = 'Y';
+
+      EXCEPTION WHEN NO_DATA_FOUND THEN
+
+        v_aut    := NULL;
+        v_dateto := NULL;
+        
+      END;
+
+      --VALIDATE IF AUTHORIZATION IS MANUAL
+      V_authorizationmanual := :NEW.em_sswh_authorizationmanual;
+      IF (V_authorizationmanual IS NULL OR V_authorizationmanual = 'N') THEN 
+        IF (v_aut IS NULL ) THEN
+
+          RAISE_APPLICATION_ERROR(-20000, '@SSWH_SupplierReferenceUnauthorized@');
+          
+        ELSE
+        	
+          :new.em_sswh_nroauthorization := v_aut;
+          :new.em_sswh_expirationdate := v_dateto;
+        	
+        END IF;
+      END IF;
+    END IF; /* END of Issotrx */
+     
+  END IF;  /* END TG -INSERT OR UPDATE */
+ 
+  END SSWH_T_INVOICE_REFNUMBER
+]]></body>
+    </trigger>
+  </database>

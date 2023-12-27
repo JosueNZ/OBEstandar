@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAM_AMORTIZ_DOC_SEQ_TRG">
+    <trigger name="SSAM_AMORTIZ_DOC_SEQ_TRG" table="A_AMORTIZATION" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[vDocTypeID	VARCHAR2(32);
+vCurrentNext	VARCHAR2(30);
+vSeq		RECORD;
+        
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+ IF(INSERTING) THEN
+
+        SELECT dt.c_doctype_id, s.* INTO vSeq
+		FROM ad_sequence s
+			JOIN c_doctype dt ON dt.docnosequence_id = s.ad_sequence_id
+			JOIN ad_table t ON t.ad_table_id = dt.ad_table_id
+		WHERE t.tablename = 'A_Amortizationline';
+		vCurrentNext := vSeq.currentnext;
+		
+		:NEW.c_doctype_id = vSeq.c_doctype_id;
+		SELECT ad_sequence_doc(vSeq.name, :NEW.ad_client_id, 'Y') INTO :NEW.documentNo;
+
+ END IF;
+
+END SSAM_AMORTIZ_DOC_SEQ_TRG
+]]></body>
+    </trigger>
+  </database>

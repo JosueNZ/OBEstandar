@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_INVOICE_TRG1">
+    <trigger name="SSWH_INVOICE_TRG1" table="C_INVOICE" fires="after" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[ v_em_sswh_implementautoriza  CHAR(1);
+ v_isreturn		CHAR(1);
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING OR  UPDATING )THEN
+	
+    SELECT em_sswh_implementautoriza, isreturn  INTO v_em_sswh_implementautoriza , v_isreturn
+    FROM C_DOCTYPE
+    WHERE c_doctype_id = :new.c_doctypetarget_id;
+		
+    IF (:new.issotrx ='N' and v_em_sswh_implementautoriza ='Y' and v_isreturn ='N') THEN
+
+      IF (:new.em_sswh_livelihood IS NULL OR :new.em_sswh_codelivelihood IS NULL) THEN 
+
+        RAISE_APPLICATION_ERROR(-20000, '@SSWH_NoTypeOrCodeOfLivelihood@');
+
+      END IF;
+			
+    END IF;  --End Issotrx = Purchase
+
+  END IF;
+
+  END SSWH_INVOICE_TRG1
+]]></body>
+    </trigger>
+  </database>

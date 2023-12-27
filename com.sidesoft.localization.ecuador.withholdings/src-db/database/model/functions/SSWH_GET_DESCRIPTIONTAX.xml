@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_GET_DESCRIPTIONTAX">
+    <function name="SSWH_GET_DESCRIPTIONTAX" type="VARCHAR">
+      <parameter name="p_code" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Module NUMBER;  --OBTG:NUMBER--
+    v_SqlResult VARCHAR2(32767) ;
+    v_Description VARCHAR2(32767) ;
+
+    
+  BEGIN
+
+	IF COALESCE(p_code,'ND')<>'ND' THEN
+		SELECT 
+		COALESCE((SELECT COUNT(*) AS CONTAR FROM AD_MODULE WHERE JAVAPACKAGE = 'ec.cusoft.facturaec'),0)
+		INTO v_Module
+		FROM DUAL;
+		
+		IF (v_Module>0) THEN
+			v_SqlResult:='dd';
+
+			v_SqlResult:='SELECT description FROM C_TAX WHERE em_eei_sri_taxcat_code =''' || p_code || '''' ;
+
+			--v_SqlResult:= 'select coalesce((' || v_SqlResult ||  '),'''|| '-' || '''' || ') from dual' ;
+
+			BEGIN 
+			
+			EXECUTE IMMEDIATE v_SqlResult INTO v_Description;
+
+			EXCEPTION WHEN NO_DATA_FOUND THEN
+				v_Description := '-';
+			END;
+		END IF;
+	END IF;
+
+    RETURN(coalesce(v_Description,'-')) ;
+END SSWH_GET_DESCRIPTIONTAX
+]]></body>
+    </function>
+  </database>

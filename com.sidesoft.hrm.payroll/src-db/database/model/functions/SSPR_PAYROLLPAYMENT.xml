@@ -1,0 +1,246 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_PAYROLLPAYMENT">
+    <function name="SSPR_PAYROLLPAYMENT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter                 RECORD;
+  Cur_InvoiceLine               RECORD;
+  CUR_PAYROLL               RECORD;
+  
+  v_Client_ID                   VARCHAR2(32);
+  v_Org_ID                      VARCHAR2(32);
+  v_User_ID                     VARCHAR2(32);
+  
+  v_ResultStr                   VARCHAR2(2000) := '';
+  v_Receipt_ID                  VARCHAR2(32);
+  v_Processed                   VARCHAR2(60);  
+  v_Posted                      VARCHAR2(60);  
+
+  v_c_invoice_id                VARCHAR2(32);
+  v_documentno                  VARCHAR2(30);  
+  v_inv_posted                  VARCHAR2(30);  
+  v_inv_processed               CHARACTER(1);
+  v_taxdate                     DATE;
+  v_stdprecision                NUMBER(10,0);
+  v_inv_totalwithholdingincome  NUMBER;
+  v_inv_totalwithholdingvat     NUMBER;
+
+  v_tax_id                      VARCHAR2(32);
+  v_producttype                 VARCHAR2(60);
+  v_taxpayer_id                 VARCHAR2(32);
+  v_withholdingincome           NUMBER;
+  v_withholdingvat              NUMBER;
+  v_withholdingtotal            NUMBER;
+  v_calculatedwithholdingincome NUMBER;
+  v_calculatedwithholdingvat    NUMBER;
+  v_LineNo                      NUMBER;
+  v_invoicetax_id               VARCHAR2(32);  
+  
+  v_n_insertions                NUMBER;
+  v_Message                     VARCHAR2(2000):='';
+  v_bpartner_id			VARCHAR2(32);  
+  v_datedoc		 DATE;
+  v_invoice_id			VARCHAR2(32);  
+  v_taxamt		 NUMBER;
+  v_currency_id			VARCHAR2(32);  
+  v_fin_paymentmethod_id	VARCHAR2(32);  
+  v_issotrx			CHARACTER(1);
+  v_fin_payment_id		VARCHAR2(32);  
+  V_DOCTYPE_ID			VARCHAR2(32);  
+  v_fin_payment_schedule_id	VARCHAR2(32);  
+  v_fin_payment_detail_id	VARCHAR2(32);  
+  v_Documentno_sec		VARCHAR2(30);  
+  V_withholdingtype		VARCHAR2(60);  
+  V_financial_account_id 	VARCHAR2(32);  
+  V_paymentmethod_id		VARCHAR2(32);  
+  V_PERIOD_ID 			VARCHAR2(32);  
+  V_DESCRIPTION 		VARCHAR2(255):='';
+  v_Record_ID 			VARCHAR2(32);  
+  V_NAME_P 			VARCHAR2(60);  
+  V_PAYROLL_ID			VARCHAR2(32);  
+  V_GLITEM_ID			VARCHAR2(32);  
+  V_SECUENCIA_INICIO 		VARCHAR2(30);  
+  V_SECUENCIA_FIN		VARCHAR2(30);  
+  V_COUNT NUMBER:=1;
+  
+BEGIN
+  -- Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN -- BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+      p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy   
+      FROM AD_PInstance i 
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo  
+      )
+    LOOP
+    
+      IF (Cur_Parameter.ParameterName = 'Documentno') THEN
+		V_DOCUMENTNO := Cur_Parameter.P_String;      
+		v_Record_ID := Cur_Parameter.Record_ID;	
+		/*v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;*/
+		v_User_ID := Cur_Parameter.CreatedBy;
+      ELSE  
+		DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;  
+      
+    END LOOP; -- Get Parameter
+
+    -- Start Processing
+--raise exception '%','start de func';
+
+    --OBTENGO DATOS DE LA NOMINA
+    SELECT SSPR_PAYROLL_ID,DATEDOC,C_PERIOD_ID,DESCRIPTION INTO V_PAYROLL_ID,V_DATEDOC,V_PERIOD_ID,V_DESCRIPTION 
+    FROM SSPR_PAYROLL WHERE DOCUMENTNO = V_DOCUMENTNO;
+
+    --OBTENGO PERIODO
+    SELECT NAME INTO V_NAME_P FROM C_PERIOD WHERE C_PERIOD_ID = V_PERIOD_ID;
+    
+    --TIPO DE DOCUMENTO
+    SELECT C_DOCTYPE_ID INTO V_DOCTYPE_ID FROM SSPR_PAYROLLPAYMENT ;
+
+    --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO
+    IF (V_DOCTYPE_ID IS NULL)THEN
+	RAISE_APPLICATION_ERROR(-20000,'@ERROR=NO TIENE TIEPO DE DOCUMENTO CONFIGURADO PARA PAGO DE NOMINA@') ;
+	ELSE 
+	Ad_Sequence_Doctype(V_DOCTYPE_ID, v_Client_ID, 'Y', v_Documentno_sec)  ;--"002-001-23" TIPODOC,CLIENTE
+    END IF;
+
+    --OBTENGO CUENTA CONFIGURADA PARA PAGOS DE NOMINA
+    SELECT fin_financial_account_id,fin_paymentmethod_id,C_GLITEM_ID INTO V_financial_account_id,V_paymentmethod_id,V_GLITEM_ID FROM SSPR_PAYROLLPAYMENT;
+    
+
+    --CURSOR LINEAS DE NOMINA
+    FOR CUR_PAYROLL IN 
+    (
+	    SELECT a.ad_client_id,a.ad_org_id,a.c_bpartner_id,a.totalincome,a.totalexpense,a.totalnet
+	    FROM sspr_payroll_ticket a WHERE a.sspr_payroll_id = v_payroll_id and generate_paymentout='N'
+    )
+    LOOP
+	v_Client_ID := CUR_PAYROLL.ad_client_id;
+	v_Org_ID := CUR_PAYROLL.ad_org_id;
+
+	--TIPO DE DOCUMENTO
+    SELECT C_DOCTYPE_ID INTO V_DOCTYPE_ID FROM SSPR_PAYROLLPAYMENT ;
+    
+    --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO
+    IF (V_DOCTYPE_ID IS NULL)THEN
+	RAISE_APPLICATION_ERROR(-20000,'@ERROR=NO TIENE TIEPO DE DOCUMENTO CONFIGURADO PARA PAGO DE NOMINA@') ;
+	ELSE 
+	Ad_Sequence_Doctype(V_DOCTYPE_ID, v_Client_ID, 'Y', v_Documentno_sec)  ;--"002-001-23" TIPODOC,CLIENTE
+    END IF;
+
+    IF V_COUNT = 1 THEN 
+	    --GUARDO EL NUMERO DE DOCUMENTO INICIAL
+	    V_SECUENCIA_INICIO:=v_Documentno_sec;
+	    V_COUNT:=V_COUNT+1;
+    END IF;
+    	
+    --INSERTO CABECERA DE LOS COBROS 
+    v_fin_payment_id:=get_uuid();
+         INSERT INTO fin_payment(
+            fin_payment_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby, isactive, 
+            isreceipt, c_bpartner_id, paymentdate,c_currency_id, amount, writeoffamt, 
+            fin_paymentmethod_id, documentno, 
+            referenceno, status, processed, processing, posted,  
+            fin_financial_account_id, c_doctype_id, 
+            createdbyalgorithm, finacc_txn_convert_rate, 
+            finacc_txn_amount,description)
+    VALUES (v_fin_payment_id,v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            'N', CUR_PAYROLL.c_bpartner_id, V_datedoc,'100', CUR_PAYROLL.totalnet, 0.00, 
+            V_paymentmethod_id,v_Documentno_sec, 
+	    NULL, 'RDNC', 'N', 'N', 'N', 
+	    V_financial_account_id, V_DOCTYPE_ID, 
+	    'N', 1, 
+            CUR_PAYROLL.totalnet,'PAGO NOMINA '|| V_DOCUMENTNO||' '||V_NAME_P);
+
+     v_fin_payment_detail_id:=get_uuid();
+
+     --INSERTO LINEAS DE LOS COBROS
+     INSERT INTO fin_payment_detail(
+            fin_payment_detail_id, ad_client_id, ad_org_id, created, createdby,updated, updatedby, isactive, 
+            fin_payment_id, amount, 
+            isprepayment,refund,C_GLITEM_ID)
+     VALUES (v_fin_payment_detail_id,v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            v_fin_payment_id, CUR_PAYROLL.totalnet, 
+            'N','N',V_GLITEM_ID);
+
+      --INSERTO LINEAS DEL PLAN DE PAGOS
+	INSERT INTO fin_payment_scheduledetail(
+            fin_payment_scheduledetail_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby, isactive,
+            fin_payment_detail_id,
+            amount,  writeoffamt, 
+            iscanceled, c_bpartner_id,  
+            doubtfuldebt_amount)
+	VALUES (get_uuid(),v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+             v_fin_payment_detail_id, 
+            CUR_PAYROLL.totalnet, 0.00, 
+            'N', CUR_PAYROLL.c_bpartner_id, 
+            0.00);
+            
+        -- INSERTO DETALLE DE LA CUENTA FINANCIERA
+	INSERT INTO fin_finacc_transaction(
+            fin_finacc_transaction_id, ad_client_id, ad_org_id, created,createdby, updated, updatedby, isactive, 
+            c_currency_id, fin_financial_account_id, 
+            line, fin_payment_id, dateacct,status, paymentamt, 
+            depositamt, processed, processing, posted, 
+            statementdate, description, c_bpartner_id,
+            createdbyalgorithm)
+	VALUES (get_uuid(),v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            '100', V_financial_account_id, 
+            ((select max(line) from fin_finacc_transaction where fin_financial_account_id = V_financial_account_id) + 10), 
+            v_fin_payment_id, V_DATEDOC,'PWNC', CUR_PAYROLL.totalnet,  
+            0.00, 'Y', 'N', 'N',
+            V_datedoc, 'PAGO NOMINA '|| V_DOCUMENTNO||' '||V_NAME_P, CUR_PAYROLL.c_bpartner_id,
+            'N');
+
+            v_n_insertions=v_n_insertions+1;
+
+        --ACTUALIZA ESTADO DEL COBRO A PROCESADO PARA PODER CONTABILIZAR
+	UPDATE fin_payment SET processed ='Y' WHERE fin_payment_id = v_fin_payment_id;    
+	
+     END LOOP;            
+
+     --GUARDO EL NUMERO DE DOCUMENTO FINAL
+     V_SECUENCIA_FIN:=v_Documentno_sec;
+     
+  -- End Processing
+    
+  v_ResultStr:='UpdatingRecord';
+   v_Message := '@RowsUpdated@: ' || v_n_insertions || '.' || '   PAGO DESDE DOCUMENT No.: '||V_SECUENCIA_INICIO|| '  HASTA: '||V_SECUENCIA_FIN;
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+  RETURN;
+    
+END; -- BODY
+EXCEPTION
+WHEN OTHERS THEN
+  
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SSPR_PAYROLLPAYMENT
+]]></body>
+    </function>
+  </database>

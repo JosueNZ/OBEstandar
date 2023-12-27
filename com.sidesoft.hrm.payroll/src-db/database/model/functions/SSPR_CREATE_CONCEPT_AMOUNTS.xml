@@ -1,0 +1,202 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_CREATE_CONCEPT_AMOUNTS">
+    <function name="SSPR_CREATE_CONCEPT_AMOUNTS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Employee RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_Concept_ID VARCHAR2(32);
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);
+  v_Amount NUMBER;
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_count NUMBER;
+  v_n_updates NUMBER;
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    v_n_updates := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Concept_ID := Cur_Parameter.Record_ID;	  
+	
+      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+        v_StartPeriod_ID := Cur_Parameter.P_String;      
+          
+        v_Client_ID := Cur_Parameter.AD_Client_ID;
+        v_Org_ID := Cur_Parameter.AD_Org_ID;
+        v_User_ID := Cur_Parameter.CreatedBy;
+      ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+        v_EndPeriod_ID := Cur_Parameter.P_String;
+      ELSIF (Cur_Parameter.ParameterName = 'C_BPartner_ID') THEN
+        v_BPartner_ID := Cur_Parameter.P_String;
+      ELSIF (Cur_Parameter.ParameterName = 'Amount') THEN  
+        v_Amount := Cur_Parameter.P_Number;
+      ELSE  
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;     
+      
+    END LOOP; -- Get Parameter
+
+    SELECT startdate, enddate
+    INTO v_StartPeriod_StartDate, v_StartPeriod_EndDate
+    FROM C_Period
+    WHERE C_Period_ID = v_StartPeriod_ID;
+
+    
+    SELECT startdate, enddate
+    INTO v_EndPeriod_StartDate, v_EndPeriod_EndDate
+    FROM C_Period
+    WHERE C_Period_ID = v_EndPeriod_ID;
+
+    IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+    
+      RAISE_APPLICATION_ERROR(-20000, '@SSPR_EndStartPeriod@');
+      
+    END IF;
+
+    FOR Cur_Period IN 
+    (SELECT C_Period_ID 
+     FROM C_Period
+     WHERE startdate >= v_StartPeriod_StartDate
+     AND   enddate   <= v_EndPeriod_EndDate
+     AND AD_Client_ID = v_Client_ID
+    )
+    LOOP
+    
+      IF (v_BPartner_ID IS NOT NULL) THEN
+
+        SELECT count(*)
+        INTO v_count
+        FROM SSPR_Concept_Amount
+        WHERE SSPR_Concept_ID = v_Concept_ID AND C_BPartner_ID = v_BPartner_ID 
+              AND C_Period_ID = Cur_Period.C_Period_ID;
+
+        IF (v_count = 1) THEN
+
+          UPDATE SSPR_Concept_Amount SET Amount = v_Amount
+          WHERE  SSPR_Concept_ID = v_Concept_ID AND C_BPartner_ID = v_BPartner_ID 
+                 AND C_Period_ID = Cur_Period.C_Period_ID;
+
+          v_n_updates := v_n_updates + 1;       
+                
+        ELSE 
+        
+          INSERT INTO SSPR_Concept_Amount
+          (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+          Created, CreatedBy, Updated, UpdatedBy,
+          SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount
+          )
+          VALUES
+          (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+          now(), v_User_ID, now(), v_User_ID,
+          v_Concept_ID, v_BPartner_ID, Cur_Period.C_Period_ID, v_Amount 
+          );
+
+          v_n_insertions := v_n_insertions + 1;
+
+        END IF;
+        
+      ELSE
+      
+        FOR Cur_Employee IN
+        (SELECT C_BPartner_ID
+         FROM C_BPartner
+         WHERE IsEmployee = 'Y' AND Ad_Client_ID = v_Client_ID AND Ad_Org_ID = v_Org_ID AND ISACTIVE='Y'
+        )
+        LOOP
+
+          SELECT count(*)
+          INTO v_count
+          FROM SSPR_Concept_Amount
+          WHERE SSPR_Concept_ID = v_Concept_ID AND C_BPartner_ID = Cur_Employee.C_BPartner_ID
+                AND C_Period_ID = Cur_Period.C_Period_ID;
+
+          IF (v_count = 1) THEN
+
+            UPDATE SSPR_Concept_Amount SET Amount = v_Amount
+            WHERE  SSPR_Concept_ID = v_Concept_ID AND C_BPartner_ID = Cur_Employee.C_BPartner_ID
+                   AND C_Period_ID = Cur_Period.C_Period_ID; 
+
+            v_n_updates := v_n_updates + 1;       
+
+          ELSE         
+        
+            INSERT INTO SSPR_Concept_Amount
+            (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+            Created, CreatedBy, Updated, UpdatedBy,
+            SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount
+            )
+            VALUES
+            (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+            now(), v_User_ID, now(), v_User_ID,
+            v_Concept_ID, Cur_Employee.C_BPartner_ID, Cur_Period.C_Period_ID, v_Amount 
+            );
+
+            v_n_insertions := v_n_insertions + 1;
+
+          END IF;   
+          
+        END LOOP;  
+        
+      END IF;	
+    
+    END LOOP;
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '. @RowsUpdated@: ' || v_n_updates || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_CREATE_CONCEPT_AMOUNTS
+]]></body>
+    </function>
+  </database>

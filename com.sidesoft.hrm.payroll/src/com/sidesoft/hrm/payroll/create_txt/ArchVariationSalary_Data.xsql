@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchVariationSalaryData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+		select sum(extra) as extra,ruc, ciudad,anio,mes,ci,'INS' as constante,'O' as tipo_transaccion, estcode
+        from
+        (select b.taxid ruc,
+            i.em_sspr_value as ciudad,
+            extract(year from d.enddate) anio,
+            case when extract(month from d.enddate) = 1 then '01'
+                 when extract(month from d.enddate) = 2 then '02'
+                 when extract(month from d.enddate) = 3 then '03'
+                 when extract(month from d.enddate) = 4 then '04'
+                 when extract(month from d.enddate) = 5 then '05'
+                 when extract(month from d.enddate) = 6 then '06'
+                 when extract(month from d.enddate) = 7 then '07'
+                 when extract(month from d.enddate) = 8 then '08'
+                 when extract(month from d.enddate) = 9 then '09'
+                 when extract(month from d.enddate) = 10 then '10'
+                 when extract(month from d.enddate) = 11 then '11'
+                 when extract(month from d.enddate) = 12 then '12'
+            end as mes,
+            f.taxid ci,
+            round(sum(g.amount),2) as extra,
+	    '0' || j.name as estcode
+        from ad_org a
+        left join AD_OrgInfo b on a.ad_org_id = b.ad_org_id
+        left join SSPR_Payroll c on a.ad_org_id = c.ad_org_id
+        left join c_period d on c.c_period_id =d.c_period_id
+        left join SSPR_Payroll_Ticket e on c.sspr_payroll_id = e.sspr_payroll_id
+        left join c_bpartner f on e.c_bpartner_id = f.c_bpartner_id
+        left join SSPR_Payroll_Ticket_Concept g on e.sspr_payroll_ticket_id = g.sspr_payroll_ticket_id
+        left join sspr_concept h on g.sspr_concept_id = h.sspr_concept_id
+        left join c_city i on f.em_sspr_city = i.c_city_id
+        left join sspr_establishmentcode j on j.sspr_establishmentcode_id = f.em_sspr_establishmentcode_id	
+        where a.ad_org_id = ?
+        and d.c_period_id  = ?
+        and c.documentno = ?
+        and (i.c_city_id = ? or ? is null)        
+        and h.variationsalary = 'Y'
+        group by b.taxid, d.enddate, f.taxid, g.amount, i.em_sspr_value, j.name) rt
+        where extra > 0
+        group by ruc, ciudad,anio,mes,ci,estcode
+      ]]>
+    </Sql>
+    <Parameter name="ad_org_id"/>
+    <Parameter name="c_period_id"/>
+    <Parameter name="documentno"/>
+    <Parameter name="c_city_id"/>
+    <Parameter name="c_city_id"/>
+  </SqlMethod>
+
+</SqlClass>

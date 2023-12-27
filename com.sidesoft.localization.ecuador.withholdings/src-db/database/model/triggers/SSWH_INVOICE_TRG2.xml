@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_INVOICE_TRG2">
+    <trigger name="SSWH_INVOICE_TRG2" table="C_INVOICE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+    /*************************************************************************
+    * The contents of this file are subject to the Compiere Public
+    * License 1.1 ("License"); You may not use this file except in
+    * compliance with the License. You may obtain a copy of the License in
+    * the legal folder of your Openbravo installation.
+    * Software distributed under the License is distributed on an
+    * "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, either express or
+    * implied. See the License for the specific language governing rights
+    * and limitations under the License.
+    * The Original Code is  Compiere  ERP &  Business Solution
+    * The Initial Developer of the Original Code is Jorg Janke and ComPiere, Inc.
+    * Portions created by Jorg Janke are Copyright (C) 1999-2001 Jorg Janke,
+    * parts created by ComPiere are Copyright (C) ComPiere, Inc.;
+    * All Rights Reserved.
+    * Contributor(s): Sidesoft cia. Ltda.  Santiago Simbania 2012
+    * Contributions are Copyright (C) 2001-2008 Openbravo, S.L.U.
+    *
+    * Specifically, this derivative work is based upon the following Compiere
+    * file and version.
+    *************************************************************************
+    ************************************************************************/
+        
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+  IF (UPDATING) THEN
+
+	
+    IF (:new.posted='Y'  
+      AND ( 
+        COALESCE(:old.em_sswh_c_doctype_id, '0') <> COALESCE(:NEW.em_sswh_c_doctype_id, '0')
+        OR COALESCE(:old.em_sswh_authorization, '.') <> COALESCE(:NEW.em_sswh_authorization, '.')
+        OR COALESCE(:old.em_sswh_withholdingref, '.') <> COALESCE(:NEW.em_sswh_withholdingref, '.')
+        OR(COALESCE(:OLD.em_sswh_datewithhold, TO_DATE('31-12-9999', 'DD-MM-YYYY')) <> COALESCE(:NEW.em_sswh_datewithhold, TO_DATE('31-12-9999', 'DD-MM-YYYY')))
+        )) THEN
+
+          RAISE_APPLICATION_ERROR(-20000, '@SSWH_DocumentCompleted@');
+            
+        END IF;
+      
+    END IF;
+	
+  END SSWH_INVOICE_TRG2
+]]></body>
+    </trigger>
+  </database>

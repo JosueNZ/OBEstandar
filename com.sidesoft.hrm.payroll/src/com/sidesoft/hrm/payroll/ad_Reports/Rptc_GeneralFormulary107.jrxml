@@ -1,0 +1,878 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptc_GeneralFormulary107" pageWidth="7430" pageHeight="8000" orientation="Landscape" columnWidth="7390" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="7e645911-487d-4973-ba12-6f66c8f21567">
+	<property name="ireport.zoom" value="1.6105100000000079"/>
+	<property name="ireport.x" value="10106"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="C_YEAR_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+anio_entrega
+,mes_entrega
+,dia_entrega
+,taxid_org
+,org
+,f107general.year
+,c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+,discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad
+,sum(sueldo) as sueldo
+,sum(bonos) as bonos
+,sum(utilidades) as utilidades
+,sum(impuestorenta) as impuestorenta
+,sum(decimotercero) as decimotercero
+,sum(decimocuarto) as decimocuarto
+,sum(fondosreserva) as fondosreserva
+,sum(compensacionsalariodigno) as compensacionsalariodigno
+,sum(otrosing_rentagravada) as otrosing_rentagravada
+,sum( ingresosgrav349) as ingresosgrav349
+,to_number(1) as sistemasalariodigno
+,sum(aportepersonal) as aportepersonal
+,sum(impuestorentacausado) as impuestorentacausado
+,sum(valorimprettrabajador) as valorimprettrabajador
+,sum(gastosvivienda) as gastosvivienda
+,sum(gastossalud) as gastossalud
+,sum(gastoseducacion) as gastoseducacion
+,sum(gastoalimentacion) as gastoalimentacion
+,sum(gastosvestimenta) as gastosvestimenta
+,sum(ingresosgravados) as ingresosgravados
+,sum(aportepersonalo) as aportepersonalo
+,sum(exoneracionpordiscapacidad) as exoneracionpordiscapacidad
+,sum(exoneracionportercerasedad) as exoneracionportercerasedad
+,sum(valorimpret403) as valorimpret403
+,sum(valorimpasumido405) as valorimpasumido405
+,sum(baseimponiblegrav) as baseimponiblegrav
+,em_sspr_galapagosbenf
+,em_sspr_workwci
+,em_sspr_netsalarysys
+,sum(gastosturismo) as gastosturismo
+,sum(rebajagastospersonales) as rebajagastospersonales
+,sum(despuesrebajagastospersonales) as despuesrebajagastospersonales
+from
+(
+
+select
+sspr_formulary107_detail_v_id
+,anio_entrega
+,mes_entrega
+,dia_entrega
+,taxid_org
+,to_char(org) as org
+,sspr_formulary107_detail_v.year
+,sspr_formulary107_detail_v.c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+, case when em_sspr_work_spouse='Y' then to_char('04') else discapacitado  end as discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad
+,trunc(sueldo,4) as sueldo
+,trunc(bonos,4) as bonos
+,trunc(utilidades,4) as utilidades
+,impuestorenta
+,decimotercero,decimocuarto,fondosreserva,compensacionsalariodigno
+,otrosing_rentagravada
+,trunc(sueldo + bonos + utilidades,4) as ingresosgrav349
+,to_number(sistemasalariodigno) as sistemasalariodigno
+,aportepersonal
+,impuestorentacausado
+,valorimprettrabajador
+,gastosvivienda
+,gastossalud
+,gastoseducacion
+,gastoalimentacion
+,gastosvestimenta
+,ingresosgravados
+,aportepersonalo
+,exoneracionpordiscapacidad
+,case when exoneracionpordiscapacidad <> 0 then 0 else exoneracionportercerasedad end as exoneracionportercerasedad
+,valorimpret403
+,valorimpasumido405
+,baseimponiblegrav
+,documentno
+,ruccontador
+,case when em_sspr_galapagosbenf='Y' then to_char('SI') else to_char('NO') end as em_sspr_galapagosbenf
+,case when em_sspr_workwci='Y' then to_char('SI') else to_char('NO') end as em_sspr_workwci
+,case when em_sspr_netsalarysys='Y' then 2 else 1 end em_sspr_netsalarysys
+,gastosturismo
+,rebajagastospersonales
+,despuesrebajagastospersonales
+from sspr_formulary107_detail_v
+JOIN c_bpartner cbp on cbp.c_bpartner_id = sspr_formulary107_detail_v.c_bpartner_id
+where sspr_formulary107_detail_v.c_year_id = $P{C_YEAR_ID}
+
+union all
+
+select
+to_char('') as sspr_formulary107_detail_v_id
+,to_char(now(),'yyyy') as anio_entrega
+,to_char(now(),'mm') as mes_entrega
+,to_char(now(),'dd') as dia_entrega
+,aoi.taxid as taxid_org
+,to_char(ao.name) as org
+,to_char(to_number(c_y.year) +1)  as "year"
+,$P{C_YEAR_ID} as c_year_id
+,cbp.taxid as taxid_employee
+,cbp.name as empleado
+,to_char(
+        CASE
+            WHEN cbp.em_sspr_documenttype = 'NI' THEN 'C'
+            WHEN cbp.em_sspr_documenttype = 'P' THEN 'P'
+            WHEN cbp.em_sspr_documenttype = 'SRT' THEN 'E'
+            ELSE NULL
+        END) as tipoidentificacion
+, cbp.em_sspr_documentno as numeroidentificacion
+, cbp.em_sspr_lastname as empleadoapellido
+,cbp.em_sspr_firstname as empleadonombre
+,se.value AS codigoestab
+, to_char(CASE
+            WHEN cc.countrycode = 'EC' THEN '01'
+            ELSE '02'
+        END) pais
+,cc.em_sspr_coderesidence as codigopais
+,to_char(
+        CASE
+            WHEN cc.em_sspr_applyagreement = 'Y' THEN 'SI'
+            ELSE 'NA'
+        END) AS aplicaconvenio
+, (case when CBP.em_sspr_work_spouse = 'Y' then to_char('04') else (to_char(
+        CASE
+            WHEN cbp.em_sspr_isdisabled = 'Y' THEN '02'
+            ELSE '01'
+        END)) end) AS discapacitado
+, coalesce(cbp.em_sspr_disability,'0') AS porcentajediscapacidad
+, to_char(COALESCE(
+        CASE
+            WHEN cbp.em_sspr_representsdisabled = 'Y' THEN
+            CASE
+                WHEN p.em_sspr_documenttype = 'NI' THEN 'C'
+                WHEN p.em_sspr_documenttype = 'P' THEN 'P'
+                WHEN p.em_sspr_documenttype = 'SRT' THEN 'E'
+                ELSE NULL
+            END
+            ELSE NULL
+        END, 'N')) AS tipoidentdiscapacidad
+, to_char(COALESCE(
+        CASE
+            WHEN cbp.em_sspr_representsdisabled = 'Y' THEN p.taxid
+            ELSE NULL
+        END, '999')) AS numeroidentifdiscapacidad
+,to_number(0) as sueldo
+,to_number(0) as bonos
+,trunc(SU.TOTALPROFITS,4) as utilidades
+,to_number(0) as impuestorenta
+,to_number(0) as decimotercero,to_number(0) as decimocuarto
+,to_number(0) as fondosreserva,su.Wagecompensation as compensacionsalariodigno
+,to_number(0) as otrosing_rentagravada
+,to_number(0) as  ingresosgrav349
+,to_number(1) as  sistemasalariodigno
+,to_number(0) as aportepersonal
+,to_number(0) as impuestorentacausado
+,to_number(0) as valorimprettrabajador
+,to_number(0) as gastosvivienda
+,to_number(0) as gastossalud
+,to_number(0) as gastoseducacion
+,to_number(0) as gastoalimentacion
+,to_number(0) as gastosvestimenta
+,to_number(0) as ingresosgravados
+,to_number(0) as aportepersonalo
+,to_number(0) as exoneracionpordiscapacidad
+,to_number(0) as exoneracionportercerasedad
+,to_number(0) as valorimpret403
+,to_number(0) as valorimpasumido405
+,to_number(0) as baseimponiblegrav
+,to_char('') as documentno
+,to_char('') as ruccontador
+,case when CBP.em_sspr_galapagosbenf='Y' then to_char('SI') else to_char('NO') end as em_sspr_galapagosbenf
+,case when CBP.em_sspr_workwci='Y' then to_char('SI') else to_char('NO') end as em_sspr_workwci
+,case when CBP.em_sspr_netsalarysys='Y' then 2 else 1 end em_sspr_netsalarysys
+,to_number(0) as gastosturismo
+,to_number(0) as rebajagastospersonales
+,to_number(0) as despuesrebajagastospersonales
+FROM sspr_utilities SU
+LEFT JOIN C_YEAR C_Y ON C_Y.C_YEAR_ID = SU.C_YEAR_ID
+LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = SU.C_BPARTNER_ID
+LEFT JOIN c_bpartner_location cbpl ON cbpl.c_bpartner_id = cbp.c_bpartner_id AND cbpl.isactive = 'Y'
+LEFT JOIN c_location cl ON cbpl.c_location_id = cl.c_location_id
+LEFT JOIN c_country cc ON cl.c_country_id = cc.c_country_id
+LEFT JOIN sspr_establishmentcode se ON cbp.em_sspr_establishmentcode_id = se.sspr_establishmentcode_id
+LEFT JOIN c_bpartner p ON cbp.em_sspr_bpartner_disabled_id = p.c_bpartner_id
+LEFT JOIN ad_org ao ON ao.ad_org_id = su.ad_org_id
+LEFT JOIN ad_clientinfo y ON ao.ad_client_id = y.ad_client_id
+LEFT JOIN c_bpartner z ON y.em_sspr_c_bpartner_id = z.c_bpartner_id
+LEFT JOIN ad_orginfo aoi ON ao.ad_org_id = aoi.ad_org_id
+
+
+WHERE TO_NUMBER(trim(c_y.YEAR)) = (SELECT TO_NUMBER(CY.YEAR)-1  AS ANIO FROM C_YEAR CY WHERE CY.C_YEAR_ID = $P{C_YEAR_ID}
+)
+and su.sspr_codeformulary107_id in ( select sspr_codeformulary107_id from sspr_codeformulary107  where typeconcept = 'UT')
+and SU.C_BPARTNER_ID is not null
+order by 10
+) f107general
+group by
+anio_entrega
+,mes_entrega
+,dia_entrega
+,taxid_org
+,org
+,f107general.year
+,c_year_id
+,taxid_employee
+,empleado
+,tipoidentificacion
+,numeroidentificacion
+,empleadoapellido
+,empleadonombre
+,codigoestab
+,pais
+,codigopais
+,aplicaconvenio
+,discapacitado
+,porcentajediscapacidad
+,tipoidentdiscapacidad
+,numeroidentifdiscapacidad
+,em_sspr_galapagosbenf
+,em_sspr_workwci
+,em_sspr_netsalarysys
+order by  empleado]]>
+	</queryString>
+	<field name="anio_entrega" class="java.lang.String"/>
+	<field name="mes_entrega" class="java.lang.String"/>
+	<field name="dia_entrega" class="java.lang.String"/>
+	<field name="taxid_org" class="java.lang.String"/>
+	<field name="org" class="java.lang.String"/>
+	<field name="year" class="java.lang.String"/>
+	<field name="c_year_id" class="java.lang.String"/>
+	<field name="taxid_employee" class="java.lang.String"/>
+	<field name="empleado" class="java.lang.String"/>
+	<field name="tipoidentificacion" class="java.lang.String"/>
+	<field name="numeroidentificacion" class="java.lang.String"/>
+	<field name="empleadoapellido" class="java.lang.String"/>
+	<field name="empleadonombre" class="java.lang.String"/>
+	<field name="codigoestab" class="java.lang.String"/>
+	<field name="pais" class="java.lang.String"/>
+	<field name="codigopais" class="java.lang.String"/>
+	<field name="aplicaconvenio" class="java.lang.String"/>
+	<field name="discapacitado" class="java.lang.String"/>
+	<field name="porcentajediscapacidad" class="java.lang.String"/>
+	<field name="tipoidentdiscapacidad" class="java.lang.String"/>
+	<field name="numeroidentifdiscapacidad" class="java.lang.String"/>
+	<field name="sueldo" class="java.math.BigDecimal"/>
+	<field name="bonos" class="java.math.BigDecimal"/>
+	<field name="utilidades" class="java.math.BigDecimal"/>
+	<field name="impuestorenta" class="java.math.BigDecimal"/>
+	<field name="decimotercero" class="java.math.BigDecimal"/>
+	<field name="decimocuarto" class="java.math.BigDecimal"/>
+	<field name="fondosreserva" class="java.math.BigDecimal"/>
+	<field name="compensacionsalariodigno" class="java.math.BigDecimal"/>
+	<field name="otrosing_rentagravada" class="java.math.BigDecimal"/>
+	<field name="ingresosgrav349" class="java.math.BigDecimal"/>
+	<field name="sistemasalariodigno" class="java.math.BigDecimal"/>
+	<field name="aportepersonal" class="java.math.BigDecimal"/>
+	<field name="impuestorentacausado" class="java.math.BigDecimal"/>
+	<field name="valorimprettrabajador" class="java.math.BigDecimal"/>
+	<field name="gastosvivienda" class="java.math.BigDecimal"/>
+	<field name="gastossalud" class="java.math.BigDecimal"/>
+	<field name="gastoseducacion" class="java.math.BigDecimal"/>
+	<field name="gastoalimentacion" class="java.math.BigDecimal"/>
+	<field name="gastosvestimenta" class="java.math.BigDecimal"/>
+	<field name="ingresosgravados" class="java.math.BigDecimal"/>
+	<field name="aportepersonalo" class="java.math.BigDecimal"/>
+	<field name="exoneracionpordiscapacidad" class="java.math.BigDecimal"/>
+	<field name="exoneracionportercerasedad" class="java.math.BigDecimal"/>
+	<field name="valorimpret403" class="java.math.BigDecimal"/>
+	<field name="valorimpasumido405" class="java.math.BigDecimal"/>
+	<field name="baseimponiblegrav" class="java.math.BigDecimal"/>
+	<field name="em_sspr_galapagosbenf" class="java.lang.String"/>
+	<field name="em_sspr_workwci" class="java.lang.String"/>
+	<field name="em_sspr_netsalarysys" class="java.lang.Integer"/>
+	<field name="gastosturismo" class="java.math.BigDecimal"/>
+	<field name="rebajagastospersonales" class="java.math.BigDecimal"/>
+	<field name="despuesrebajagastospersonales" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="168" height="20" uuid="733ee9bb-53cd-46af-bffa-dc9ab1c7975c"/>
+				<textElement>
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FORMULARIO 107]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="48" splitType="Stretch">
+			<rectangle>
+				<reportElement x="0" y="0" width="7390" height="48" uuid="96955b21-4746-4a66-ae1d-ae51700f0b17"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="0" y="7" width="168" height="36" uuid="a9caefb1-9e8e-44ce-97ea-f6e3d8f91455"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número Ruc Empleador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="501" y="7" width="168" height="36" uuid="102179ec-1a7d-4c8d-b1d3-7aed4b1f4fb8"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de identificación del trabajador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="669" y="7" width="168" height="36" uuid="0c13f52d-b585-4b62-a0df-b816793899b3"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número de identificación del trabajador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="837" y="7" width="168" height="36" uuid="b6c71679-bad2-4081-9e9f-0dd1828407ba"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Apellidos del trabajador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1005" y="7" width="168" height="36" uuid="7a5cfc46-6430-434f-8ea5-c8c353ba5754"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombres del trabajador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1173" y="7" width="168" height="36" uuid="e36d6067-877a-4cd4-998f-1afc5995c4cb"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Código del establecimiento]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1341" y="7" width="168" height="36" uuid="d4740f89-c4b8-4d1b-83ba-81e1d575e28d"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de residencia]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1509" y="7" width="168" height="36" uuid="148744a7-6ce9-48a9-a4c6-ca20c3fbb226"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[País de residencia]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1677" y="7" width="168" height="36" uuid="3f3f88b3-0573-4f6b-ae06-f2691becf9bb"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[¿Aplica convenio para evitar doble imposición?]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1845" y="7" width="168" height="36" uuid="3f88f3f4-6200-4bf5-a700-511fdc019d72"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Condición del trabajador respecto a discapacidades]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2013" y="7" width="168" height="36" uuid="e7aa4caf-b1cf-474e-b941-44ffb1e76a1a"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Porcentaje de discapacidad]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2181" y="7" width="168" height="36" uuid="1eb4d08c-b640-40ff-a25b-7b712c8aa857"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de identificación de la persona con discapacidad a quien sustituye o representa]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2349" y="7" width="168" height="36" uuid="833e862b-1d25-4353-8496-e4c616033214"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número de identificación de la persona con discapacidad a quien sustituye o representa]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2517" y="7" width="168" height="36" uuid="55547eca-e5e2-49eb-b643-36a243a5f2b9"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sueldos y salarios]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2685" y="7" width="168" height="36" uuid="77fa8d12-c081-4d38-90ab-14632a158c4b"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sobresueldos, comisiones, bonos y otros ingresos gravados]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2853" y="7" width="168" height="36" uuid="39b1093b-5612-4309-80f1-8dbb68eb7948"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Participación de utilidades]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3021" y="7" width="168" height="36" uuid="627db349-9af9-40c5-9519-f3ec2a465bd7"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ingresos gravados generados con otros empleadores]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3189" y="7" width="168" height="36" uuid="262144d2-8666-4feb-98e8-5e47476f0e95"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Impuesto a la Renta asumido por este empleador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3357" y="7" width="168" height="36" uuid="896f0dab-7fa3-4936-be7a-e81184b08cbf"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Décimo tercer sueldo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3525" y="7" width="168" height="36" uuid="0508931f-0b6e-4c07-b419-8369fa0d06cd"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Décimo cuarto sueldo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3693" y="7" width="168" height="36" uuid="630f7088-1b63-4c31-92bb-881ba9759a0f"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fondo de reserva]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="3861" y="7" width="168" height="36" uuid="3669417d-7248-4b9e-aa92-ddd322280b68"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Compensación Económica Salario Digno]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4029" y="7" width="168" height="36" uuid="f652f74b-71de-4dbe-8453-4f7d2084476c"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Otros ingresos en relación de dependencia que no constituyen renta gravada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4197" y="7" width="168" height="36" uuid="49736105-cb3d-46aa-9afc-92938ccb7225"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ingresos gravados con el empleador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4365" y="7" width="168" height="36" uuid="7c1a373e-d658-4145-bfa4-3170f15740ea"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo sistema salario neto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4533" y="7" width="168" height="36" uuid="8a24f2fc-b64c-4645-95a5-038c5ff9eabe"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Aporte personal al IESS con este empleador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4701" y="7" width="168" height="36" uuid="3bbfe967-dd2a-4a92-8ef5-ab45e605f8f8"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Aporte personal al IESS con otros empleadores]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="4869" y="7" width="168" height="36" uuid="daf6bd7b-cda8-44f3-a6bd-21b802671f87"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por vivienda]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5037" y="7" width="168" height="36" uuid="4bb9d8ed-c9d9-4a9e-8911-f6c3c8009f50"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por salud]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5205" y="7" width="168" height="36" uuid="3c757489-b7ef-4694-9a0a-cdea0d6e34cf"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por educación arte y cultura]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5373" y="7" width="168" height="36" uuid="ff8ae639-e610-452c-b41e-886448b5013b"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por alimentación]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5541" y="7" width="168" height="36" uuid="a0dfcebf-bbe3-4570-a891-051a402de0f0"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por vestimenta]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5877" y="7" width="169" height="36" uuid="bd9c2ef3-5ff4-4d7a-91db-73c634af99b7"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Exoneración por discapacidad]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6046" y="7" width="168" height="36" uuid="42dadde2-4086-48e8-993c-f94903fa026e"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Exoneración por tercera edad]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6214" y="7" width="168" height="36" uuid="0c410fb7-93da-4c2c-a824-6551e543a13e"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Base imponible gravada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6382" y="7" width="168" height="36" uuid="bae96ba9-d33b-4706-9e88-a110686c852c"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Impuesto a la Renta causado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6886" y="7" width="168" height="36" uuid="1f4b2e36-c3b7-44fc-a337-e536562c9bf3"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[I. Renta retenido y asumido por otros empleadores]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="7054" y="7" width="168" height="36" uuid="231ab923-9f2d-40b0-ab2d-423de984f48c"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[I. Renta asumido por este empleador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="7222" y="7" width="168" height="36" uuid="d27c076b-4a3d-4ec6-8319-7fc192d76cc2"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[I. Renta retenido al trabajador]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="168" y="7" width="165" height="36" uuid="0d5c89c1-0631-4391-af94-5fd7b1861cd9"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Año]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="333" y="7" width="168" height="36" uuid="e05ec467-a0af-4c01-821b-29942e435120"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Es beneficiario de Galápagos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="5709" y="7" width="168" height="36" uuid="c70f5137-f347-4021-94b2-f02d9b412037"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gastos personales por turismo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6550" y="7" width="168" height="36" uuid="042d13bf-f426-4f27-91e3-fcfa2b0dd109"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Rebaja por gastos personales]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="6718" y="7" width="168" height="36" uuid="cdbbdd4d-8392-4728-a74e-4db6965b4f3b"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Impuesto a la renta despues de la rebaja de gastos personales]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="168" height="20" uuid="ab00b092-bef4-4bab-b628-124512fcf500"/>
+				<textFieldExpression><![CDATA[$F{taxid_org}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="501" y="0" width="168" height="20" uuid="4071f4db-da66-475f-ab2d-0b82e2e59a7c"/>
+				<textFieldExpression><![CDATA[$F{tipoidentificacion}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="669" y="0" width="168" height="20" uuid="4f91a7d2-b725-4e98-b7c5-b090c426606c"/>
+				<textFieldExpression><![CDATA[$F{numeroidentificacion}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="837" y="0" width="168" height="20" uuid="61e6185d-b8fe-40cc-ab84-b496f6f431d2"/>
+				<textFieldExpression><![CDATA[$F{empleadoapellido}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1005" y="0" width="168" height="20" uuid="10badb86-2d5d-4568-805f-9bf022c636f1"/>
+				<textFieldExpression><![CDATA[$F{empleadonombre}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1173" y="0" width="168" height="20" uuid="a859392e-77b3-46c0-b0cb-2a35a2965995"/>
+				<textFieldExpression><![CDATA[$F{codigoestab}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1341" y="0" width="168" height="20" uuid="07160044-9cab-4eb6-893f-22b2bae04e18"/>
+				<textFieldExpression><![CDATA[$F{pais}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1509" y="0" width="168" height="20" uuid="29055839-49f8-4e0f-a541-b8766218b289"/>
+				<textFieldExpression><![CDATA[$F{codigopais}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1677" y="0" width="168" height="20" uuid="f53d74a5-dd28-4bcd-ab5e-d11b53cd1796"/>
+				<textFieldExpression><![CDATA[$F{aplicaconvenio}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1845" y="0" width="168" height="20" uuid="906ef3ee-4d1f-4ea7-8541-b164d8c60298"/>
+				<textFieldExpression><![CDATA[$F{discapacitado}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2013" y="0" width="168" height="20" uuid="d7f314ce-5cb0-4e0b-81cf-3c196c041a5f"/>
+				<textFieldExpression><![CDATA[$F{porcentajediscapacidad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2181" y="0" width="168" height="20" uuid="d8fd502c-ea1a-45f4-abbb-723e322138ee"/>
+				<textFieldExpression><![CDATA[$F{tipoidentdiscapacidad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="2349" y="0" width="168" height="20" uuid="ac3784fa-78bd-4076-adb7-789e5f5d30ad"/>
+				<textFieldExpression><![CDATA[$F{numeroidentifdiscapacidad}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="2517" y="0" width="168" height="20" uuid="4a26382c-c6e4-4842-8725-31c6178ebd0d"/>
+				<textFieldExpression><![CDATA[$F{sueldo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="2685" y="0" width="168" height="20" uuid="255e8469-ed94-40fd-937e-7a2f3dfc6f3d"/>
+				<textFieldExpression><![CDATA[$F{bonos}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="2853" y="0" width="168" height="20" uuid="16219c91-a30d-4acd-b3a7-c262dfa15199"/>
+				<textFieldExpression><![CDATA[$F{utilidades}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3021" y="0" width="168" height="20" uuid="fca0068e-408e-4bf1-a29c-3f65e1ad3011"/>
+				<textFieldExpression><![CDATA[$F{ingresosgravados}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3189" y="0" width="168" height="20" uuid="dab52cff-5806-4ee0-80c9-878302445d5d"/>
+				<textFieldExpression><![CDATA[$F{impuestorenta}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3357" y="0" width="168" height="20" uuid="bd188be0-24c3-48ce-b9bd-08fa5ad0352a"/>
+				<textFieldExpression><![CDATA[$F{decimotercero}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3525" y="0" width="168" height="20" uuid="bee40141-d655-4cf8-8007-288625af4fdc"/>
+				<textFieldExpression><![CDATA[$F{decimocuarto}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3693" y="0" width="168" height="20" uuid="8e142f61-ed49-4edc-bfdd-ec9858b0794a"/>
+				<textFieldExpression><![CDATA[$F{fondosreserva}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="3861" y="0" width="168" height="20" uuid="c28f7bff-2348-4c8d-9d4c-d326bfe58066"/>
+				<textFieldExpression><![CDATA[$F{compensacionsalariodigno}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="4029" y="0" width="168" height="20" uuid="6307699c-34b3-42e9-a1a8-e1bcdff6b2b1"/>
+				<textFieldExpression><![CDATA[$F{otrosing_rentagravada}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="4197" y="0" width="168" height="20" uuid="c7a0919b-3759-400e-a734-0e450289320f"/>
+				<textFieldExpression><![CDATA[$F{ingresosgrav349}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="4365" y="0" width="168" height="20" uuid="baf94c4d-0eb8-48fc-831d-48dcc38cd1ed"/>
+				<textFieldExpression><![CDATA[$F{em_sspr_netsalarysys}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="4533" y="0" width="168" height="20" uuid="79ea42ad-105e-46b7-87d6-754e90319f84"/>
+				<textFieldExpression><![CDATA[$F{aportepersonal}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="4701" y="0" width="168" height="20" uuid="4949e841-552a-4c03-b37f-7079d3f5c037"/>
+				<textFieldExpression><![CDATA[$F{aportepersonalo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="4869" y="0" width="168" height="20" uuid="910fb008-036e-4bb8-a267-641fdbd03624"/>
+				<textFieldExpression><![CDATA[$F{gastosvivienda}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5037" y="0" width="168" height="20" uuid="67357ddd-28a1-43e1-a6a4-3410bebbadde"/>
+				<textFieldExpression><![CDATA[$F{gastossalud}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5205" y="0" width="168" height="20" uuid="ad781cd8-1e8b-4a35-a284-6694259c849c"/>
+				<textFieldExpression><![CDATA[$F{gastoseducacion}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5373" y="0" width="168" height="20" uuid="95bbfe46-5213-4d85-96ed-240b5c8367c6"/>
+				<textFieldExpression><![CDATA[$F{gastoalimentacion}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5541" y="0" width="168" height="20" uuid="ca8de8a1-1fa9-44c6-803a-09d51780218f"/>
+				<textFieldExpression><![CDATA[$F{gastosvestimenta}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5877" y="0" width="169" height="20" uuid="6a45ff70-21eb-4fc8-b892-6500924c1057"/>
+				<textFieldExpression><![CDATA[$F{exoneracionpordiscapacidad}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6046" y="0" width="168" height="20" uuid="75d6e120-0af2-400c-9041-c1441a94a5b3"/>
+				<textFieldExpression><![CDATA[$F{exoneracionportercerasedad}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6214" y="0" width="168" height="20" uuid="3d70431f-5fdd-4945-bec8-6e8fe9364016"/>
+				<textFieldExpression><![CDATA[$F{baseimponiblegrav}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6382" y="0" width="168" height="20" uuid="4bd8ebe5-8bec-4f3c-b531-23cd1380f175"/>
+				<textFieldExpression><![CDATA[$F{impuestorentacausado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6886" y="0" width="168" height="20" uuid="46bae49d-007e-42e8-bf81-441ba7e88065"/>
+				<textFieldExpression><![CDATA[$F{valorimpret403}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="7054" y="0" width="168" height="20" uuid="a5e6e9c0-b8cb-4baa-949e-4161e608125a"/>
+				<textFieldExpression><![CDATA[$F{valorimpasumido405}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="7222" y="0" width="168" height="20" uuid="01b14218-d865-4052-b43d-992b7ad570d9"/>
+				<textFieldExpression><![CDATA[$F{valorimprettrabajador}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="168" y="0" width="165" height="20" uuid="d88d9b02-3c60-4e8b-b056-1ba96231fe7b"/>
+				<textFieldExpression><![CDATA[$F{year}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="333" y="0" width="168" height="20" uuid="55330740-a86e-4e0f-8dfa-891410635381"/>
+				<textFieldExpression><![CDATA[$F{em_sspr_galapagosbenf}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="5709" y="0" width="168" height="20" uuid="2d55aa4c-b03e-4501-b854-f4e177e8ebb5"/>
+				<textFieldExpression><![CDATA[$F{gastosturismo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6550" y="0" width="168" height="20" uuid="c921068a-1842-41a9-ad6a-318f0c4150e2"/>
+				<textFieldExpression><![CDATA[$F{rebajagastospersonales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="6718" y="0" width="168" height="20" uuid="5f0e21e5-8261-4442-800e-e94e06afb9d0"/>
+				<textFieldExpression><![CDATA[$F{despuesrebajagastospersonales}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ReportContractType" pageWidth="595" pageHeight="842" columnWidth="535" leftMargin="30" rightMargin="30" topMargin="20" bottomMargin="20">
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="C_BPARTNER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[Select
+ c.name as trabajador,
+ c.taxid as dnitrabajador,
+ to_char(l.address1||', '||l.city) as direciontrabajo,
+ o.name as empresa,
+ oi.taxid as rucempresa,
+ (bp_o.name ) as empresarepr,
+ (bp_o.taxid) as reprdni,
+ reprdir1 as reprdir,
+  to_char(lc_o.address1||', '||lc_o.city ) as empdir,
+ ch.name as cargo,
+ ec.activity as actividad,
+ trim(to_char(salaryev.permanentremuneration,'999999,990.00')) as pago,
+ to_char(ec.startdate,'fmDD  Month  YYYY') as fincont,
+ o.description as empresafuncion,
+ to_char(now(),'fmDD  Month  YYYY') as fechaactual,
+ to_char(ec.startdate,'HH24:MI:SS AM')  as horainicia,
+ to_char(ec.enddate,'HH24:MI:SS')||' PM' as horafinal,
+ to_char(round(to_number((now()-ec.startdate)),0)) ||' dia(s)' as nrdias,
+ ctp.code as contracttype,
+ ctp.format as formatop,
+ ctp.name as namecontract,
+ ((to_char(ec.startdate,'dd') ||
+case
+when to_number(to_char(ec.startdate,'MM')) = 1 then ' de Enero del '
+when to_number(to_char(ec.startdate,'MM')) = 2 then ' de Febrero del '
+when to_number(to_char(ec.startdate,'MM')) = 3 then ' de Marzo del '
+when to_number(to_char(ec.startdate,'MM')) = 4 then ' de Abril del '
+when to_number(to_char(ec.startdate,'MM')) = 5 then ' de Mayo del '
+when to_number(to_char(ec.startdate,'MM')) = 6 then ' de Junio del '
+when to_number(to_char(ec.startdate,'MM')) = 7 then ' de Julio del '
+when to_number(to_char(ec.startdate,'MM')) = 8 then ' de Agosto del '
+when to_number(to_char(ec.startdate,'MM')) = 9 then ' de Septiembre del '
+when to_number(to_char(ec.startdate,'MM')) = 10 then ' de Octubre del '
+when to_number(to_char(ec.startdate,'MM')) = 11 then ' de Noviembre del '
+when to_number(to_char(ec.startdate,'MM')) = 12 then ' de Diciembre del '
+end) || to_char(ec.startdate,'yyyy')) as entry_date
+,coalesce(to_char(cct.name),to_char(' ')) as ciudad
+  from c_bpartner c
+ left join c_bpartner_location cl on cl.c_bpartner_id = c.c_bpartner_id
+ left join c_location l  on l.c_location_id = cl.c_location_id
+ left join ad_org o  on o.ad_org_id = c.ad_org_id
+ left join ad_orginfo oi  on oi.ad_org_id = o.ad_org_id
+ left join sspr_contract ec  on ec.c_bpartner_id = c.c_bpartner_id
+ left join c_bpartner_location cc  on cc.c_bpartner_id = ec.c_bpartner_id and cc.isbillto = 'Y'
+ left join sspr_contract_position cpst on cpst.sspr_contract_id = ec.sspr_contract_id
+ left join sspr_position ch on ch.sspr_position_id = cpst.sspr_position_id
+ left join sspr_contracttype ctp on ctp.sspr_contracttype_id = ec.sspr_contracttype_id
+ left join c_location lc_o on  lc_o.c_location_id =oi.c_location_id
+ left join  (Select to_char(l.address1||', '||l.city ) as reprdir1,c_bpartner_id from c_location l
+ left join c_bpartner_location cl on cl.c_location_id = l.c_location_id and cl.isbillto = 'Y'
+  ) rep on  rep.c_bpartner_id =oi.c_bpartner_id
+ left join c_bpartner bp_o on bp_o.c_bpartner_id = oi.c_bpartner_id
+ left join (
+  select min(c.amount) as permanentremuneration,min(c.startdate) as fecha,b.c_bpartner_id,b.SSPR_CONTRACT_ID  from sfpr_evolution_salary c
+left join sspr_contract b on b.sspr_contract_id = c.sspr_contract_id
+left join c_bpartner a on a.c_bpartner_id = b.c_bpartner_id
+group by b.sspr_contract_id,b.c_bpartner_id,b.SSPR_CONTRACT_ID
+ ) salaryev on ec.SSPR_CONTRACT_ID = salaryev.SSPR_CONTRACT_ID and salaryev.c_bpartner_id = c.c_bpartner_id
+left join c_city cct on cct.c_city_id = ec.c_city_id
+ where c.isemployee = 'Y'
+ and cc.isactive='Y'
+ AND  ec.SSPR_CONTRACT_ID IN  (SELECT SSPR_CONTRACT_ID
+  FROM SSPR_CONTRACT
+  WHERE STARTDATE =
+  (
+  select max(startdate)
+  from sspr_contract
+  where c_bpartner_id = $P{C_BPARTNER_ID}
+  ))
+  and ec.c_bpartner_id = c.c_bpartner_id
+  and c.c_bpartner_id = $P{C_BPARTNER_ID}]]>
+	</queryString>
+	<field name="trabajador" class="java.lang.String"/>
+	<field name="dnitrabajador" class="java.lang.String"/>
+	<field name="direciontrabajo" class="java.lang.String"/>
+	<field name="empresa" class="java.lang.String"/>
+	<field name="rucempresa" class="java.lang.String"/>
+	<field name="empresarepr" class="java.lang.String"/>
+	<field name="reprdni" class="java.lang.String"/>
+	<field name="reprdir" class="java.lang.String"/>
+	<field name="empdir" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="actividad" class="java.lang.String"/>
+	<field name="pago" class="java.lang.String"/>
+	<field name="fincont" class="java.lang.String"/>
+	<field name="empresafuncion" class="java.lang.String"/>
+	<field name="fechaactual" class="java.lang.String"/>
+	<field name="horainicia" class="java.lang.String"/>
+	<field name="horafinal" class="java.lang.String"/>
+	<field name="nrdias" class="java.lang.String"/>
+	<field name="contracttype" class="java.lang.String"/>
+	<field name="formatop" class="java.lang.String"/>
+	<field name="namecontract" class="java.lang.String"/>
+	<field name="entry_date" class="java.lang.String"/>
+	<field name="ciudad" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="28" splitType="Stretch">
+			<line>
+				<reportElement key="line-2" positionType="Float" x="1" y="24" width="535" height="1"/>
+			</line>
+			<line>
+				<reportElement key="line-3" x="0" y="2" width="535" height="1" forecolor="#000000"/>
+			</line>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="142" y="5" width="235" height="19"/>
+				<textElement textAlignment="Center">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["CONTRATO DE " +  ($F{namecontract}==null ? "":$F{namecontract})]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="40" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="1" y="0" width="535" height="35"/>
+				<textElement textAlignment="Justified"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{formatop}.replace("(TERCERO)",($F{trabajador}==null ? "(TERCERO)":$F{trabajador})).replace("(DNI TERCERO)",$F{dnitrabajador}==null ? "(DNI TERCERO)":$F{dnitrabajador}).replace("(ORGANIZACION)",$F{empresa}==null ? "(ORGANIZACION)":$F{empresa}).replace("(CARGO)",$F{cargo}==null ? "(CARGO)":$F{cargo}).replace("(IMPORTE SUELDO)",$F{pago}==null ? "(IMPORTE SUELDO)":$F{pago}).replace("(FECHA INICIO DE CONTRATO)", $F{entry_date}==null ? "(FECHA INICIO DE CONTRATO)":$F{entry_date}).replace("(CIUDAD)", $F{ciudad}==null ? "(CIUDAD)":$F{ciudad})]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="24" splitType="Stretch">
+			<line>
+				<reportElement key="line-1" x="0" y="0" width="533" height="1"/>
+			</line>
+			<textField evaluationTime="Report" pattern="" isBlankWhenNull="false">
+				<reportElement key="textField-1" x="496" y="6" width="36" height="14" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle" rotation="None" lineSpacing="Single">
+					<font fontName="SansSerif" size="8" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="CP1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["" + $V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="false">
+				<reportElement key="textField-2" x="246" y="6" width="248" height="14"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Pagina " + $V{PAGE_NUMBER} + " de "]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd-MM-yyyy" isBlankWhenNull="false">
+				<reportElement key="textField-3" x="51" y="6" width="59" height="14"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression class="java.util.Date"><![CDATA[new Date()]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement key="staticText-1" x="1" y="6" width="50" height="14"/>
+				<box rightPadding="4">
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<text><![CDATA[Impreso el]]></text>
+			</staticText>
+		</band>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

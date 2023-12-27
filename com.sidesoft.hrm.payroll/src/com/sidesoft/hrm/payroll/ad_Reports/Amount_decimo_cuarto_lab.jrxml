@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Amount_decimo_cuarto_lab" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.4641000000000013"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="48"/>
+	<parameter name="empleado" class="java.lang.String"/>
+	<parameter name="regimen" class="java.lang.String"/>
+	<parameter name="anio" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select c_bpartner.taxid as ci
+,c_bpartner.name as nombre,
+c_bpartner.C_BPartner_ID as id_partner,
+c_bpartner.EM_SSPR_Laborregime as regimen,
+
+c_period.startdate as desde,
+c_period.enddate as hasta,
+sspr_concept.name as razon,
+sum(sspr_payroll_ticket_concept.amount) as valor,
+sspr_concept.concepttypepayroll as concepto,
+c_year.c_year_id as id_anio,
+(select year from c_year where c_year_id = $P{anio}) as anio
+from sspr_payroll
+left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+left join sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+left join c_bpartner on c_bpartner.c_bpartner_id = sspr_payroll_ticket.c_bpartner_id
+left join c_period on c_period.c_period_id=sspr_payroll.c_period_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+left join c_year on c_year.c_year_id=c_period.c_year_id
+
+
+where sspr_payroll.ispayroll='N' and sspr_concept.concepttypepayroll='DC' and
+
+(c_bpartner.C_BPartner_ID =  $P{empleado} or $P{empleado}  is null )  and
+(c_bpartner.EM_SSPR_Laborregime =  $P{regimen} or $P{regimen}  is null ) and
+(c_year.c_year_id =  $P{anio} or $P{anio}  is null )
+
+
+
+
+group by c_bpartner.taxid,c_bpartner.name,
+ c_period.startdate, c_period.enddate, sspr_concept.name, sspr_payroll_ticket_concept.amount,
+ c_year.year, c_bpartner.EM_SSPR_Laborregime, sspr_concept.concepttypepayroll, c_bpartner.C_BPartner_ID, c_year.c_year_id]]>
+	</queryString>
+	<field name="ci" class="java.lang.String"/>
+	<field name="nombre" class="java.lang.String"/>
+	<field name="id_partner" class="java.lang.String"/>
+	<field name="regimen" class="java.lang.String"/>
+	<field name="desde" class="java.sql.Timestamp"/>
+	<field name="hasta" class="java.sql.Timestamp"/>
+	<field name="razon" class="java.lang.String"/>
+	<field name="valor" class="java.math.BigDecimal"/>
+	<field name="concepto" class="java.lang.String"/>
+	<field name="id_anio" class="java.lang.String"/>
+	<field name="anio" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="122" splitType="Stretch">
+			<staticText>
+				<reportElement x="91" y="61" width="69" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[PERIODO: DEL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="144" y="10" width="279" height="15"/>
+				<textElement textAlignment="Center">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FARMAGENERICOS S.A]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="127" y="40" width="279" height="15"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE: IMPORTES DECIMO CUARTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="91" y="82" width="95" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REGIMEN LABORAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="91" y="104" width="95" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMPLEADO]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="207" y="104" width="100" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{empleado}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="207" y="82" width="100" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{regimen}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="207" y="61" width="100" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{anio}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="36" splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="16" splitType="Stretch">
+			<staticText>
+				<reportElement x="10" y="0" width="69" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CODIGO	]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="384" y="0" width="100" height="12"/>
+				<textElement textAlignment="Center">
+					<font fontName="DejaVu Sans" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="91" y="0" width="134" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[NOMBRE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="231" y="0" width="98" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[RAZON]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="330" y="0" width="51" height="12"/>
+				<textElement>
+					<font fontName="DejaVu Sans" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CONCEPTO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="17" splitType="Stretch">
+			<textField>
+				<reportElement x="10" y="4" width="81" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ci}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="384" y="4" width="100" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valor}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="91" y="4" width="134" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nombre}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="231" y="4" width="98" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{razon}]]></textFieldExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="330" y="4" width="51" height="12"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concepto}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="45" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="54" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

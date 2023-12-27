@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_indebtedness" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="6"/>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select requestdatebefore, requestdate, documentloan, partner, documentpayroll, period, conceptp, amount, concepti, conceptsubtype, case when conceptsubtype = 'In' Then 'Total Ingresos' when conceptsubtype = 'Out'  Then 'Total Egresos' end nameconceptsubtype, ad_org_id as organizationid,percentageloan
+from (
+	select e.requestdatebefore, e.requestdate, e.em_sfpr_documentno as documentloan, e.name as partner, sp.documentno as documentpayroll,
+		p.name as period, co.name as conceptp, ptc.amount, coalesce(coi.name,'ND') as concepti, coi.conceptsubtype, e.ad_org_id,percentageloan
+	from (select d.requestdatebefore, d.em_sfpr_documentno, d.name,
+sspi_return_period(d.requestdatebefore) as c_period_id,
+d.requestdate, d.c_bpartner_id, d.ad_org_id,d.percentageloan
+		from (
+			select (SELECT case when to_number(to_char(a.requestdate,'mm')) > 1 Then TO_DATE(to_char(a.requestdate,'dd') || '-' || to_number(to_char(a.requestdate,'mm'))-1 || '-' || to_char(a.requestdate,'yyyy'))
+				    when to_number(to_char(a.requestdate,'mm')) = 1 Then TO_DATE(to_char(a.requestdate,'dd') || '-' || '12' || '-' || to_char(to_number(to_char(a.requestdate,'yyyy'))-1))
+				    end as requestdate
+			FROM sspr_loans a
+			where a.em_sfpr_documentno = $P{documentno} ) as requestdatebefore, b.em_sfpr_documentno, c.name, b.requestdate, b.c_bpartner_id, b.ad_org_id, sspi_percentageloan(SSPR_LOANS_ID) as percentageloan
+			from sspr_loans b
+			left join c_bpartner c on c.c_bpartner_id = b.c_bpartner_id
+			where b.em_sfpr_documentno = $P{documentno}
+			) d
+		) e
+	left join c_period p on p.c_period_id = e.c_period_id
+	left join sspr_payroll sp on sp.c_period_id = p.c_period_id
+	left join sspr_payroll_ticket pt on pt.sspr_payroll_id = sp.sspr_payroll_id
+	left join sspr_payroll_ticket_concept ptc on ptc.sspr_payroll_ticket_id = pt.sspr_payroll_ticket_id
+	left join sspr_concept co on co.sspr_concept_id = ptc.sspr_concept_id
+	left join sspi_indebtednessline it on it.sspr_concept_id = ptc.sspr_concept_id
+	left join sspr_concept coi on coi.sspr_concept_id = it.sspr_concept_id
+	where sp.ispayroll = 'Y' and sp.isliquidation = 'N'
+	and pt.c_bpartner_id = e.c_bpartner_id
+	and ptc.amount > 0
+) loantemp
+where concepti <> 'ND'
+order by conceptsubtype, concepti]]>
+	</queryString>
+	<field name="requestdatebefore" class="java.sql.Timestamp"/>
+	<field name="requestdate" class="java.sql.Timestamp"/>
+	<field name="documentloan" class="java.lang.String"/>
+	<field name="partner" class="java.lang.String"/>
+	<field name="documentpayroll" class="java.lang.String"/>
+	<field name="period" class="java.lang.String"/>
+	<field name="conceptp" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="concepti" class="java.lang.String"/>
+	<field name="conceptsubtype" class="java.lang.String"/>
+	<field name="nameconceptsubtype" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="percentageloan" class="java.math.BigDecimal"/>
+	<variable name="total" class="java.math.BigDecimal" resetType="Group" resetGroup="conceptsubtype" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount}]]></variableExpression>
+	</variable>
+	<variable name="TotalIngresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{conceptsubtype}.equals("In")? $F{amount}:BigDecimal.ZERO]]></variableExpression>
+	</variable>
+	<variable name="TotalEgresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{conceptsubtype}.equals("Out")? $F{amount}:BigDecimal.ZERO]]></variableExpression>
+	</variable>
+	<variable name="PercentageInd" class="java.lang.Double">
+		<variableExpression><![CDATA[( ($V{TotalEgresos}.doubleValue()==0 || $V{TotalIngresos}.doubleValue()==0 ) ?   0:($V{TotalEgresos}.doubleValue() / $V{TotalIngresos}.doubleValue()))*100]]></variableExpression>
+	</variable>
+	<group name="conceptsubtype">
+		<groupExpression><![CDATA[$F{conceptsubtype}]]></groupExpression>
+		<groupHeader>
+			<band/>
+		</groupHeader>
+		<groupFooter>
+			<band height="31">
+				<textField>
+					<reportElement x="20" y="7" width="239" height="12"/>
+					<textElement textAlignment="Right">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{nameconceptsubtype}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00">
+					<reportElement x="259" y="7" width="122" height="12"/>
+					<textElement textAlignment="Right">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total}]]></textFieldExpression>
+				</textField>
+				<line>
+					<reportElement x="160" y="3" width="221" height="1" forecolor="#808080"/>
+				</line>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="79" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText" x="100" y="22" width="392" height="30"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="24"/>
+				</textElement>
+				<text><![CDATA[Endeudamiento]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="100" height="68"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="75" splitType="Stretch">
+			<staticText>
+				<reportElement x="20" y="13" width="239" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[No. Solicitud de Prestamo:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="20" y="28" width="239" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Empleado:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="20" y="42" width="239" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de solicitud de prestamo:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="20" y="56" width="239" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Rol mensual utilizado para los calculos:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="259" y="13" width="122" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentloan}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="259" y="28" width="313" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="259" y="42" width="122" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{requestdate}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="259" y="56" width="122" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentpayroll}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="381" y="56" width="191" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{period}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="19" splitType="Stretch">
+			<rectangle>
+				<reportElement key="rectangle" mode="Opaque" x="0" y="3" width="572" height="12" forecolor="#000000" backcolor="#C0C0C0"/>
+				<graphicElement>
+					<pen lineWidth="0.0" lineStyle="Solid"/>
+				</graphicElement>
+			</rectangle>
+			<staticText>
+				<reportElement x="20" y="3" width="239" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Concepto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="259" y="3" width="122" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="13" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="20" y="0" width="239" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concepti}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="259" y="0" width="122" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="23" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="259" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Bottom">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Porcentaje de Endeudamiento: ]]></text>
+			</staticText>
+			<textField pattern="##0.00" isBlankWhenNull="true">
+				<reportElement x="259" y="0" width="122" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Bottom"/>
+				<textFieldExpression class="java.lang.Double"><![CDATA[$V{PercentageInd}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="381" y="0" width="100" height="22"/>
+				<textElement verticalAlignment="Bottom"/>
+				<text><![CDATA[%]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

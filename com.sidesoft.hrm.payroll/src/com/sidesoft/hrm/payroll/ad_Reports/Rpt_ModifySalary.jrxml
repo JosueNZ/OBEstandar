@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_ModifySalary" pageWidth="572" pageHeight="752" columnWidth="555" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="c_period_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select reporte.fechamaxima,
+ reporte.rucempresa,
+ reporte.ciudad,
+ reporte.anio,
+ reporte.mes,
+ reporte.MSU,
+ reporte.taxid,
+ reporte.amount,
+ reporte.c_bpartner_id,
+ reporte.sspr_contract_id,
+ sfpr_evolution_salary.enddate as fechamaximalast,
+ sfpr_evolution_salary.amount as amountlast
+from
+(
+select max(sfpr_evolution_salary.startdate) as fechamaxima,
+ ad_orginfo.taxid as rucempresa,
+ case when c_city.name = 'QUITO' then '0001'
+      when c_city.name = 'GUAYAQUIL' then '0002'
+      when c_city.name = 'ESMERALDAS' then '0003'
+ end as ciudad,
+ extract(year from c_period.startdate) anio,
+ case when extract(month from c_period.startdate) = 1 then '01'
+      when extract(month from c_period.startdate) = 2 then '02'
+      when extract(month from c_period.startdate) = 3 then '03'
+      when extract(month from c_period.startdate) = 4 then '04'
+      when extract(month from c_period.startdate) = 5 then '05'
+      when extract(month from c_period.startdate) = 6 then '06'
+      when extract(month from c_period.startdate) = 7 then '07'
+      when extract(month from c_period.startdate) = 8 then '08'
+      when extract(month from c_period.startdate) = 9 then '09'
+      when extract(month from c_period.startdate) = 10 then '10'
+      when extract(month from c_period.startdate) = 11 then '11'
+      when extract(month from c_period.startdate) = 12 then '12'
+ end as mes,
+ 'MSU' as MSU,
+ c_bpartner.taxid,
+ sfpr_evolution_salary.amount,
+ sfpr_evolution_salary.sspr_contract_id,
+ c_bpartner.c_bpartner_id
+from c_bpartner
+left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'
+left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id
+left join ad_orginfo on ad_orginfo.ad_org_id = c_bpartner.ad_org_id
+left join c_city on c_city.c_city_id = c_bpartner.em_sspr_city
+left join c_period on c_period.c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499'
+where c_bpartner.isemployee = 'Y'
+and sfpr_evolution_salary.startdate >= (select startdate from c_period where c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499')
+and sfpr_evolution_salary.startdate <= (select enddate from c_period where c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499')
+group by sfpr_evolution_salary.amount,
+ad_orginfo.taxid,
+ c_city.name,
+ c_period.startdate,
+ c_bpartner.taxid,
+ sfpr_evolution_salary.sspr_contract_id,
+ c_bpartner.c_bpartner_id,
+ sfpr_evolution_salary.startdate) reporte
+left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = reporte.sspr_contract_id
+where reporte.fechamaxima = (select max(sfpr_evolution_salary.startdate)
+    from c_bpartner
+    left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'
+    left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id
+    left join ad_orginfo on ad_orginfo.ad_org_id = c_bpartner.ad_org_id
+    left join c_city on c_city.c_city_id = c_bpartner.em_sspr_city
+    left join c_period on c_period.c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499'
+    where c_bpartner.c_bpartner_id =  reporte.c_bpartner_id
+    and c_bpartner.isemployee = 'Y'
+    and sfpr_evolution_salary.startdate >= (select startdate from c_period where c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499')
+    and sfpr_evolution_salary.startdate <= (select enddate from c_period where c_period_id = '4094E4EC57B84D8EA0FE0C701E1C7499')
+    group by c_bpartner.c_bpartner_id)
+and sfpr_evolution_salary.enddate = (select sfpr_evolution_salary.enddate as fechamaximaanterior
+         from c_bpartner
+         left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'
+         left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id
+        where c_bpartner.c_bpartner_id = reporte.c_bpartner_id
+        and c_bpartner.isemployee = 'Y'
+         and sfpr_evolution_salary.enddate = reporte.fechamaxima -1
+         and sfpr_evolution_salary.sspr_contract_id = reporte.sspr_contract_id)
+and reporte.amount <> sfpr_evolution_salary.amount]]>
+	</queryString>
+	<field name="fechamaxima" class="java.sql.Timestamp"/>
+	<field name="rucempresa" class="java.lang.String"/>
+	<field name="ciudad" class="java.lang.String"/>
+	<field name="anio" class="java.lang.Double"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="msu" class="java.lang.String"/>
+	<field name="taxid" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="sspr_contract_id" class="java.lang.String"/>
+	<field name="fechamaximalast" class="java.sql.Timestamp"/>
+	<field name="amountlast" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="156" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{rucempresa}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="156" y="0" width="106" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ciudad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="262" y="0" width="48" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Double"><![CDATA[$F{anio}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="310" y="0" width="35" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{mes}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="345" y="0" width="42" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{msu}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="387" y="0" width="112" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{taxid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="499" y="0" width="73" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_PYMNTSCHEDULEDETAIL_SUM">
+    <function name="SSFI_PYMNTSCHEDULEDETAIL_SUM" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_record_id         	    VARCHAR2(60);      
+v_recordreference_id         	    VARCHAR2(60);      
+v_schedule_id        VARCHAR2(60);      
+v_schedule_amount       NUMBER;
+v_schedule_amount_invoice NUMBER;
+v_issotrx		CHAR(1); 
+v_doctype		VARCHAR(60); 
+v_docbasetype		VARCHAR(60); 
+TYPE RECORD IS REF CURSOR;
+   cur_params RECORD;
+BEGIN
+
+          
+
+  FOR cur_params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'Record_ID') THEN
+      v_record_id := cur_params.p_string;
+
+    END IF;
+  END LOOP;
+
+select ci.em_scnr_invoice_id , ci.issotrx ,  cd.isreversal  
+,cd.docbasetype 
+into v_recordreference_id, v_issotrx, v_doctype ,v_docbasetype
+from c_invoice ci
+left join c_doctype cd on ci.c_doctype_id = cd.c_doctype_id
+where c_invoice_id=v_record_id;
+
+IF ((v_issotrx ='Y' AND  v_doctype='Y' AND UPPER(v_docbasetype)='ARI_RM') OR (v_issotrx ='N' AND  v_doctype='Y'))THEN
+
+select coalesce((select sum(amount) from fin_payment_scheduledetail ps 
+where ps.fin_payment_schedule_invoice in 
+(select fin_payment_schedule_id from fin_payment_schedule where c_invoice_id = v_record_id)
+ and ps.fin_payment_detail_id is null),0)
+ into v_schedule_amount_invoice
+ from dual ;
+
+ if (v_schedule_amount_invoice>0) then
+	UPDATE fin_payment_schedule set paidamt= v_schedule_amount_invoice,outstandingamt =(amount - v_schedule_amount_invoice)   where fin_payment_schedule_id= v_schedule_id ;
+	UPDATE C_INVOICE SET TOTALPAID = v_schedule_amount_invoice, outstandingamt= (GRANDTOTAL - v_schedule_amount_invoice),DUEAMT = (GRANDTOTAL - v_schedule_amount_invoice) WHERE C_INVOICE_ID = v_schedule_id;
+end if;
+
+END IF;
+
+ EXCEPTION
+WHEN OTHERS THEN
+RAISE;
+END SSFI_PYMNTSCHEDULEDETAIL_SUM
+]]></body>
+    </function>
+  </database>

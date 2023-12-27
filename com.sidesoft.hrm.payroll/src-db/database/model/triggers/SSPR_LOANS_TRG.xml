@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_LOANS_TRG">
+    <trigger name="SSPR_LOANS_TRG" table="SSPR_LINE_LOANS" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+ v_diaspermiso NUMBER;
+ v_sspr_loans_id varchar(32);
+ v_count NUMBER;
+ v_startdate DATE;
+ v_enddate DATE; 
+ 
+BEGIN
+    
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (DELETING) THEN
+
+	 v_sspr_loans_id:= :old.sspr_loans_id;
+	 SELECT
+	 (
+	 SELECT COUNT(*)  
+	 FROM sspr_loans
+	 WHERE sspr_loans_id = v_sspr_loans_id and status ='ap')
+	 INTO
+	 v_count
+	 FROM DUAL;
+
+	 IF v_count>0 then
+
+		RAISE_APPLICATION_ERROR(-20000, '@sspr_loans_delete@');
+	 
+	 END IF;
+ 
+	--new.description := v_diaspermiso;
+	
+  END IF;
+
+  END SSPR_LOANS_TRG
+]]></body>
+    </trigger>
+  </database>

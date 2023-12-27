@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_LEAVEVALIDATEVAC_TRG1">
+    <trigger name="SSPR_LEAVEVALIDATEVAC_TRG1" table="SSPR_LEAVE_EMP" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_diaspermiso NUMBER;
+ v_sspr_leave_emp_id varchar(32);
+ v_startdate DATE;
+ v_enddate DATE;
+ v_partner_id  varchar(32);
+ v_add_vacantion character;
+ v_Message varchar(255);
+ v_status varchar(32);
+ V_DAYS NUMBER;
+ v_typevacations varchar(60);
+ v_noadditionaltotal NUMBER;
+ v_status_approve_old varchar(10);
+ v_status_approve_new varchar(10);
+ v_Status_Request varchar(60);
+ 
+BEGIN
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF; 
+
+   IF (INSERTING) THEN
+
+
+			 v_diaspermiso := :new.nodays;
+			 v_partner_id := :new.c_bpartner_id;
+			 v_add_vacantion := :new.add_to_vacancies;
+			 v_status := :new.status;
+			 v_typevacations := :new.typevacations;
+			 v_Status_Request := :new.Status_Request;
+
+			 IF (v_add_vacantion = 'Y' and v_typevacations = 'DN' and v_Status_Request != 'an') THEN 
+				
+				select to_number(coalesce((select to_number(sum(nodays)) 
+							   from sspr_vacations 
+							   where c_bpartner_id =v_partner_id),0))
+				into v_days 
+				from dual;
+			     
+
+				if v_days < v_diaspermiso then 
+				   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '||round(v_days,2) ||' dias disponibles de vacaciones@');
+				end if;
+				
+			END IF;
+
+			IF (v_add_vacantion = 'Y' and v_typevacations = 'DA') THEN 
+				
+				select to_number(coalesce((select to_number(sum(noadditionaltotal)) 
+							   from sspr_vacations 
+							   where c_bpartner_id =v_partner_id),0))
+				into v_noadditionaltotal 
+				from dual;
+			     
+
+				if v_noadditionaltotal < v_diaspermiso then 
+				   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '|| round(v_noadditionaltotal)  ||' dias disponibles de vacaciones@');
+				end if;
+
+			END IF;
+
+			if (v_add_vacantion = 'Y' and v_typevacations is null) then 
+				   RAISE_APPLICATION_ERROR(-20000,'@error= campo tipo vacaciones es obligatorio@');
+			end if;     
+   END IF;
+
+   IF (UPDATING) THEN	
+
+			 v_diaspermiso := :new.nodays;
+			 v_partner_id := :new.c_bpartner_id;
+			 v_add_vacantion := :new.add_to_vacancies;
+			 v_status := :new.status;
+			 v_typevacations := :new.typevacations;
+
+			 IF (v_add_vacantion = 'Y' and v_typevacations = 'DN') THEN 
+				
+				select to_number(coalesce((select to_number(sum(nodays)) 
+							   from sspr_vacations 
+							   where c_bpartner_id =v_partner_id),0))
+				into v_days 
+				from dual;
+				
+				IF (:old.Status_Approve  <> :new.Status_Approve ) THEN 
+					v_status_approve_new := :new.Status_Approve;
+					v_status_approve_old := :old.Status_Approve;
+
+					IF (v_status_approve_new = 'ap') THEN 
+						if v_days < v_diaspermiso then 
+						   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '||round(v_days,2) ||' dias disponibles de vacaciones@');
+						end if;
+					end if;
+				end if;
+
+				IF (:old.Status_Approve  = :new.Status_Approve ) THEN 
+					v_status_approve_new := :new.Status_Approve;
+					v_status_approve_old := :old.Status_Approve;
+
+					IF (v_status_approve_new = 'pe') THEN 
+						if v_days < v_diaspermiso then 
+						   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '|| round(v_days,2)  ||' dias disponibles de vacaciones@');
+						end if;
+					end if;
+				end if;
+
+			END IF;
+
+			IF (v_add_vacantion = 'Y' and v_typevacations = 'DA') THEN 
+				
+				select to_number(coalesce((select to_number(sum(noadditionaltotal)) 
+							   from sspr_vacations 
+							   where c_bpartner_id =v_partner_id),0))
+				into v_noadditionaltotal 
+				from dual;
+
+				IF (:old.Status_Approve  <> :new.Status_Approve ) THEN 
+					v_status_approve_new := :new.Status_Approve;
+					v_status_approve_old := :old.Status_Approve;
+								     
+					IF (v_status_approve_new = 'ap') THEN 
+						if v_noadditionaltotal < v_diaspermiso then 
+						   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '|| round(v_noadditionaltotal)  ||' dias disponibles de vacaciones@');
+						end if;
+					end if;
+				end if;
+
+				IF (:old.Status_Approve  = :new.Status_Approve ) THEN 
+					v_status_approve_new := :new.Status_Approve;
+					v_status_approve_old := :old.Status_Approve;
+
+					IF (v_status_approve_new = 'pe') THEN 
+						if v_noadditionaltotal < v_diaspermiso then 
+						   RAISE_APPLICATION_ERROR(-20000,'@error= solo tiene '|| round(v_noadditionaltotal)  ||' dias disponibles de vacaciones@');
+						end if;
+					end if;
+				end if;
+				
+			END IF;
+			
+			if (v_add_vacantion = 'Y' and v_typevacations is null) then 
+				   RAISE_APPLICATION_ERROR(-20000,'@error= campo tipo vacaciones es obligatorio@');
+			end if;
+		END IF;   
+	
+END SSPR_LEAVEVALIDATEVAC_TRG1
+]]></body>
+    </trigger>
+  </database>

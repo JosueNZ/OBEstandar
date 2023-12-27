@@ -1,0 +1,306 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_INCOMETOTALS_P">
+    <function name="SSPR_INCOMETOTALS_P" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*  FUNCION QUE GENERA IMPUESTO A LA RENTA
+* Explicación:
+*
+*
+* Desarrollado por: Santiago Simbaña - Sidesoft Cia. Ltda.
+* Fecha Ultima Modificacion: 04-Julio - 2011
+**********************************************************************************/
+TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_IncomeT RECORD;
+Cur_IncomeTax RECORD;
+Cur_Period RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+
+  v_ResultStr VARCHAR2(2000) := '';  
+
+  v_StartPeriod_ID VARCHAR2(32);
+  v_Period_ID VARCHAR2(32); 
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_Basic NUMBER:=0 ;
+  v_Excende NUMBER;
+  v_YearTax  NUMBER;
+  v_MontTax  NUMBER;
+
+  v_Basemin NUMBER;
+  v_Basemax NUMBER;
+  v_Taxamount  NUMBER;
+  v_Percentajetax NUMBER;
+
+  v_Basic_1 NUMBER;
+  v_Excende_1 NUMBER;
+  v_YearTax_1 NUMBER;
+  v_MontTax_1 NUMBER;
+
+  v_TotalYearTax NUMBER:=0 ;
+  v_TotalMothTax NUMBER:=0 ;
+  v_TaxBeforeProjected NUMBER:=0 ;
+ v_CumulativePaid NUMBER:=0 ; 
+  v_TaxCharge NUMBER:=0 ;
+  v_TotalMothTax1 NUMBER:=0 ;
+  Cur_TaxMontIncome RECORD ;
+  v_SSPR_CONCEPT_ID VARCHAR(32);
+  v_PARTNER_ID VARCHAR(32);
+  v_SSPR_Ticket_Payroll VARCHAR(32);
+  V_COUNT_CONCEPTAMT NUMBER;
+  
+  v_n_updates NUMBER;
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound-tax';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+	v_n_updates := 0;
+	
+	FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+	  LOOP
+		IF (Cur_Parameter.ParameterName ='Period') THEN
+			v_StartPeriod_ID := Cur_Parameter.P_String;             
+			v_Client_ID := Cur_Parameter.AD_Client_ID;
+			v_Org_ID := Cur_Parameter.AD_Org_ID;
+			v_User_ID := Cur_Parameter.CreatedBy;
+		ELSE  
+			DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+		END IF;     
+
+	  END LOOP;
+	  
+  -------------------------------------------------------------------------
+	 SSPR_ACUMULATIVECONCEPTSX();
+		DELETE FROM SSPR_INCOMETOTAL;
+		---DATOS FINALES  PARA  INSERTAR EN SSPR_INCOMETOTAL
+		FOR Cur_IncomeT IN
+		(
+
+		SELECT  A.AD_CLIENT_ID, A.AD_ORG_ID, A.CREATEDBY,A.UPDATEDBY, A.C_YEAR_ID,C_BPARTNER_ID, COALESCE(TO_NUMBER((SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)),0) AS PERIODNO,
+		--
+		COALESCE(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT TO_NUMBER(PERIODNO) FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) AS TOTALIN, ----------TOTAL DE INGRESOS ACUMULABLES Y PROJECTABLES
+		--
+		TO_NUMBER(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID  AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) * 0.0935) AS TOTALIESS, ---------------------TOTAL DE IEES -EN BASE AL  TOTAL DE INGRESOS ACUMULABLES Y PROJECTABLES
+		------
+		COALESCE(TO_NUMBER((SELECT  COALESCE(TO_NUMBER(B.AMOUNTCOST),0) FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID  AND B.ISACTIVE='Y')),0) AS TOTALDEDUCIBLE,----------TOTAL DEDUCIBLE
+		-------SACAR BASE 1
+		COALESCE(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) -
+		TO_NUMBER(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) * 0.0935) -
+		COALESCE (TO_NUMBER((SELECT  COALESCE (B.AMOUNTCOST,0) FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y')),0) AS BASEIMPONIBLE, ------------BASE 1
+		----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		-- ----------TOTAL DE INGRESOS ACUMULABLES Y MENSUALES
+		COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) AS TOTALIN_1, 
+		-----TOTAL DEL IESS DE VALORES NO PROYECTABLES, SOLO ACUMULABLES Y MENSUALES
+		COALESCE(TO_NUMBER(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N'  AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)*0.0935) , 0) AS TOTALIESS_1,
+		--BASE 2 (TOTAL INGRESO  SOLO ACUMULABLES Y MENSUALES - TOTAL DEL IESS)
+		COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)  - 
+		COALESCE(TO_NUMBER(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N'  AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)*0.0935) , 0) AS BASEIMPONIBLE_1, 
+		---------------------------------------------------------------------------------------
+		--		SUMA DE LAS DOS BASES
+		(COALESCE(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) - 	(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) * 0.0935) - COALESCE (TO_NUMBER((SELECT  COALESCE (B.AMOUNTCOST,0) FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y')),0)) +
+		--
+		COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID
+		)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)  - 
+    
+    COALESCE(TO_NUMBER((
+                          COALESCE (TO_NUMBER( (SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+                                                WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N'  
+                                                AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' 
+                                                AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=
+                                                (SELECT PERIODNO FROM SSPR_CUMULATIVECONCEPT where c_period_id=v_StartPeriod_ID)
+                                                GROUP BY C_YEAR_ID, C_BPARTNER_ID)
+                                             ),0)*0.0935 )), 0)  AS BASETOTAL
+		FROM SSPR_CUMULATIVECONCEPT A  
+		LEFT JOIN C_YEAR CY ON A.C_YEAR_ID= CY.C_YEAR_ID
+		WHERE CY.ISACTIVE='Y'
+		GROUP BY A.C_YEAR_ID,A.C_BPARTNER_ID,A.AD_CLIENT_ID, A.AD_ORG_ID, A.CREATEDBY,A.UPDATEDBY, A.C_BPARTNER_ID
+		
+		)
+		LOOP
+
+			FOR Cur_IncomeTax IN
+				(
+				  SELECT  A.basemin, A.basemax, A.taxamount, A.percentajetax
+				  FROM sspr_incometaxline a
+				  LEFT JOIN sspr_incometax b on a.sspr_incometax_id=b.sspr_incometax_id
+				  WHERE b.isactive='Y'
+				)
+				LOOP   
+					v_Basemin:=Cur_IncomeTax.basemin;
+					v_Basemax:=Cur_IncomeTax.basemax;
+					v_Taxamount:=Cur_IncomeTax.taxamount;
+					v_Percentajetax:=Cur_IncomeTax.percentajetax;
+					---IF  QUE CALCULA EL IMPUESTO A LA RENTA DE LA BASE 1				
+					IF (Cur_IncomeT.BASEIMPONIBLE >= v_Basemin AND Cur_IncomeT.BASEIMPONIBLE <= v_Basemax ) THEN
+						v_Basic := v_Taxamount;
+						v_Excende:= ((Cur_IncomeT.BASEIMPONIBLE - v_Basemin) * v_Percentajetax )/100;
+						v_YearTax:= (v_Basic + v_Excende);
+						v_MontTax:= (v_YearTax / 12);
+					END IF;
+					---IF QUE CALCULA EL IMPUESTO A LA RENTA DE LA BASE TOTAL
+					IF (Cur_IncomeT.BASETOTAL >= v_Basemin AND Cur_IncomeT.BASETOTAL <= v_Basemax ) THEN
+						v_Basic_1 := v_Taxamount;
+						v_Excende_1:= ((Cur_IncomeT.BASETOTAL - v_Basemin) * v_Percentajetax )/100;
+						v_YearTax_1:= (v_Basic_1 + v_Excende_1);
+						v_MontTax_1:= (v_YearTax_1 / 12);
+					END IF;
+					
+					v_TotalYearTax := v_YearTax_1 - v_YearTax;----impuesto total anual
+					v_TaxBeforeProjected := v_MontTax * Cur_IncomeT.PERIODNO; ---impuesto proyectado pasado=impuesto mes base1 * perido actual
+					
+					select acumulative into v_CumulativePaid
+					from SSPR_CUMULATIVECONCEPT A 
+					where conceptsubtype ='Out'
+					and A.c_bpartner_id = Cur_IncomeT.C_BPARTNER_ID 
+					and A.c_period_id = v_StartPeriod_ID;---acumulado del impuesto pagados
+					
+					if ( v_CumulativePaid IS NULL) then
+						v_CumulativePaid:=0;
+					end if;
+					----v_TaxCharge :=	v_TaxBeforeProjected - v_CumulativePaid;  ----impuesto por cobrar = impuesto proyectado psado - acumuladop de pagados---no va --TAXPURCHASE
+					----v_TotalMothTax := v_TaxCharge - v_TotalYearTax;---formula anterior . impuesto por cobrar - impuesto total anual ---
+					v_TotalMothTax1 := (v_TotalYearTax + v_TaxBeforeProjected) - v_CumulativePaid; -----impuesto por cobrar - impuesto total anual
+
+					IF (v_TotalMothTax1 < 0 OR v_TotalMothTax1 IS NULL ) THEN 
+						v_TotalMothTax1:=0000;
+					END IF;
+						
+						
+				END LOOP;
+
+				---v_TotalMothTax1 variable que se guarda en el concepto impuesto a la renta
+				INSERT INTO SSPR_INCOMETOTAL (SSPR_INCOMETOTAL_ID,AD_CLIENT_ID, AD_ORG_ID,ISACTIVE,CREATED, CREATEDBY,UPDATED, UPDATEDBY, C_YEAR_ID, C_BPARTNER_ID,TOTALIN,
+				TOTALIESS,TOTALDEDUCTIBLE, BASEIMPONIBLE,BASIC,EXCEDENT,TAXYEAR,TAXMOTH,TOTALIN2,TOTALIESS2,BASEIMPONIBLE2,BASETOTAL,BASIC_1,EXCEDENT_1,TAXYEAR_1,TAXMONTH_1,
+				TOTALINCOMEYEAR, TOTALINCOMEMONTH,TAXBEFOREPROJECTED,TAXPAID, TAXPURCHASE)
+				VALUES(get_uuid(),Cur_IncomeT.ad_client_id,Cur_IncomeT.ad_org_id, 'Y',now(),Cur_IncomeT.CREATEDBY,now(),Cur_IncomeT.UPDATEDBY,Cur_IncomeT.C_YEAR_ID,
+				Cur_IncomeT.C_BPARTNER_ID,Cur_IncomeT.TOTALIN, Cur_IncomeT.TOTALIESS, Cur_IncomeT.TOTALDEDUCIBLE,Cur_IncomeT.BASEIMPONIBLE,v_Basic,v_Excende,
+				v_YearTax, v_MontTax,Cur_IncomeT.TOTALIN_1,Cur_IncomeT.TOTALIESS_1,Cur_IncomeT.BASEIMPONIBLE_1,Cur_IncomeT.BASETOTAL,v_Basic_1,v_Excende_1,v_YearTax_1,v_MontTax_1,
+				v_TotalYearTax,v_TotalMothTax1,v_TaxBeforeProjected,v_CumulativePaid,v_TaxCharge);
+				
+				v_n_insertions :=v_n_insertions+1;
+		END LOOP;
+		
+		--ACTUALIZAMOS INSERT EL VALOR DEL IMPUESTO A LA RENTA POR MES  DE C/TERCERO
+		SELECT A.SSPR_CONCEPT_ID 
+		INTO v_SSPR_CONCEPT_ID 
+		FROM SSPR_CONCEPT  A  
+		LEFT JOIN  SSPR_PROCESS_PAYROLL PP ON PP.SSPR_CONCEPTOUT_ID = A.SSPR_CONCEPT_ID
+		WHERE PP.PROCESSNAME='IT'AND PP.ISACTIVE = 'Y';
+
+
+		FOR Cur_TaxMontIncome IN
+			(
+			SELECT  DISTINCT AD_CLIENT_ID, AD_ORG_ID,CREATEDBY, UPDATEDBY,C_BPARTNER_ID FROM SSPR_INCOMETOTAL
+			)
+		LOOP
+			FOR Cur_Period IN 
+				(
+				SELECT C_PERIOD_ID FROM SSPR_PERIOD
+				where C_BPARTNER_ID = Cur_TaxMontIncome.C_BPARTNER_ID and C_PERIOD_ID=v_StartPeriod_ID
+				)
+				LOOP
+        SELECT TO_NUMBER(COUNT (*)) INTO V_COUNT_CONCEPTAMT FROM SSPR_CONCEPT_AMOUNT WHERE C_BPARTNER_ID= Cur_TaxMontIncome.C_BPARTNER_ID AND C_PERIOD_ID= Cur_Period.C_PERIOD_ID AND SSPR_CONCEPT_ID=v_SSPR_CONCEPT_ID;
+					IF (V_COUNT_CONCEPTAMT=0) THEN
+
+						--INSERT INTO SSPR_CONCEPT_AMOUNT VALUES (get_uuid(),Cur_TaxMontIncome.AD_CLIENT_ID, Cur_TaxMontIncome.AD_ORG_ID,'Y',TO_DATE(NOW()), Cur_TaxMontIncome.CREATEDBY,
+						--TO_DATE(NOW()),Cur_TaxMontIncome.UPDATEDBY,v_SSPR_CONCEPT_ID,Cur_TaxMontIncome.C_BPARTNER_ID,Cur_Period.C_PERIOD_ID,v_TotalMothTax1,'N');
+
+						INSERT INTO SSPR_CONCEPT_AMOUNT(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY
+						,UPDATED,UPDATEDBY,SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNT,ISMODIFIED)
+						VALUES (get_uuid(),Cur_TaxMontIncome.AD_CLIENT_ID, Cur_TaxMontIncome.AD_ORG_ID,'Y',now(), Cur_TaxMontIncome.CREATEDBY,
+						now(),Cur_TaxMontIncome.UPDATEDBY,v_SSPR_CONCEPT_ID,Cur_TaxMontIncome.C_BPARTNER_ID,Cur_Period.C_PERIOD_ID,v_TotalMothTax1,'N');
+
+					ELSE
+						UPDATE SSPR_Concept_Amount SET Amount = v_TotalMothTax1	WHERE  SSPR_Concept_ID = v_SSPR_CONCEPT_ID AND C_BPartner_ID = Cur_TaxMontIncome.C_BPARTNER_ID 
+						AND C_Period_ID = Cur_Period.C_Period_ID;
+					END IF;
+				
+					select  b.sspr_payroll_ticket_id into v_SSPR_Ticket_Payroll from sspr_payroll_ticket b
+					LEFT JOIN sspr_payroll C on  B.sspr_payroll_id= C.sspr_payroll_id where c_period_id= Cur_Period.C_PERIOD_ID 
+					and b.c_bpartner_id=Cur_TaxMontIncome.C_BPARTNER_ID;
+
+					UPDATE sspr_payroll_ticket_concept SET Amount = v_TotalMothTax1 
+					WHERE sspr_payroll_ticket_id= v_SSPR_Ticket_Payroll
+					AND SSPR_CONCEPT_ID=v_SSPR_CONCEPT_ID;
+
+				END LOOP;
+		END LOOP;
+			
+
+		
+    v_Message := '@RowsInserted@: ' || v_n_insertions;
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_INCOMETOTALS_P
+]]></body>
+    </function>
+  </database>

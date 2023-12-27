@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+<SqlClass name="UtilitiesCSVData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[select (case EM_SSPR_Documenttype when 'NI' then em_sspr_documentno   
+when 'P' THEN '#UIO' || em_sspr_documentno  
+end) as cedula
+,coalesce(cbp.em_sspr_lastname,'') as apellido 
+,coalesce(cbp.em_sspr_firstname,'') as nombre
+,coalesce((case cbp.em_sshr_gender when 'MASCULINO'then 'M' else 'F' end),'') as genero
+,coalesce(oc.value,'0') as ocupacion
+,cast(coalesce(su.numbercharges,0) as int) as carga_familiar
+,cast(coalesce(dias_laborados,0) as int) as dias_laborados
+,coalesce((case cbp.em_sspr_typeofincome  
+        when 'H' then 'P'   
+        when 'D' then 'A'   
+        when 'MDTD' then 'D'  
+        when 'DPW' then 'RP'  
+        when 'MDTW' then 'RD'  
+        when 'AACW' then 'RA'  
+        end),'') as tipo_pago_utilidad
+        
+,coalesce( to_char(case (select spc.isparttime from sspr_contract spc where spc.isactive='Y' and spc.c_bpartner_id= cbp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isactive='Y' and spc2.c_bpartner_id= cbp.c_bpartner_id ) )
+when 'Y' then 'X'
+else ' '
+end),' ') as jornada_parcial
+
+,coalesce( (select to_char(spc.weeklyhoursparttime) from sspr_contract spc where spc.isparttime='Y' and spc.isactive='Y' and spc.c_bpartner_id= cbp.c_bpartner_id and spc.created =
+(select max(spc2.created) from sspr_contract spc2 where spc2.isparttime='Y' and spc2.isactive='Y' and spc2.c_bpartner_id= cbp.c_bpartner_id ) )
+,' ') as horas_semana_jparcial        
+,coalesce((case cbp.EM_Sspr_Isdisabled when 'Y' then 'X' else '' end),'') as discapacitado
+,to_char('') as ruc_empresa
+,coalesce(round(coalesce(decimo_tercero,0) + coalesce(liq_dt.importe,0) + coalesce(nom_dt.importe,0) + coalesce(decimo_ter_acum,0),2),0) as decimo_tercero
+,coalesce(round(coalesce(decimo_cuarto,0) + coalesce(liq_dc.importe,0) + coalesce(nom_dc.importe,0) + coalesce(decimo_crt_acum,0),2),0) as decimo_cuarto
+,coalesce(round(part_util.totalprofits,2),0) + coalesce(round(part_uti2.particpia_util2,2),0) as participacion_util
+,coalesce(round(coalesce(salario_percibido,0) + coalesce(liq_sal_per.total_liquid,0),2),0) as salario_percibido
+,coalesce(round(coalesce(fondo_reserva,0)  + coalesce(resv_liq.total_resv,0),2),0) as fondo_reserva
+,coalesce(round(coalesce(comision,0) + coalesce(com_liq.total_liquid_com,0),2),0) as comision
+,abs(round(coalesce(su.advance_utilities,0),2)) as anticipo_utilidad
+,to_number(su.judicial_retention) as retencion_judicial
+,to_number(0) as impuesto_retencion
+,to_char('') as informacion_mdt
+,coalesce((case cbp.em_sspr_typeofincome   
+        when 'H' then 'P'  
+        when 'D' then 'A' 
+        when 'MDTD' then 'D'  
+        when 'DPW' then 'RP'  
+        when 'MDTW' then 'RD'  
+        when 'AACW' then 'RA'   
+        end),'')  as tipo_pago_salario
+  from sspr_utilities su     
+  left join (  
+  select totalprofits,c_bpartner_id from sspr_utilities    
+  where c_year_id = (select c_year_id from c_year where to_number(year) =((select to_number(year) from c_year where c_year_id = ?  ) -1) )  
+  )  part_util on part_util.c_bpartner_id = su.c_bpartner_id    
+  join c_bpartner cbp on cbp.c_bpartner_id = su.c_bpartner_id
+  left join sspempd_occupational_code oc on oc.sspempd_occupational_code_id = cbp.EM_Sspr_Cod_Ocupac_Iess  
+   join ad_org ao on ao.ad_org_id = su.ad_org_id    
+  join ad_orginfo aoi on aoi.ad_org_id = ao.ad_org_id   
+  left join ( 
+select stsl.c_bpartner_id 
+,sts.documentno   
+, coalesce(stsl.adjustedamt,0) as decimo_tercero      
+from ssph_tenth_settlement_line stsl   
+  left join ssph_tenth_settlement sts on sts.ssph_tenth_settlement_id=stsl.ssph_tenth_settlement_id   
+  left join c_bpartner bp on bp.c_bpartner_id=stsl.c_bpartner_id   
+  left join c_year pp on pp.c_year_id=sts.c_year_id    
+  left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sts.sspr_labor_regime_id   
+  left join ad_org og on og.ad_org_id=sts.ad_org_id   
+WHERE sts.c_year_id= ?    
+and sts.typeconcept = '13TH'  
+ 
+)  decimot on decimot.c_bpartner_id = su.c_bpartner_id  
+  left join (
+select cbp.c_bpartner_id  
+,cbp.name as tercero  
+,sum(sptc.amount) as importe   
+  from sspr_payroll sp  
+  join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id   
+  join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id  
+  join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id  
+  join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id  
+  left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id  and sct.isactive='Y'
+  left join c_period cp on cp.c_period_id = sp.c_period_id  
+where sc.isiess = 'Y'    and cp.c_year_id = ?      
+and sptc.sspr_concept_id in (select sspr_conceptout_id from sspr_process_payroll   
+   where processname = 'TT')  
+group by cbp.c_bpartner_id    
+,cbp.name ) nom_dt on nom_dt.c_bpartner_id = su.c_bpartner_id   
+   left join (
+select cbp.c_bpartner_id  
+,cbp.name as tercero  
+,sum(ssl.amount) as importe     
+   from sspr_settlement ss   
+   join sspr_settlementline ssl on ss.sspr_settlement_id = ssl.sspr_settlement_id   
+   join c_bpartner cbp on cbp.c_bpartner_id = ss.c_bpartner_id    
+   where to_number(to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = ?     
+    )  and ssl.sspr_concept_id in (select sspr_concept_id from sspr_benefit_dismissal where value in ('13TH','13a Remuneración'))    
+  group by cbp.c_bpartner_id,cbp.name  
+) liq_dt on liq_dt.c_bpartner_id = su.c_bpartner_id  
+   left join ( 
+select stsl.c_bpartner_id
+,  sum(coalesce(stsl.adjustedamt,0)) as decimo_cuarto
+   from ssph_tenth_settlement_line stsl   
+   left join ssph_tenth_settlement sts on sts.ssph_tenth_settlement_id=stsl.ssph_tenth_settlement_id  
+   left join c_bpartner bp on bp.c_bpartner_id=stsl.c_bpartner_id  
+   left join c_year pp on pp.c_year_id=sts.c_year_id  
+   left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sts.sspr_labor_regime_id  
+   left join ad_org og on og.ad_org_id=sts.ad_org_id  
+  WHERE   sts.c_year_id= ?   
+and sts.typeconcept = '14TH'
+group by   stsl.c_bpartner_id 
+) decimoc on decimoc.c_bpartner_id = su.c_bpartner_id   
+   left join (  
+select cbp.c_bpartner_id 
+,cbp.name as tercero   
+,sum(sptc.amount) as importe    
+  from sspr_payroll sp   
+  join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id   
+   join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id   
+   join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id  
+   join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id  
+   left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id  and sct.isactive='Y'
+   left join c_period cp on cp.c_period_id = sp.c_period_id  
+  where sc.isiess = 'Y'   
+and cp.c_year_id = ?    
+and sptc.sspr_concept_id in (select sspr_conceptout_id from sspr_process_payroll   
+   where processname = 'FT')
+group by cbp.c_bpartner_id  
+,cbp.name ) nom_dc on nom_dc.c_bpartner_id = su.c_bpartner_id   
+  left join (   
+select cbp.c_bpartner_id  
+,cbp.name as tercero  
+,sum(ssl.amount) as importe    
+   from sspr_settlement ss   
+   join sspr_settlementline ssl on ss.sspr_settlement_id = ssl.sspr_settlement_id  
+   join c_bpartner cbp on cbp.c_bpartner_id = ss.c_bpartner_id    
+   where to_number(to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = ?      
+    )    and ssl.sspr_concept_id in (select sspr_concept_id from sspr_benefit_dismissal where value in ('14TH','14a Remuneración'))     
+  group by cbp.c_bpartner_id,cbp.name  
+ ) liq_dc on liq_dc.c_bpartner_id = su.c_bpartner_id  
+   left join (  
+   select sal_per.c_bpartner_id,(coalesce(salario_percibido,0)) as salario_percibido    
+   from (  
+select cbp.c_bpartner_id  
+,cbp.name as tercero  
+,sum(sptc.amount) as salario_percibido    
+   from sspr_payroll sp  
+   join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id  
+   join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id  
+   join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id  
+   join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id  
+   left join c_period cp on cp.c_period_id = sp.c_period_id  
+   where sp.ispayroll ='Y' and sp.isliquidation = 'N'  
+and cp.c_year_id = ?    
+and sc.concepttypepayroll='SL'   
+  group by cbp.c_bpartner_id,cbp.name   
+  ) sal_per   
+) salario_per on  salario_per.c_bpartner_id = su.c_bpartner_id    
+     left join ( 
+   select  ss.c_bpartner_id,sum(ssl.totalnet) as total_liquid   
+    from sspr_settlement ss   
+    join sspr_settlementline ssl on ss.sspr_settlement_id = ssl.sspr_settlement_id   
+    join sspr_concept sc on sc.sspr_concept_id = ssl.sspr_concept_id    
+    where  sc.concepttypepayroll='SL'    
+    and to_number(to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = ?   )   
+    group by ss.c_bpartner_id   
+   ) liq_sal_per on liq_sal_per.c_bpartner_id = su.c_bpartner_id   
+  left join   
+(
+  
+select fres.c_bpartner_id, (coalesce(sum(fondo_reserva),0)) as fondo_reserva     
+    from    (
+ 
+    select cbp.c_bpartner_id
+    ,cbp.name as tercero  
+    ,round(sptc.amount,2) as fondo_reserva 
+    ,cp.name     
+    ,sp.ispayroll
+    ,sp.isliquidation      
+   from sspr_payroll sp      
+   join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id     
+   join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id     
+   left join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id      
+   join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id        
+   left join c_period cp on cp.c_period_id = sp.c_period_id     
+   where  cp.c_year_id = ?    
+    and ((sp.ispayroll = 'Y' and sp.isliquidation ='N') or (sp.ispayroll = 'N' and sp.isliquidation ='Y')
+    or (sp.ispayroll = 'N' and sp.isliquidation ='N'))       
+    and sptc.sspr_concept_id in (   
+    select sspr_concept_id from sspr_concept            
+    where sspr_codeformulary107_id in (select sspr_codeformulary107_id from sspr_codeformulary107 where typeconcept = 'RF')
+    )     
+    group by cbp.c_bpartner_id,cbp.name,sptc.amount,cp.name ,sp.ispayroll ,sp.isliquidation           
+    order by 2    
+    ) fres   
+group by fres.c_bpartner_id 
+) freserva on freserva.c_bpartner_id  = su.c_bpartner_id   
+   left join (  
+    select ss.c_bpartner_id,sum(ssl.totalnet) as total_resv      
+    from sspr_settlement ss    
+    join c_bpartner cbp on cbp.c_bpartner_id = ss.c_bpartner_id      
+    join sspr_settlementline ssl on ssl.sspr_settlement_id = ss.sspr_settlement_id   
+    where to_number(to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = ?      
+    )  
+    and ssl.sspr_concept_id in (
+    select sspr_concept_id from sspr_concept         
+    where sspr_codeformulary107_id in (select sspr_codeformulary107_id from sspr_codeformulary107 where typeconcept = 'RF')
+    )    
+    group by ss.c_bpartner_id        
+    )  resv_liq on resv_liq.c_bpartner_id = su.c_bpartner_id  
+   left join (   
+   select  comis.c_bpartner_id, (coalesce(comision,0)) as comision   
+from  (   
+select cbp.c_bpartner_id    
+,cbp.name as tercero    
+,sum(sptc.amount) as comision    
+   from sspr_payroll sp     
+   join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id    
+   join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id    
+   join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id     
+   join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id       
+   left join c_period cp on cp.c_period_id = sp.c_period_id    
+   where (sp.ispayroll ='Y' and sp.isliquidation = 'N')   
+and cp.c_year_id = ?     
+and sc.affectationtype='Y'    
+and sc.conceptsubtype='In'    
+and sc.iscumulative ='Y'    
+and sc.isiess = 'Y'   
+and sc.isincomecalculated='Y'  
+and SC.concepttypepayroll <> 'SL'        
+group by cbp.c_bpartner_id,cbp.name   
+) comis     
+) comision on comision.c_bpartner_id  = su.c_bpartner_id   
+left join  
+( 
+select   ss.c_bpartner_id,sum(ssl.totalnet) as total_liquid_com     
+from sspr_settlement ss     
+join c_bpartner cbp on cbp.c_bpartner_id = ss.c_bpartner_id     
+join sspr_settlementline ssl on ssl.sspr_settlement_id = ss.sspr_settlement_id       
+where to_number(to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = ?     
+)  and ssl.sspr_concept_id in (select sspr_concept_id from sspr_concept where  concepttypepayroll = 'IE' AND iscumulative ='Y'      
+and isiess = 'Y'  and isincomecalculated='Y' and concepttypepayroll <> 'SL')     
+group by ss.c_bpartner_id  
+) com_liq on com_liq.c_bpartner_id = su.c_bpartner_id	
+LEFT JOIN (   
+    SELECT bp.c_bpartner_id, bp.name tercero, SUM(CASE WHEN co.isparttime = 'Y' THEN pt.WorkingDays ELSE pt.WorkedDays END) dias_laborados	
+    FROM sspr_payroll pr	
+        JOIN sspr_payroll_ticket pt ON pt.sspr_payroll_id = pr.sspr_payroll_id	
+        JOIN c_bpartner bp ON bp.c_bpartner_id = pt.c_bpartner_id	
+        JOIN c_period pe ON pe.c_period_id = pr.c_period_id	
+		JOIN SSPR_Contract co ON co.C_Bpartner_ID = bp.c_bpartner_id AND co.isactive = 'Y'	
+			AND pr.datedoc::DATE >= co.startdate	
+			AND pr.datedoc::DATE <= co.enddate	
+    WHERE ((pr.ispayroll = 'Y' AND pr.isliquidation = 'N') OR (pr.ispayroll ='N' AND pr.isliquidation = 'Y'))	
+        AND pe.c_year_id = ?	
+    GROUP BY bp.c_bpartner_id, bp.name	
+) diaslab ON diaslab.c_bpartner_id  = su.c_bpartner_id	
+left join
+(
+SELECT  cbp.c_bpartner_id
+,sum(sptc.amount) as decimo_ter_acum   
+from sspr_payroll sp    
+left join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id   
+left join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id   
+left join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id   
+left join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id    
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id   and sct.isactive='Y'
+left join c_period cp on cp.c_period_id = sp.c_period_id   
+left join c_year pp on cp.c_year_id = pp.c_year_id   
+left join ad_org ao on ao.ad_org_id = sp.ad_org_id   
+where  sc.sspr_concept_id in ((select sspr_conceptout_id from sspr_process_payroll   
+   where processname = 'TT'))   
+and (sp.ispayroll= 'Y' and sp.isliquidation='N')    
+and cp.c_year_id= ?    
+group by cbp.c_bpartner_id   
+) dec_ter_acum on dec_ter_acum.c_bpartner_id  = su.c_bpartner_id      
+left join 
+(
+SELECT  cbp.c_bpartner_id
+,sum(sptc.amount) as decimo_crt_acum    
+from sspr_payroll sp    
+left join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id   
+left join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id    
+left join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id   
+left join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id   
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id    and sct.isactive='Y'
+left join c_period cp on cp.c_period_id = sp.c_period_id   
+left join c_year pp on cp.c_year_id = pp.c_year_id   
+left join ad_org ao on ao.ad_org_id = sp.ad_org_id   
+where  sc.sspr_concept_id in ((select sspr_conceptout_id from sspr_process_payroll   
+   where processname = 'FT'))  
+and (sp.ispayroll= 'Y' and sp.isliquidation='N')    
+and cp.c_year_id= ?    
+group by cbp.c_bpartner_id  
+) dec_crt_acum on dec_crt_acum.c_bpartner_id  = su.c_bpartner_id   
+left join (select  cbp.c_bpartner_id    
+,cbp.name as tercero    
+,sum(sptc.amount) as particpia_util2     
+  from sspr_payroll sp   
+  join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id     
+  join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id   
+  join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id    
+  join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id     
+  left join c_period cp on cp.c_period_id = sp.c_period_id    
+where  cp.c_year_id = ? 
+and sptc.sspr_concept_id in (select sspr_concept_id from sspr_concept    
+where Sspr_Codeformulary107_ID in   
+(select Sspr_Codeformulary107_ID from Sspr_Codeformulary107 where typeconcept = 'UT'))  
+group by cbp.c_bpartner_id    
+,cbp.name ) part_uti2 on part_uti2.c_bpartner_id = su.c_bpartner_id   
+where su.c_year_id = ?      
+union all     
+select  coalesce(ssd.taxid_partner,'') as cedula  
+,coalesce(ssd.surname,'') as apellido  
+,coalesce(ssd.name,'') as nombre  
+,coalesce(ssd.gender,'') as genero   
+,coalesce(ssd.occup_code_iess,'0') as ocupacion   
+,cast(coalesce(su.numbercharges,0) as int) as carga_familiar  
+,cast(coalesce(su.workeddays,0) as int) as dias_laborados  
+,coalesce((case ssd.paymenttype     
+        when 'H' then 'P'   
+        when 'D' then 'A'  
+        when 'MDTD' then 'D'    
+        when 'DPW' then 'RP'    
+        when 'MDTW' then 'RD'    
+        when 'AACW' then 'RA'     
+        end),'')  as tipo_pago_salario
+                ,to_char('')  as jornada_parcial
+,to_char(' ') as horas_semana_jparcial       
+, to_char(' ') as discapacitado 
+, coalesce(ssd.taxid_company,'') as ruc_empresa
+,to_number(0) as decimo_tercero
+,to_number(0) as decimo_cuarto
+,to_number(0) as participacion_util
+,to_number(0) as salario_percibido
+,to_number(0) as fondo_reserva
+,to_number(0) as comision
+,to_number(0) as anticipo_utilidad
+,to_number(su.judicial_retention) as retencion_judicial 
+,to_number(0) as impuesto_retencion
+,to_char('') as informacion_mdt
+,coalesce((case ssd.paymenttype     
+        when 'H' then 'P'    
+        when 'D' then 'A'   
+        when 'MDTD' then 'D'    
+        when 'DPW' then 'RP'    
+        when 'MDTW' then 'RD'    
+        when 'AACW' then 'RA'     
+        end),'')  as tipo_pago_salario     
+from sspr_supplementary_data ssd    
+join sspr_utilities su on su.sspr_supplementary_data_id = ssd.sspr_supplementary_data_id   
+where su.c_year_id =?   
+order by 1 ]]>
+    </Sql>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+    <Parameter name="C_YEAR_ID"/>
+  </SqlMethod>
+
+</SqlClass>

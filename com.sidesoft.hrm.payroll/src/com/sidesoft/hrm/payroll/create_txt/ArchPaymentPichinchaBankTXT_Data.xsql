@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s): Fernanda Iguamba
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchPaymentPichinchaBankTXTData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+	select 
+	A.SSPR_PAYROLL_ID,
+	A.DOCUMENTNO,
+	to_char(G.paymentmethod) as PA,
+	EM_SSPR_DocumentNo AS CONTRAPARTIDA,
+	C.ISO_CODE AS MONEDA,
+	ROUND(TOTALNET,2) AS VALOR,
+	'CTA' AS FORMACOBRO,
+	CASE WHEN F.BankAccountType='S' THEN 'AHO'
+	WHEN F.BankAccountType='C' THEN 'CTE' END
+	AS TIPOCUENTA,
+	F.AccountNo AS CUENTA,
+	A.DESCRIPTION AS REFERENCIA,
+	CASE WHEN EM_SSPR_Documenttype = 'NI' THEN 'C'
+	WHEN EM_SSPR_Documenttype = 'SRT' THEN 'R'
+	WHEN EM_SSPR_Documenttype = 'P' THEN 'P'
+	ELSE 'ND' END
+	as TIPOIDCLIENTE,
+	EM_SSPR_DocumentNo AS NUMIDCLIENTE,
+	E.NAME AS TERCERO,
+	G.CODE AS CODIGO,
+	G.NAME AS TRANSFER
+	From SSPR_PAYROLL A 
+	LEFT JOIN AD_ORG B ON A.AD_ORG_ID = B.AD_ORG_ID  	
+	LEFT JOIN C_CURRENCY C ON B.C_CURRENCY_ID = C.C_CURRENCY_ID  	
+	LEFT JOIN SSPR_PAYROLL_TICKET D ON A.SSPR_PAYROLL_ID = D.SSPR_PAYROLL_ID  		
+	LEFT JOIN C_BPARTNER E ON D.C_BPARTNER_ID = E.C_BPARTNER_ID  		
+	LEFT JOIN C_BP_BankAccount F ON E.C_BPARTNER_ID = F.C_BPARTNER_ID  	
+    LEFT JOIN SSFI_BANKTRANSFER G ON F.em_ssfi_banktransfer_id = G.ssfi_banktransfer_id 
+    WHERE A.DOCUMENTNO = ? 
+	AND (G.ssfi_banktransfer_id = ? OR COALESCE(?,'') = '')
+    AND (D.EM_Sprc_Cat_Acct_ID = ? OR COALESCE(?,'') = '')
+	AND (D.EM_Sprc_Costcenter_ID = ? OR COALESCE(?,'') = '')
+    AND E.EM_SSPR_Typeofincome= 'D' 
+    AND A.ispayroll='Y' 
+    AND A.processed= 'Y' 
+    ORDER BY E.NAME
+      ]]>
+    </Sql>
+    <Parameter name="documentno"/>
+    <Parameter name="bankid"/>
+	<Parameter name="bankid"/>
+    <Parameter name="categoryid"/>
+    <Parameter name="categoryid"/>
+	<Parameter name="CostCenter"/>
+    <Parameter name="CostCenter"/>
+  </SqlMethod>
+
+</SqlClass>
+G

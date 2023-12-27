@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_VOIDVALIDATE">
+    <function name="SSWH_VOIDVALIDATE" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_docaction         VARCHAR2(60);      
+v_record_id         VARCHAR2(32);      
+v_issotrx	    CHAR(1);
+v_countcobros NUMBER:=0;
+v_EM_Sswh_C_Doctype_ID  VARCHAR2(32);      
+v_EM_Sswh_Datewithhold VARCHAR2(60);      
+v_DateInvoiced VARCHAR2(60);      
+
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+cur_lines           RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      v_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      v_record_id := cur_params.p_string;
+    END IF;
+  END LOOP;
+
+	SELECT issotrx , EM_Sswh_C_Doctype_ID, COALESCE(to_char(EM_Sswh_Datewithhold),''), COALESCE(to_char(DateInvoiced),'')
+    INTO v_issotrx, v_EM_Sswh_C_Doctype_ID, v_EM_Sswh_Datewithhold, v_DateInvoiced
+    FROM c_invoice WHERE c_invoice_id =v_record_id;
+ 
+	  IF (v_docaction ='RC' OR v_docaction ='VO') THEN
+	 
+		  SELECT coalesce(ssfi_returnpaymentcount(v_record_id),0) INTO v_countcobros FROM dual;
+	  
+		  IF(v_countcobros>0) THEN
+			RAISE_APPLICATION_ERROR(-20000, '@Ssfi_ErrorVoidInvoice@');
+		  END IF;
+
+
+	 END IF;
+
+EXCEPTION
+WHEN OTHERS THEN
+  RAISE;
+END SSWH_VOIDVALIDATE
+]]></body>
+    </function>
+  </database>

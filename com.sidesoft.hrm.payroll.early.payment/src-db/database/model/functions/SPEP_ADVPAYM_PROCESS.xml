@@ -1,0 +1,518 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEP_ADVPAYM_PROCESS">
+    <function name="SPEP_ADVPAYM_PROCESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_PayrollAdvPaymCfg RECORD;
+Cur_PayrollAdvPaymEmpl RECORD;
+Cur_Loans RECORD;
+Cur_Fortnight RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32);
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  V_Result NUMBER:=1; -- Success
+
+  v_Record_ID  VARCHAR2(32);
+  v_SSPR_Concept_In_ID  VARCHAR2(32);
+  v_SSPR_Concept_Out_ID  VARCHAR2(32);
+  V_C_Period_ID VARCHAR2(32); 
+  V_Processed VARCHAR2(60);
+  V_Processing VARCHAR2(60);
+  v_Message VARCHAR2(2000):='';
+  v_DocAction SPEP_ADVANCE_PAYMENT.DocAction%TYPE;
+  v_Description SPEP_ADVANCE_PAYMENT.Observation%TYPE;
+  V_Advance_PaymentLine_ID VARCHAR2(32); 
+  V_LineLines SPEP_ADVANCE_PAYMENTLINE.Line%TYPE;
+  V_LineDetails SPEP_ADVANCE_PAYMENTDETAIL.Line%TYPE;
+  V_AmtLine NUMBER:=0;
+  V_AmtDetail NUMBER:=0;
+  V_Count NUMBER;
+
+  v_Percentage  NUMBER; --OBTG:NUMBER--
+  v_ConfType    VARCHAR2(32);
+  v_DescriptionLoan  VARCHAR2(255);
+  v_MaxLineLoan  NUMBER; --OBTG:NUMBER--
+  v_LineLoan NUMBER; --OBTG:NUMBER--
+  v_amountLoan NUMBER; --OBTG:NUMBER--
+  v_TotalAmountConfigType  NUMBER; --OBTG:NUMBER--
+  v_CurrentSalary NUMBER; --OBTG:NUMBER--
+  v_LoanTotal NUMBER; --OBTG:NUMBER--
+  v_ConceptOutID VARCHAR2(32);
+  v_PartnerID VARCHAR2(32); 
+  
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+--    v_n_insertions := 0;  
+
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+
+    -- Get payroll advance payment processed status
+    SELECT pap.Processed, pap.Processing INTO V_Processed, V_Processing FROM spep_advance_payment pap WHERE pap.spep_advance_payment_id = V_Record_Id;
+    
+    IF V_Processing = 'Y' THEN
+      v_Message := '@Processing@';
+      AD_UPDATE_PINSTANCE(Pinstance_Id, NULL, 'N', 0, v_Message);
+      RETURN;
+    END IF;
+    
+    -- Set processing 'Y'
+    UPDATE spep_advance_payment pap SET Processing = 'Y' WHERE pap.spep_advance_payment_id = V_Record_Id;
+    
+    -- Get payroll advance payment data
+    SELECT pap.c_period_id, pap.observation INTO V_C_Period_ID, V_Description FROM spep_advance_payment pap WHERE pap.spep_advance_payment_id = V_Record_Id;
+            
+    IF V_Processed = 'Y' THEN -- Unprocess
+          
+      -- Delete previous concept out amounts
+      DELETE FROM sspr_concept_amount ca
+      WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_out_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID)
+        AND ca.c_period_id = V_C_Period_ID;
+
+      --Delete de details
+      DELETE FROM spep_advance_paymentdetail papd
+      WHERE papd.spep_advance_paymentline_id in (
+        SELECT papl.spep_advance_paymentline_id
+        FROM spep_advance_paymentline papl
+        WHERE papl.spep_advance_payment_id = V_RECORD_ID
+      );
+      
+      --Delete de details
+      DELETE FROM spep_advance_paymentline papl
+      WHERE papl.spep_advance_payment_id = V_RECORD_ID;
+      
+      -- Unprocess the payroll advance payment
+      UPDATE spep_advance_payment pap
+      SET processed = 'N', Docstatus = 'DR', Docaction = 'RE'
+      WHERE pap.spep_advance_payment_id = V_RECORD_ID;
+
+      V_DocAction := 'RE';
+      V_Message := '@Unprocessed@';
+
+	DELETE FROM sspr_concept_amount ca
+	WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_in_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID
+	and papc.configuration_type in ('S','P','F') )
+	AND ca.c_period_id = V_C_Period_ID and em_spep_status ='P';     
+
+	DELETE FROM sspr_concept_amount ca
+	WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_out_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID
+	and papc.configuration_type in ('S','P','F'))
+	AND ca.c_period_id = V_C_Period_ID and em_spep_status ='P';     
+  
+      
+    ELSIF V_Processed = 'N' THEN -- Process
+    
+      -- Reset line counter
+      V_LineLines := 0;
+      
+      -- Delete previous concept out amounts
+      DELETE FROM sspr_concept_amount ca
+      WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_out_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID)
+      AND ca.c_period_id = V_C_Period_ID;
+
+      DELETE FROM sspr_concept_amount ca
+      WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_in_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID
+      and papc.configuration_type in ('S','P','F') )
+      AND ca.c_period_id = V_C_Period_ID and em_spep_status ='P';     
+
+      DELETE FROM sspr_concept_amount ca
+      WHERE ca.sspr_concept_id in (SELECT papc.sspr_concept_out_id FROM spep_advance_payment_cfg papc WHERE papc.ad_client_id = v_Client_ID
+      and papc.configuration_type in ('S','P','F'))
+      AND ca.c_period_id = V_C_Period_ID and em_spep_status ='P';     
+
+
+      -- Get payroll advance payment employees
+      FOR Cur_PayrollAdvPaymEmpl IN (
+        SELECT  bp.c_bpartner_id,
+                bp.em_sspr_typeofincome as typeofincome
+        FROM c_bpartner bp 
+        WHERE bp.ad_client_id = v_Client_ID
+          AND bp.isemployee = 'Y'
+          AND bp.em_spep_payrolladvpaym = 'Y'
+          AND bp.isactive = 'Y'
+          AND bp.em_sspr_status in ('A', 'V')
+      )
+      LOOP
+
+        V_LineLines := V_LineLines + 10;
+        V_Advance_PaymentLine_ID := get_uuid();
+        INSERT INTO spep_advance_paymentline (
+          spep_advance_paymentline_id, ad_client_id, ad_org_id, isactive,
+          created, createdby, updated, updatedby,
+          line, c_bpartner_id, typeofincome, amount,
+          spep_advance_payment_id
+        ) VALUES (
+          V_Advance_PaymentLine_ID, v_Client_ID, v_Org_ID, 'Y',
+          now(), v_User_ID, now(), v_User_ID,
+          V_LineLines, Cur_PayrollAdvPaymEmpl.c_bpartner_id, Cur_PayrollAdvPaymEmpl.typeofincome, 0,
+          v_Record_ID
+        );
+
+        -- Reset line amount
+        V_AmtLine := 0;
+        
+        -- Reset line counter
+        V_LineDetails := 0;
+
+        -- Reset Total Configuration Setup
+        v_TotalAmountConfigType:=0;
+
+        v_DescriptionLoan:='';
+
+        v_LoanTotal:=0; 
+        -- Get payroll advance payment config data
+        FOR Cur_PayrollAdvPaymCfg IN (
+          SELECT  papc.sspr_concept_in_id,
+                  papc.sspr_concept_out_id,
+                  papc.configuration_type,
+                  papc.PERCENTAGE
+          FROM spep_advance_payment_cfg papc
+          WHERE papc.ad_client_id = v_Client_ID
+          and papc.isactive= 'Y'
+        )
+        LOOP
+
+	    v_ConceptOutID:= Cur_PayrollAdvPaymCfg.sspr_concept_out_id;
+	    -- Configuration Type
+	    
+	    v_ConfType:= COALESCE(TO_CHAR(Cur_PayrollAdvPaymCfg.configuration_type),TO_CHAR('ND'));
+
+
+	    IF v_ConfType<>'ND' AND v_ConfType='P'  THEN
+
+
+		v_Percentage:= Cur_PayrollAdvPaymCfg.percentage;
+
+		FOR Cur_Loans IN(
+		select
+		sp.sspr_loans_id
+		from sspr_loans sp 
+		join sspr_line_loans spl on spl.sspr_loans_id = sp.sspr_loans_id
+		where spl.status = 'Pending' and  sp.status ='ap'
+		and paydate between ((select startdate from c_period where c_period_id = V_C_Period_ID)) 
+		and ((select enddate from c_period where c_period_id =V_C_Period_ID ))
+		and sp.c_bpartner_id= Cur_PayrollAdvPaymEmpl.c_bpartner_id
+		GROUP BY sp.sspr_loans_id
+		)LOOP
+
+
+			SELECT COALESCE((select
+			to_number(spL.amount)*-1 as amount
+			from sspr_loans sp 
+			join sspr_line_loans spl on spl.sspr_loans_id = sp.sspr_loans_id
+			where spl.status = 'Pending' and  sp.status ='ap'
+			and paydate between ((select startdate from c_period where c_period_id = V_C_Period_ID)) 
+			and ((select enddate from c_period where c_period_id =V_C_Period_ID ))
+			and sp.sspr_loans_id = Cur_Loans.sspr_loans_id
+			and sp.c_bpartner_id= Cur_PayrollAdvPaymEmpl.c_bpartner_id
+			),0)
+			into v_amountLoan
+			FROM DUAL
+			;
+
+			
+			SELECT COALESCE((select
+			spL.line
+			from sspr_loans sp 
+			join sspr_line_loans spl on spl.sspr_loans_id = sp.sspr_loans_id
+			where spl.status = 'Pending' and  sp.status ='ap'
+			and paydate between ((select startdate from c_period where c_period_id = V_C_Period_ID)) 
+			and ((select enddate from c_period where c_period_id = V_C_Period_ID ))
+			and sp.c_bpartner_id= Cur_PayrollAdvPaymEmpl.c_bpartner_id
+			and sp.sspr_loans_id = Cur_Loans.sspr_loans_id),0)
+			into v_LineLoan
+			FROM DUAL
+			;
+
+
+			SELECT COALESCE((select
+			max(spL.line)
+			from sspr_loans sp 
+			join sspr_line_loans spl on spl.sspr_loans_id = sp.sspr_loans_id
+			where sp.c_bpartner_id= Cur_PayrollAdvPaymEmpl.c_bpartner_id
+			and sp.sspr_loans_id = Cur_Loans.sspr_loans_id
+			and  sp.status ='ap'),0)
+			into v_MaxLineLoan
+			FROM DUAL
+			;
+
+			v_TotalAmountConfigType:=  v_amountLoan * (v_Percentage/100);
+			v_LoanTotal:=v_LoanTotal + abs(v_TotalAmountConfigType);
+
+			v_DescriptionLoan:= to_char(v_LineLoan) || to_char('/') || to_char(v_MaxLineLoan) || to_char(' - ') ||
+			'Importe: ' || to_char(round(abs(v_amountLoan),2));
+
+			V_LineDetails := V_LineDetails + 10;
+
+			INSERT INTO spep_advance_paymentdetail (
+			spep_advance_paymentdetail_id, ad_client_id, ad_org_id, isactive,
+			created, createdby, updated, updatedby,
+			line, sspr_concept_id, amount, spep_advance_paymentline_id,description
+			) VALUES (
+			get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			V_LineDetails, Cur_PayrollAdvPaymCfg.sspr_concept_in_id, coalesce(v_TotalAmountConfigType,0), V_Advance_PaymentLine_ID
+			,v_DescriptionLoan);
+
+			V_AmtDetail:= V_AmtDetail + v_TotalAmountConfigType;
+
+			
+		END LOOP;
+
+		IF (v_LoanTotal>0) THEN
+
+			INSERT INTO sspr_concept_amount (
+			sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+			created, createdby, updated, updatedby,
+			sspr_concept_id, c_bpartner_id, c_period_id, amount, em_spep_status
+			) VALUES (
+			 get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			Cur_PayrollAdvPaymCfg.sspr_concept_in_id, Cur_PayrollAdvPaymEmpl.c_bpartner_id, V_C_Period_ID, abs(v_LoanTotal)
+			,'P');
+		END IF;
+
+	    
+	    END IF;
+
+	    
+	    IF v_ConfType<>'ND' AND v_ConfType='S'  THEN
+
+		v_Percentage:= Cur_PayrollAdvPaymCfg.percentage;
+        
+		SELECT
+		COALESCE((select em_sspr_currentsalary from c_bpartner 
+		WHERE C_BPARTNER_ID = Cur_PayrollAdvPaymEmpl.c_bpartner_id),0)
+		INTO v_CurrentSalary
+		FROM DUAL;    
+		v_TotalAmountConfigType:=  v_CurrentSalary * (v_Percentage/100);
+
+		V_LineDetails := V_LineDetails + 10;
+
+		INSERT INTO spep_advance_paymentdetail (
+		spep_advance_paymentdetail_id, ad_client_id, ad_org_id, isactive,
+		created, createdby, updated, updatedby,
+		line, sspr_concept_id, amount, spep_advance_paymentline_id,description
+		) VALUES (
+		get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+		now(), v_User_ID, now(), v_User_ID,
+		V_LineDetails, Cur_PayrollAdvPaymCfg.sspr_concept_in_id, coalesce(v_TotalAmountConfigType,0), V_Advance_PaymentLine_ID
+		,v_Description);
+
+		V_AmtDetail:= v_TotalAmountConfigType;
+
+
+		IF (V_AmtDetail>0) THEN
+
+			INSERT INTO sspr_concept_amount (
+			sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+			created, createdby, updated, updatedby,
+			sspr_concept_id, c_bpartner_id, c_period_id, amount, em_spep_status
+			) VALUES (
+			 get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			Cur_PayrollAdvPaymCfg.sspr_concept_in_id, Cur_PayrollAdvPaymEmpl.c_bpartner_id, V_C_Period_ID, V_AmtDetail
+			,'P');
+		END IF;
+
+	    END IF;
+
+	  IF v_ConfType<>'ND' AND v_ConfType='F'  THEN --CC: Tikcet 2369
+
+
+
+		FOR Cur_Fortnight IN(
+
+			SELECT  coalesce(to_number(cbp.EM_Sspr_Fortnight),0) as fortnight
+			,cbp.c_bpartner_id
+			 FROM C_BPARTNER cbp
+			where coalesce(to_number(cbp.EM_Sspr_Fortnight),0)>0
+			and cbp.c_bpartner_id= Cur_PayrollAdvPaymEmpl.c_bpartner_id
+			
+		)LOOP
+
+			V_LineDetails := V_LineDetails + 10;
+
+			INSERT INTO spep_advance_paymentdetail (
+			spep_advance_paymentdetail_id, ad_client_id, ad_org_id, isactive,
+			created, createdby, updated, updatedby,
+			line, sspr_concept_id, amount, spep_advance_paymentline_id,description
+			) VALUES (
+			get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			V_LineDetails, Cur_PayrollAdvPaymCfg.sspr_concept_in_id, coalesce(Cur_Fortnight.fortnight,0), V_Advance_PaymentLine_ID
+			,null);
+
+			V_AmtDetail:= Cur_Fortnight.fortnight;
+			v_PartnerID:= Cur_Fortnight.c_bpartner_id;
+
+			
+		END LOOP;
+
+		IF (V_AmtDetail>0 AND COALESCE(TO_CHAR(v_PartnerID),TO_CHAR('ND'))<>'ND' ) THEN
+
+	
+			INSERT INTO sspr_concept_amount (
+			sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+			created, createdby, updated, updatedby,
+			sspr_concept_id, c_bpartner_id, c_period_id, amount, em_spep_status
+			) VALUES (
+			 get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			Cur_PayrollAdvPaymCfg.sspr_concept_in_id, v_PartnerID, V_C_Period_ID, abs(V_AmtDetail)
+			,'P');
+		END IF;
+
+	    
+	    END IF; --CC: Tikcet 2369
+	    
+	    -- END Configuration Type
+          IF v_ConfType = 'ND' THEN
+		V_AmtDetail := SSPR_GET_BUSINESS_CONCEPT(Cur_PayrollAdvPaymCfg.sspr_concept_in_id, V_C_Period_ID, Cur_PayrollAdvPaymEmpl.c_bpartner_id);  
+	  END IF;
+
+         
+          -- Only inserts if amount <> 0
+          IF V_AmtDetail <> 0 THEN
+            
+            -- BEGIN - Add details
+            IF v_ConfType = 'ND' THEN
+            V_LineDetails := V_LineDetails + 10;
+            INSERT INTO spep_advance_paymentdetail (
+              spep_advance_paymentdetail_id, ad_client_id, ad_org_id, isactive,
+              created, createdby, updated, updatedby,
+              line, sspr_concept_id, amount, spep_advance_paymentline_id
+            ) VALUES (
+              get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+              now(), v_User_ID, now(), v_User_ID,
+              V_LineDetails, Cur_PayrollAdvPaymCfg.sspr_concept_in_id, V_AmtDetail, V_Advance_PaymentLine_ID
+            );
+
+            END IF;
+            
+            -- BEGIN - Add concept out amounts
+            -- Check if concept out amount exists
+            SELECT count(*)
+            INTO V_Count
+            FROM sspr_concept_amount ca
+            WHERE ca.ad_client_id = v_Client_ID
+              AND ca.sspr_concept_id = Cur_PayrollAdvPaymCfg.sspr_concept_out_id
+              AND ca.c_bpartner_id = Cur_PayrollAdvPaymEmpl.c_bpartner_id
+              AND ca.c_period_id = V_C_Period_ID;
+            
+            IF V_Count > 0 THEN
+              UPDATE sspr_concept_amount ca
+              SET amount = ca.amount + V_AmtDetail
+              WHERE ca.ad_client_id = v_Client_ID
+                AND ca.sspr_concept_id = Cur_PayrollAdvPaymCfg.sspr_concept_out_id
+                AND ca.c_bpartner_id = Cur_PayrollAdvPaymEmpl.c_bpartner_id
+                AND ca.c_period_id = V_C_Period_ID;
+            ELSE
+              INSERT INTO sspr_concept_amount (
+                sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+                created, createdby, updated, updatedby,
+                sspr_concept_id, c_bpartner_id, c_period_id, amount
+              ) VALUES (
+                 get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+                now(), v_User_ID, now(), v_User_ID,
+                Cur_PayrollAdvPaymCfg.sspr_concept_out_id, Cur_PayrollAdvPaymEmpl.c_bpartner_id, V_C_Period_ID, V_AmtDetail
+              );
+            END IF;
+            -- END - Add concept out amounts
+            
+            -- Amount line summary
+            V_AmtLine := V_AmtLine + V_AmtDetail; 
+            -- END - Add details
+          END IF;  
+        END LOOP;
+        
+        -- UPDATE or DELETE the line acording with amount value
+        IF V_AmtLine <> 0 THEN
+          -- Update line amount
+		UPDATE spep_advance_paymentline papl
+			SET amount = V_AmtDetail
+		WHERE papl.spep_advance_paymentline_id = V_Advance_PaymentLine_ID;
+
+		IF (v_ConfType='S' OR v_ConfType='P'  OR v_ConfType='F' ) AND COALESCE(v_ConceptOutID,'ND')<>'ND' THEN
+
+			UPDATE sspr_concept_amount ca
+			SET amount = V_AmtDetail
+			WHERE ca.ad_client_id = v_Client_ID
+			AND ca.sspr_concept_id = v_ConceptOutID
+			AND ca.c_bpartner_id = Cur_PayrollAdvPaymEmpl.c_bpartner_id
+			AND ca.c_period_id = V_C_Period_ID;
+
+		END IF;			  
+		V_AmtDetail:=0;
+
+               			  
+        ELSE
+
+          DELETE FROM spep_advance_paymentdetail WHERE  spep_advance_paymentline_id = V_Advance_PaymentLine_ID;
+          DELETE FROM spep_advance_paymentline papl
+          WHERE papl.spep_advance_paymentline_id = V_Advance_PaymentLine_ID;
+        END IF;
+
+
+      END LOOP;
+      
+      -- Process the payroll advance payment
+      UPDATE spep_advance_payment pap 
+      SET processed = 'Y', Docstatus = 'CO', Docaction = '--'
+      WHERE pap.spep_advance_payment_id = V_RECORD_ID;
+
+      V_DocAction := 'CO';
+      V_Message := '@ProcessOK@';
+    END IF;
+    
+    -- Set processing 'N'
+    UPDATE spep_advance_payment pap SET Processing = 'N' WHERE pap.spep_advance_payment_id = V_Record_Id;
+    COMMIT;
+    
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    -- Set processing 'N'
+    UPDATE spep_advance_payment pap SET Processing = 'N' WHERE pap.spep_advance_payment_id = V_Record_Id;
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SPEP_ADVPAYM_PROCESS
+]]></body>
+    </function>
+  </database>

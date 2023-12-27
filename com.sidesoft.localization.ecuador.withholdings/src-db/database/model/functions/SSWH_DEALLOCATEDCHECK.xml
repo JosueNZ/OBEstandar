@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_DEALLOCATEDCHECK">
+    <function name="SSWH_DEALLOCATEDCHECK" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2006 Openbravo SLU
+* All Rights Reserved.
+* Sidesoft Cia. Ltda.
+* Contributor(s):  Santiago Simbaña v.22122011
+* Descripcion: Atada en el extracto bancario
+* Agrupa las lineas del extracto bancaria por tercero y asigna un numero
+* de cheque, de la cheque especificada en la cabecera del extracto bancario.
+* Realiza el proceso inverso de la descripcion
+************************************************************************/
+  -- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Record_ID VARCHAR2(32);
+  v_Bankstatement_ID VARCHAR(32);
+  v_Client_ID VARCHAR(32);
+  v_Org_ID VARCHAR(32);
+  v_User_ID VARCHAR(32);
+  V_em_sswh_checkbook VARCHAR(32);
+  v_checkbookline_id VARCHAR(32);
+  TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Partner RECORD;
+  v_NoCheck NUMBER;
+  v_Partner_ID VARCHAR(32);
+v_count NUMBER;
+  v_em_sswh_linecheck VARCHAR(32);
+BEGIN			
+	------ CAPTURA DE LOS PARAMETROS DE CLIENTES, ORGANIZACION Y USUARIOS ACTUALES -----
+	--  Update AD_PInstance
+	--
+	DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+	v_ResultStr := 'PInstanceNotFound';	
+ AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+	BEGIN	
+
+	
+	FOR Cur_Parameter IN (SELECT i.Record_ID,
+				p.ParameterName,
+				p.P_String,
+				p.P_Number,
+				p.P_Date,
+				p.AD_Client_ID,
+				p.AD_Org_ID,
+				p.CreatedBy        
+			FROM AD_PInstance i
+			LEFT JOIN AD_PInstance_Para p
+			ON i.AD_PInstance_ID = p.AD_PInstance_ID
+			WHERE i.AD_PInstance_ID = PInstance_ID
+			ORDER BY p.SeqNo
+	)
+	LOOP     	  	                        
+		v_Bankstatement_ID:=Cur_Parameter.Record_ID;
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.CreatedBy;
+	END LOOP;
+
+	--delete from test;
+	--Recogo el ID de la chequere de la cabecera
+	SELECT  em_sswh_checkbook INTO  V_em_sswh_checkbook
+	FROM c_bankstatement
+	WHERE c_bankstatement_id= v_Bankstatement_ID;
+
+	v_count:=0;
+	
+	FOR Cur_Partner in 
+	(
+	SELECT em_sswh_partner_id 
+	FROM c_bankstatementline
+	WHERE c_bankstatement_id=v_Bankstatement_ID
+	GROUP by em_sswh_partner_id
+
+	)
+	LOOP
+		v_Partner_ID := Cur_Partner.em_sswh_partner_id;
+
+		--Obtengo el numero de cheque por cada tercero 
+		SELECT em_sswh_linecheck INTO v_em_sswh_linecheck 
+		FROM c_bankstatementline
+		WHERE  c_bankstatement_id=v_Bankstatement_ID AND  em_sswh_partner_id=v_Partner_ID
+		AND em_sswh_print='N'
+		group by em_sswh_partner_id,em_sswh_linecheck;
+		
+		---Actualizo el linecheck de cada los terceros - dejandolo vacios - elimnio el nro de cheque
+		UPDATE c_bankstatementline SET em_sswh_linecheck=''
+		WHERE em_sswh_partner_id=v_Partner_ID AND c_bankstatement_id=v_Bankstatement_ID AND em_sswh_print='N';
+		---Actualizo el estado del cheque Ocupado - Disponible
+		UPDATE sswh_checkbookline SET doc_line_status='P' ,generate_status='N' 
+		WHERE  sswh_checkbook_id=V_em_sswh_checkbook and linecheck= v_em_sswh_linecheck and doc_line_status='C' and generate_status='Y';
+		v_count:= v_count + 1;
+	END LOOP;
+	UPDATE c_bankstatement SET EM_Sswh_Check='N' WHERE c_bankstatement_id= v_Bankstatement_ID;
+
+ v_Message := '@RowsInserted@: ' || v_count || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+
+RETURN;	
+END; --BODY
+EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    --RAISE NOTICE '%',v_ResultStr ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSWH_DEALLOCATEDCHECK
+]]></body>
+    </function>
+  </database>

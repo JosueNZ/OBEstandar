@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_AmountsReceivable_Residence" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="sspr_category_acct_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_period_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select  now() as dateprint,
+	Sspr_Category_Acct.name as namecategory,c_period.name as nameperiod,
+	c_bpartner.value,c_bpartner.taxid, c_bpartner.name as nameemployee, sspr_Bank.code||'/'||sspr_Bank.name as namebanc,
+	C_BP_BankAccount.accountno,
+	case when C_BP_BankAccount.bankaccounttype = 'S' then 'Ahorros'
+	     when C_BP_BankAccount.bankaccounttype = 'C' then 'Corriente'
+	end as bankaccounttype, sspr_concept_amount.amount
+from sspr_concept
+left join sspr_concept_amount on sspr_concept_amount.sspr_concept_id = sspr_concept.sspr_concept_id
+left join c_period on c_period.c_period_id = sspr_concept_amount.c_period_id
+left join c_bpartner on c_bpartner.c_bpartner_id =  sspr_concept_amount.c_bpartner_id
+left join Sspr_Category_Acct on Sspr_Category_Acct.Sspr_Category_Acct_id = c_bpartner.em_Sspr_Category_Acct_id
+left join C_BP_BankAccount on C_BP_BankAccount.c_bpartner_id = c_bpartner.c_bpartner_id
+left join sspr_Bank on sspr_Bank.sspr_bank_id = C_BP_BankAccount.em_sspr_bank_id
+where sspr_concept.concepttypepayroll = 'RV'
+	and (Sspr_Category_Acct.sspr_category_acct_id = $P{sspr_category_acct_id} or $P{sspr_category_acct_id} is null)
+        and (c_bpartner.c_bpartner_id = $P{c_bpartner_id} or $P{c_bpartner_id} is null)
+        and c_period.c_period_id = $P{c_period_id}]]>
+	</queryString>
+	<field name="dateprint" class="java.sql.Timestamp"/>
+	<field name="namecategory" class="java.lang.String"/>
+	<field name="nameperiod" class="java.lang.String"/>
+	<field name="value" class="java.lang.String"/>
+	<field name="taxid" class="java.lang.String"/>
+	<field name="nameemployee" class="java.lang.String"/>
+	<field name="namebanc" class="java.lang.String"/>
+	<field name="accountno" class="java.lang.String"/>
+	<field name="bankaccounttype" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<variable name="date" class="java.sql.Timestamp"/>
+	<variable name="totalcategory" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="66" splitType="Stretch">
+			<staticText>
+				<reportElement x="218" y="12" width="119" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALORES A RECIBIR - RVA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="127" y="30" width="53" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Categoría]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="129" y="47" width="37" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Periodo]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="190" y="29" width="262" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{namecategory}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="190" y="46" width="100" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nameperiod}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement x="7" y="4" width="64" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ID. Empleado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="99" y="4" width="12" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[C.I]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="140" y="4" width="165" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombre]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="324" y="4" width="64" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Banco]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="410" y="4" width="26" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="454" y="4" width="49" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo CTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="512" y="4" width="53" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[V. a recibir]]></text>
+			</staticText>
+			<line>
+				<reportElement x="5" y="17" width="564" height="1"/>
+			</line>
+			<line>
+				<reportElement x="4" y="1" width="564" height="1"/>
+			</line>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="16" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="3" y="0" width="75" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{value}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="80" y="0" width="60" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{taxid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="146" y="0" width="168" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nameemployee}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="316" y="0" width="72" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{namebanc}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="392" y="0" width="60" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{accountno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="454" y="0" width="52" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bankaccounttype}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="512" y="0" width="57" height="15"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="16">
+			<staticText>
+				<reportElement x="414" y="0" width="83" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de impresión]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="499" y="0" width="73" height="12"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{dateprint}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="96" splitType="Stretch">
+			<staticText>
+				<reportElement x="429" y="13" width="75" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Categoría]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="512" y="13" width="57" height="15"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{totalcategory}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="512" y="8" width="60" height="1"/>
+			</line>
+			<line>
+				<reportElement x="345" y="74" width="92" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="141" y="78" width="70" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Elaborado por.]]></text>
+			</staticText>
+			<line>
+				<reportElement x="132" y="73" width="92" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="359" y="78" width="70" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Revisado por.]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ReportUtilitybyEmployee" pageWidth="1329" pageHeight="595" orientation="Landscape" columnWidth="1289" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="PERIOD_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT
+CBP.NAME AS "partner_name",
+CBP.TAXID AS "partner_taxid",
+UD.STARTDATE AS "startdate_utility",
+UD.ENDDATE AS "enddate_utility",
+CBP.EM_SSHR_GENDER AS "partner_gender",
+UD.DAYS_WORKED AS "days_worked",
+UD.NOLOADS AS "no_loads",
+ROUND((UD.DAYS_WORKED * UD.NOLOADS),2) AS "days_loads",
+UD.UTILITY_EMPLOYEE AS "utility_by_emp",
+UD.UTILITY_LOADS AS "utility_by_loads",
+VP.UTILITIES_YEARS AS "utilities_years",
+VP.EMPLOYEE_PARTICIPATION AS "participation_emp",
+VP.UTILITY_EMPLOYEE AS "utility_empl",
+VP.UTILITY_LOADS AS "utility_loads",
+TO_CHAR(ROUND(VP.INDEX_EMPLOYEE,2)) AS "index_employee",
+TO_CHAR(ROUND(VP.INDEX_LOADS,2)) AS "index_loads",
+TO_CHAR(TRUNC(((CU.PERC_PARTICIPATION_EMPLOYEE)*100),0)) AS "perc_emp_part",
+TO_CHAR(TRUNC(((CU.PERC_EARNINGS_EMPLOYEE)*100),0)) AS "perc_ear_emp",
+TO_CHAR(TRUNC(((CU.PERC_UTILITY_LOADS)*100),0)) AS "perc_ut_loads",
+(SELECT STARTDATE FROM C_PERIOD WHERE PERIODNO = '1' AND C_YEAR_ID = VP.C_YEAR_ID ) AS "start_period",
+(SELECT ENDDATE FROM C_PERIOD WHERE PERIODNO = '12' AND C_YEAR_ID = VP.C_YEAR_ID ) AS "end_period",
+to_char((SELECT STARTDATE FROM C_PERIOD WHERE PERIODNO = '1' AND C_YEAR_ID = VP.C_YEAR_ID ),'yyyy') AS "period"
+FROM SSPR_UTILITY_DETAIL UD
+LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = UD.C_BPARTNER_ID
+LEFT JOIN SSPR_VALUESINDICESPERIOD VP ON VP.C_YEAR_ID = UD.C_YEAR_ID
+LEFT JOIN SSPR_CONFIGURATIONUTILITY  CU ON CU.C_YEAR_ID = UD.C_YEAR_ID
+WHERE UD.C_YEAR_ID = $P{PERIOD_ID}
+AND TO_CHAR(ENDDATE,'yyyy') = (SELECT YEAR FROM C_YEAR WHERE C_YEAR_ID = $P{PERIOD_ID})
+ORDER BY CBP.NAME ASC]]>
+	</queryString>
+	<field name="partner_name" class="java.lang.String"/>
+	<field name="partner_taxid" class="java.lang.String"/>
+	<field name="startdate_utility" class="java.sql.Timestamp"/>
+	<field name="enddate_utility" class="java.sql.Timestamp"/>
+	<field name="partner_gender" class="java.lang.String"/>
+	<field name="days_worked" class="java.math.BigDecimal"/>
+	<field name="no_loads" class="java.math.BigDecimal"/>
+	<field name="days_loads" class="java.math.BigDecimal"/>
+	<field name="utility_by_emp" class="java.math.BigDecimal"/>
+	<field name="utility_by_loads" class="java.math.BigDecimal"/>
+	<field name="utilities_years" class="java.math.BigDecimal"/>
+	<field name="participation_emp" class="java.math.BigDecimal"/>
+	<field name="utility_empl" class="java.math.BigDecimal"/>
+	<field name="utility_loads" class="java.math.BigDecimal"/>
+	<field name="index_employee" class="java.lang.String"/>
+	<field name="index_loads" class="java.lang.String"/>
+	<field name="perc_emp_part" class="java.lang.String"/>
+	<field name="perc_ear_emp" class="java.lang.String"/>
+	<field name="perc_ut_loads" class="java.lang.String"/>
+	<field name="start_period" class="java.sql.Timestamp"/>
+	<field name="end_period" class="java.sql.Timestamp"/>
+	<field name="period" class="java.lang.String"/>
+	<variable name="TOTAL" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{utility_by_emp}.add($F{utility_by_loads})]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_DW" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{days_worked}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_LOADS" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{no_loads}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_DW_LOADS" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{days_loads}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_UE" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{utility_by_emp}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_UL" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{utility_by_loads}]]></variableExpression>
+	</variable>
+	<variable name="GTOTAL" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{TOTAL}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="175" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="1289" height="20"/>
+				<textElement textAlignment="Center">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CÁLCULO PARTICIPACIÓN UTILIDADES TRABAJADORES]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="699" y="20" width="100" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{end_period}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="599" y="20" width="72" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{start_period}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="223" y="42" width="172" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{utilities_years}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="253" y="62" width="142" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{participation_emp}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="223" y="102" width="172" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{utility_loads}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="223" y="82" width="172" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{utility_empl}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="223" y="122" width="172" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{index_employee}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="223" y="142" width="172" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{index_loads}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="42" width="208" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["UTILIDADES EJERCICIO " + $F{period}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="82" width="208" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{perc_ear_emp} + "% UTILIDAD DEL TRABAJADOR"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="102" width="208" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{perc_ut_loads} + "% CARGAS FAMILIARES"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="122" width="208" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["INDICE "  + $F{perc_ear_emp} + "%"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="142" width="208" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["INDICE "  + $F{perc_ut_loads} + "%"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="513" y="20" width="86" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[PERIODO DEL ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="674" y="20" width="25" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[AL]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="15" y="62" width="238" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{perc_emp_part} + "% PARTICIPACIÓN DE TRABAJADORES"]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="22" splitType="Stretch">
+			<rectangle>
+				<reportElement x="0" y="1" width="1289" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="59" y="0" width="230" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[NOMBRE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="289" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CEDULA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="389" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[INICIAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="489" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[FINAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="589" y="0" width="68" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[GÉNERO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="657" y="0" width="110" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DIAS TRABAJADOS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="769" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[NO. CARGAS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="869" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DIAS * CARGAS]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="969" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{perc_ear_emp} +"%"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1069" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{perc_ut_loads} + "%"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1169" y="0" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["TOTAL " + $F{perc_emp_part} + " %"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="10" y="0" width="35" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[NO.]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="59" y="0" width="230" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="289" y="0" width="76" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner_taxid}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="389" y="0" width="82" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{startdate_utility}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="489" y="0" width="79" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{enddate_utility}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="589" y="0" width="68" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner_gender}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="657" y="0" width="75" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{days_worked}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="769" y="0" width="62" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{no_loads}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="869" y="0" width="65" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{days_loads}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="969" y="0" width="73" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{utility_by_emp}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1069" y="0" width="67" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{utility_by_loads}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="15" y="0" width="22" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{COLUMN_COUNT}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="1169" y="1" width="72" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="28" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="31" splitType="Stretch">
+			<textField>
+				<reportElement x="657" y="0" width="75" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL_DW}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="769" y="0" width="62" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL_LOADS}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="869" y="0" width="65" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL_DW_LOADS}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="969" y="0" width="73" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL_UE}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="1069" y="0" width="67" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TOTAL_UL}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="1169" y="0" width="72" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{GTOTAL}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="540" y="0" width="100" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

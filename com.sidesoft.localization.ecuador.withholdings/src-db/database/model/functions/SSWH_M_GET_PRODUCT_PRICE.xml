@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_M_GET_PRODUCT_PRICE">
+    <function name="SSWH_M_GET_PRODUCT_PRICE" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_movementdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_inoutline_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_productionline_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2006 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+  v_Price     NUMBER;
+  v_Count    NUMBER;
+  BEGIN
+    IF(p_Product_ID IS NULL) THEN
+      RETURN 0;
+    END IF;
+    IF(p_MovementDate IS NULL) THEN
+      RETURN 0;
+    END IF;
+    IF(p_inoutline_id IS NULL AND p_productionline_id IS NULL) THEN
+      RETURN 0;
+    END IF;
+    SELECT COUNT(*)
+    INTO v_Count
+    FROM M_COSTING
+    WHERE p_MovementDate BETWEEN DATEFROM AND DATETO
+      AND M_PRODUCT_ID = p_Product_ID
+      AND (M_INOUTLINE_ID = p_inoutline_id OR p_inoutline_id IS NULL)
+      AND (M_PRODUCTIONLINE_ID = p_productionline_id OR p_productionline_id IS NULL);
+    IF(v_Count = 0 OR v_Count > 1) THEN
+      RETURN 0;
+    ELSE
+      SELECT PRICE 
+      INTO v_Price 
+      FROM M_COSTING
+      WHERE M_PRODUCT_ID = p_Product_ID
+      AND (M_INOUTLINE_ID = p_inoutline_id OR p_inoutline_id IS NULL)
+      AND (M_PRODUCTIONLINE_ID = p_productionline_id OR p_productionline_id IS NULL);
+      
+      RETURN v_Price;
+    END IF;
+END SSWH_M_GET_PRODUCT_PRICE
+]]></body>
+    </function>
+  </database>

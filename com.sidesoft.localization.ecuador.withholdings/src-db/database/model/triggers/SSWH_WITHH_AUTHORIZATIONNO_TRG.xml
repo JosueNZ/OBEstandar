@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_WITHH_AUTHORIZATIONNO_TRG">
+    <trigger name="SSWH_WITHH_AUTHORIZATIONNO_TRG" table="SSWH_WITHHOLDINGS_VOIDED" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  V_CountCharacterAuthorization NUMBER;
+  
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+    V_CountCharacterAuthorization:= length(:new.authorizationno);
+    
+    IF (V_CountCharacterAuthorization<10 or (V_CountCharacterAuthorization>10 and V_CountCharacterAuthorization<37) ) THEN
+
+       RAISE_APPLICATION_ERROR(-20000, '@El número de autorización debe ser de 10 o 37 dígitos@');
+
+    END IF;
+
+  END IF;      
+
+  END SSWH_WITHH_AUTHORIZATIONNO_TRG
+]]></body>
+    </trigger>
+  </database>

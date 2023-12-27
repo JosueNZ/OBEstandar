@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_GETALL_COSTCENTER">
+    <function name="SSFI_GETALL_COSTCENTER" type="VARCHAR">
+      <parameter name="invoice_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+   C_COSTCENTER RECORD;
+   v_display        VARCHAR2(5000);
+BEGIN
+FOR C_COSTCENTER IN (select COSTCENTER_ID,CCNAME from (select
+COALESCE(IL.C_COSTCENTER_ID, I.C_COSTCENTER_ID)AS COSTCENTER_ID, CC.NAME as CCNAME
+from C_INVOICE I --ON V.INVOICE = I.DOCUMENTNO
+INNER JOIN C_INVOICELINE IL ON I.C_INVOICE_ID = IL.C_INVOICE_ID
+LEFT JOIN C_COSTCENTER CC ON CC.C_COSTCENTER_ID = COALESCE(IL.C_COSTCENTER_ID, I.C_COSTCENTER_ID)
+where i.c_invoice_id= invoice_id) SQ
+GROUP BY COSTCENTER_ID,CCNAME)
+  LOOP
+  IF v_display IS NULL THEN
+   v_display :=  C_COSTCENTER.CCNAME;
+  ELSE
+  v_display  := v_display  ||' / '|| C_COSTCENTER.CCNAME;
+  END IF;
+  END LOOP;
+    RETURN v_display;
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN '**';
+END SSFI_GETALL_COSTCENTER
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SINVMIN_SQUAREBILL_ORDER">
+    <function name="SINVMIN_SQUAREBILL_ORDER" type="VARCHAR">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+	v_ResultStr		VARCHAR2(2000) := '';
+	v_Message		TEXT := ''; --OBTG:VARCHAR2--
+	-- Variables
+	Cur				RECORD;
+	vOrderID		VARCHAR2(32);
+	vOrder			RECORD;
+	vOrderLine		RECORD;
+	vDocAction		VARCHAR2(60);
+BEGIN
+	-- Begin Get Parameters
+	FOR Cur IN (
+		SELECT *
+		FROM ad_ep_instance_para
+		WHERE ad_ep_instance_id = PInstance_ID
+	) LOOP
+		IF Cur.ParameterName = 'Record_ID' THEN
+			vOrderID := Cur.P_String;
+		ELSEIF Cur.ParameterName = 'DocAction' THEN
+			vDocAction := Cur.P_String;
+		END IF;	
+	END LOOP;
+	-- Finish Get Parameter
+	
+	--<<BEGIN_PROCESS>>
+
+	SELECT * INTO vOrder FROM c_order WHERE c_order_id = vOrderID;
+
+	IF vOrder.issotrx = 'Y' THEN
+	
+		IF vDocAction = 'CO' THEN
+
+			FOR vOrderLine IN (
+				SELECT ol.c_orderline_id, iol.m_inoutline_id, il.c_invoiceline_id, ol.m_product_id, ol.qtyordered
+				FROM c_orderline ol
+					LEFT JOIN c_invoiceline il ON il.c_orderline_id = ol.c_orderline_id
+					LEFT JOIN m_inoutline iol ON iol.c_orderline_id = ol.c_orderline_id
+					LEFT JOIN sinvmin_square_bill sb ON sb.c_orderline_id = ol.c_orderline_id AND ad_table_id = '259'
+				WHERE ol.c_order_id = vOrderID AND sb.c_orderline_id IS NULL
+			) LOOP
+
+				INSERT INTO sinvmin_square_bill (
+					sinvmin_square_bill_id,
+					ad_client_id,
+					ad_org_id,
+					createdby,
+					updatedby,
+					c_orderline_id,
+					m_inoutline_id,
+					c_invoiceline_id,
+					m_product_id,
+					qty,
+					datetrx,
+					ad_table_id
+				) VALUES (
+					get_uuid(),
+					vOrder.ad_client_id,
+					vOrder.ad_org_id,
+					vOrder.updatedby,
+					vOrder.updatedby,
+					vOrderLine.c_orderline_id,
+					vOrderLine.m_inoutline_id,
+					vOrderLine.c_invoiceline_id,
+					vOrderLine.m_product_id,
+					vOrderLine.qtyordered,
+					now(),
+					'259' -- C_Order
+				);
+
+			END LOOP;
+		
+		END IF;
+		
+	END IF; 
+
+	--<<FINISH_PROCESS>>
+		
+	RETURN v_ResultStr;
+END SINVMIN_SQUAREBILL_ORDER
+]]></body>
+    </function>
+  </database>

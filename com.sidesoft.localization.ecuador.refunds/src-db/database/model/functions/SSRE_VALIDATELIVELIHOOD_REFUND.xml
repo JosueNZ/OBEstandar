@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSRE_VALIDATELIVELIHOOD_REFUND">
+    <function name="SSRE_VALIDATELIVELIHOOD_REFUND" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[p_message           VARCHAR2(2000);    
+p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+p_user              VARCHAR2(60);      
+p_result            NUMBER;
+p_docstatus         VARCHAR2(60);
+p_issotrx           VARCHAR2(60);
+v_ResultStr         VARCHAR2(2000):='';
+
+--PROCESO NC
+v_doctype_id        VARCHAR2(32);      
+v_isreversal	    CHAR(1);
+v_docbasetype	    VARCHAR2(60);      
+v_sswh_livelihoodt  VARCHAR2(32);      
+V_refundinvoice_Count  NUMBER;      
+V_refundinvoice_Sum    NUMBER;      
+V_invoiceLineTotal    NUMBER;      
+v_value_livehoodt   VARCHAR2(60);      
+v_isrefund  CHAR(1);
+
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+cur_lines           RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'User') THEN
+      p_user := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Message') THEN
+      p_message := cur_params.p_text;
+    ELSIF (cur_params.parametername LIKE 'Result') THEN
+      p_result := cur_params.p_number;
+    END IF;
+  END LOOP;
+
+  --OBTENGO DATOS DE FACTURA DE COMPRA
+  
+  --SELECT I.issotrx, I.docstatus, I.c_doctype_id, I.em_sswh_livelihood, I.totallines --old
+  SELECT I.issotrx, I.docstatus, I.c_doctype_id, I.em_sswh_livelihood, I.grandtotal
+  INTO p_issotrx, p_docstatus, v_doctype_id, v_sswh_livelihoodt, V_invoiceLineTotal
+  from c_invoice I
+  where i.c_invoice_id = p_record_id;
+
+   --OBTENGO CODIGO DE TIPO COMPROBANTE
+  SELECT value,isrefund
+  INTO v_value_livehoodt,v_isrefund
+  FROM sswh_livelihoodt 
+  WHERE sswh_livelihoodt_id = v_sswh_livelihoodt;
+
+  --OBTENGO DATOS DE REEMBOLSOS
+  SELECT  COUNT(ri.ssre_refundinvoice_ID),
+          round(SUM(ri.grandtotal),2)
+  INTO  V_refundinvoice_Count,
+        V_refundinvoice_Sum
+  FROM ssre_refundinvoice ri
+  WHERE ri.c_invoice_id = p_record_id
+  and sswh_livelihoodt_id in (select sswh_livelihoodt_id from sswh_livelihoodt where isexcludedrefund = 'N')
+  ; 
+
+  --VALIDO QUE SEA FACTURA DE COMPRA
+  IF (p_issotrx='N') THEN 
+    --VALIDO QUE SEA FACTURA DE REEMBOLSO Y QUE TENGA FACTURAS REGISTRADAS
+    --IF (p_docaction = 'CO' and v_value_livehoodt = '41') THEN
+    IF (p_docaction = 'CO' and v_isrefund='Y') THEN
+      --VALIDO QUE TENGA FACTURAS REGISTRADAS
+      IF ( V_refundinvoice_Count = 0 ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@ERROR=Debe Ingresar Facturas de Reembolso');
+      END IF;
+      IF ( V_refundinvoice_Sum > V_invoiceLineTotal ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@ERROR=El valor de Facturas de Reembolso supera el valor de la factura');
+      END IF;
+      IF ( V_refundinvoice_Sum < V_invoiceLineTotal ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@ERROR=El valor de las Facturas de Reembolso deben ser igual al valor total de la factura');
+      END IF;
+     
+    END IF;
+    
+    IF (p_docaction = 'CO' and v_isrefund = 'N') THEN
+      --VALIDO QUE TENGA FACTURAS REGISTRADAS
+      
+      SELECT 
+      COALESCE((SELECT COUNT(*) AS COUNTREFUND 
+      FROM ssre_refundinvoice WHERE C_INVOICE_ID = p_record_id ),0)
+      INTO V_refundinvoice_Count
+      FROM DUAL;
+      IF ( V_refundinvoice_Count > 0 ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@ERROR=Este Tipo de Comprobante no puede tener lineas de Reembolso');
+      END IF;
+
+     
+    END IF;    
+    
+  END IF;
+  
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+  RAISE;
+END SSRE_VALIDATELIVELIHOOD_REFUND
+]]></body>
+    </function>
+  </database>

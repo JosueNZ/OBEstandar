@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_COPY_TEMPLATE">
+    <function name="SSPR_COPY_TEMPLATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_partner RECORD;
+
+v_template_employee VARCHAR2(32) ;
+v_sspr_category_acct_id VARCHAR2(32) ;
+v_EM_SSPR_Prolltemplate_ID VARCHAR2(32) ;
+v_EM_SSPR_Status VARCHAR2(60);
+v_ResultStr VARCHAR2(2000) := '';  
+v_n_insertions NUMBER;	--OBTG:NUMBER--
+v_Message VARCHAR2(2000):='';
+
+BEGIN
+  --  Update AD_PInstance
+  --RAISE NOTICE '%','Updating PInstance - Processing ' || PInstance_ID ;
+  --v_ResultStr := 'PInstanceNotFound';
+  --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;    
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,p.ParameterName,p.P_String,p.P_Number,p.P_Date,p.AD_Client_ID,
+	p.AD_Org_ID,p.CreatedBy       
+	FROM AD_PInstance i
+	LEFT JOIN AD_PInstance_Para p
+	   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+	WHERE i.AD_PInstance_ID = PInstance_ID
+	ORDER BY p.SeqNo
+	)
+	LOOP      	  
+
+		IF (Cur_Parameter.ParameterName = 'template_employee') THEN
+
+			v_template_employee := Cur_Parameter.P_String;    
+			
+		ELSIF (Cur_Parameter.ParameterName = 'sspr_category_acct_id') THEN
+		
+			v_sspr_category_acct_id := Cur_Parameter.P_String;
+						
+		ELSIF (Cur_Parameter.ParameterName = 'EM_SSPR_Prolltemplate_ID') THEN
+		
+			v_EM_SSPR_Prolltemplate_ID := Cur_Parameter.P_String; 
+			     
+		ELSIF (Cur_Parameter.ParameterName = 'EM_SSPR_Status') THEN
+		
+			v_EM_SSPR_Status := Cur_Parameter.P_String;  
+			
+		ELSE  
+		
+			DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+			
+		END IF;     
+
+	END LOOP; -- Get Parameter
+		
+	--Modifica campo plantilla 1 
+	If(v_template_employee = 'PT1')then
+
+		-- Recorre todos los empleados por estado
+		For Cur_partner In(
+			select c_bpartner_id, em_sspr_status, isemployee, em_sspr_category_acct_id
+			from c_bpartner
+			where em_sspr_status = v_EM_SSPR_Status
+			and (em_sspr_category_acct_id = v_sspr_category_acct_id or v_sspr_category_acct_id is null)
+		)
+		Loop
+			update c_bpartner
+			set em_sspr_prolltemplate_id = v_EM_SSPR_Prolltemplate_ID
+			where c_bpartner_id = Cur_partner.c_bpartner_id 
+			and em_sspr_status = Cur_partner.em_sspr_status
+			and isemployee = 'Y';
+			--and em_sspr_category_acct_id = Cur_partner.em_sspr_status;
+
+			v_n_insertions := v_n_insertions + 1;
+			
+		End Loop;
+
+	End If;
+	
+	--Modifica campo plantilla 2
+	If(v_template_employee = 'PT2')Then
+	-- Recorre todos los empleados por estado
+		For Cur_partner In(
+			select c_bpartner_id, em_sspr_status, isemployee, em_sspr_category_acct_id
+			from c_bpartner
+			where em_sspr_status = v_EM_SSPR_Status
+			and (em_sspr_category_acct_id = v_sspr_category_acct_id or v_sspr_category_acct_id is null)
+		)
+		Loop
+			update c_bpartner
+			set em_sspr_prolltemplate2_id = v_EM_SSPR_Prolltemplate_ID
+			where c_bpartner_id = Cur_partner.c_bpartner_id 
+			and em_sspr_status = Cur_partner.em_sspr_status
+			and isemployee = 'Y';
+			--and em_sspr_category_acct_id = Cur_partner.em_sspr_status;
+
+			v_n_insertions := v_n_insertions + 1;
+			
+		End Loop;
+
+	End If;
+	    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --END BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_COPY_TEMPLATE
+]]></body>
+    </function>
+  </database>

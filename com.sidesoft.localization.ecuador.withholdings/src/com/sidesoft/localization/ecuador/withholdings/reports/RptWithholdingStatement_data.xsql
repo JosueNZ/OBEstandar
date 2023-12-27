@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="RptWithholdingStatementData" package="com.sidesoft.localization.ecuador.withholdings.reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+SELECT i.c_invoice_id,
+ i.ad_org_id as organizationid,
+ aoi.taxid as organization_taxid,
+ coalesce(to_char(clo.address1),to_char(clo.address2)) as organization_address,
+ i.ad_org_id as organization_id,
+ org.name AS name_org,org.social_name as  social_name_org,bp.AD_language as bp_language,bp.c_bpartner_id as idpartner
+ ,bp.name as client,cl.address1 as address,i.poreference as referenceno,bp.name2 AS fiscalname,
+ bp.taxid, i.documentno,to_char(i.em_sswh_datewithhold) AS datewithholding,
+to_char(i.em_sswh_datewithhold,'yyyy') as year_withholding, TO_CHAR('') AS vatname,
+ i.em_sswh_withholdingref, i.em_sswh_authorization FROM C_INVOICE i
+  LEFT JOIN C_INVOICELINE il ON il.C_INVOICE_ID = i.C_INVOICE_ID
+ LEFT JOIN C_BPARTNER bp ON i.C_BPARTNER_ID = bp.C_BPARTNER_ID
+ LEFT JOIN c_bpartner_location cbl on cbl.c_bpartner_id = bp.c_bpartner_id and cbl.isbillto = 'Y'
+ LEFT JOIN c_location cl on cl.c_location_id = cbl.c_location_id
+ LEFT JOIN AD_ORG ORG ON ORG.AD_ORG_ID = I.AD_ORG_ID
+ LEFT JOIN ad_orginfo aoi on aoi.ad_org_id = i.ad_org_id
+ LEFT JOIN c_location clo on clo.c_location_id = aoi.c_location_id
+ WHERE i.C_INVOICE_ID = ?
+        ]]>
+        </Sql>
+        <Parameter name="invoice"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

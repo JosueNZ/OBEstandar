@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptC_SalesDet" pageWidth="1571" pageHeight="1190" orientation="Landscape" columnWidth="1541" leftMargin="0" rightMargin="30" topMargin="20" bottomMargin="20" uuid="10e6bb98-4598-48b0-bebb-5856b9905ff0">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="1232"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="Datefrom" class="java.util.Date"/>
+	<parameter name="Dateto" class="java.util.Date"/>
+	<parameter name="Docstatus" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT TO_CHAR($P{Datefrom}::DATE,'YYYY-MM-DD') datefrom, TO_CHAR($P{Dateto}::DATE,'YYYY-MM-DD') dateto, a.c_invoice_id,
+    CASE c.em_sswh_taxidtype
+        WHEN 'R' THEN '04'
+        WHEN 'P' THEN '06'
+        WHEN 'D' THEN '05'
+        WHEN 'C' THEN '07'
+        ELSE NULL
+    END AS tipo_identificador,
+    CASE c.em_sswh_taxidtype
+        WHEN 'C' THEN TO_CHAR('9999999999999')
+        ELSE c.taxid
+    END AS identif_cliente,
+    CASE c.em_sswh_taxidtype
+        WHEN 'C' THEN TO_CHAR('CF')
+        ELSE TO_CHAR(c.name)
+    END AS nombre_cliente,
+  '18' AS cod_tipo_comprobante, g.name AS doctype,
+CASE g.docbasetype
+ WHEN 'ARI' THEN 'FACTURA'
+ WHEN 'ARC' THEN 'NOTA CREDITO'
+END as basedoctype, a.documentno,count(DISTINCT a.c_invoice_id) AS count,
+sum(CASE a.em_ssre_isrefund
+      WHEN 'N'THEN
+        CASE f.istaxundeductable
+                WHEN 'Y'THEN
+                      CASE f.rate
+                        WHEN 0 THEN e.taxbaseamt
+                        ELSE 0.00
+                      END
+                ELSE 0.00
+            END
+      ELSE 0.00
+   END
+    ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_no_iva,
+sum(
+        CASE f.istaxdeductable
+                WHEN 'Y'THEN
+                       CASE f.rate
+                          WHEN 0 THEN e.taxbaseamt
+                          ELSE 0.00
+                       END
+                ELSE 0.00
+              END
+
+      ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_iva_cero,
+sum(CASE a.em_ssre_isrefund
+      WHEN 'N'THEN
+        CASE f.istaxdeductable
+                 WHEN 'Y'THEN
+                      CASE
+                          WHEN f.rate <> 0 THEN e.taxbaseamt
+                          ELSE 0.00
+                      END
+                ELSE 0.00
+            END
+      ELSE 0.00
+    END
+    ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_iva_doce,
+sum(
+     CASE f.istaxdeductable
+            WHEN 'Y'THEN
+                  CASE WHEN f.rate <> 0  THEN e.taxamt
+                      ELSE 0.00
+                  END
+            ELSE 0.00
+        END
+
+    ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_iva,
+sum(CASE a.em_ssre_isrefund
+      WHEN 'N'THEN
+        CASE f.em_sswh_ats_iva
+                WHEN 'Y'THEN e.taxamt * (-1)
+                ELSE 0.00
+            END
+        ELSE 0.00
+    END
+    ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_ret_iva,
+sum(CASE a.em_ssre_isrefund
+      WHEN 'N'THEN
+        CASE f.em_sswh_ats_source
+                WHEN 'Y'THEN e.taxamt * (-1)
+                ELSE 0.00
+            END
+      ELSE 0.00
+    END
+    ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_ret_renta,
+COALESCE((CASE a.em_ssre_isrefund
+      WHEN 'Y'THEN
+
+sum(
+CASE f.istaxdeductable
+                 WHEN 'Y'THEN
+                      CASE
+                          WHEN f.rate <> 0 THEN e.taxbaseamt
+                          ELSE 0.00
+                      END
+                ELSE 0.00
+            END)
+   END
+
+   ),0.00)* (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS VALOR_REEMBOLSO
+   FROM c_invoice a
+   LEFT JOIN C_INVOICELINE AL ON A.C_INVOICE_ID = AL.C_INVOICE_ID
+   LEFT JOIN c_bpartner c ON a.c_bpartner_id = c.c_bpartner_id
+   LEFT JOIN c_invoicelinetax e ON al.c_invoiceline_id = e.c_invoiceline_id
+   LEFT JOIN c_tax f ON e.c_tax_id = f.c_tax_id
+   LEFT JOIN c_doctype g ON a.c_doctype_id = g.c_doctype_id
+
+  WHERE a.issotrx = 'Y'
+AND (A.DATEACCT BETWEEN $P{Datefrom} AND $P{Dateto} )
+AND a.processed = 'Y' AND a.docstatus <> 'VO' AND g.em_sswh_implementautoriza = 'Y' AND g.isreversal = 'N' AND g.docbasetype = 'ARI'
+and ('Y' = (case when $P{Docstatus} = 'Y' THEN case when posted = 'Y' then 'Y' else 'N'  end ELSE case when posted <> 'Y' then 'Y' else 'N' end END) or $P{Docstatus} is null)
+GROUP BY g.docbasetype, c.em_sswh_taxidtype, c.taxid,c.name, g.name,a.documentno,  a.c_invoice_id,a.em_ssre_isrefund,G.ISREVERSAL
+
+UNION ALL
+
+SELECT TO_CHAR($P{Datefrom}::DATE,'YYYY-MM-DD') datefrom, TO_CHAR($P{Dateto}::DATE,'YYYY-MM-DD') dateto, a.c_invoice_id,
+                CASE c.em_sswh_taxidtype
+                    WHEN 'R' THEN '04'
+                    WHEN 'P' THEN '06'
+                    WHEN 'D' THEN '05'
+                    WHEN 'C' THEN '07'
+                    ELSE NULL
+                END AS tipo_identificador,
+                CASE c.em_sswh_taxidtype
+                    WHEN 'C' THEN TO_CHAR('9999999999999')
+                    ELSE c.taxid
+                END AS identif_cliente,
+		CASE c.em_sswh_taxidtype
+                    WHEN 'C' THEN TO_CHAR('CF')
+                    ELSE TO_CHAR(c.name)
+                END AS nombre_cliente,
+		'04' AS cod_tipo_comprobante, g.name AS doctype,
+CASE g.docbasetype
+ WHEN 'ARI' THEN 'FACTURA'
+ WHEN 'ARC' THEN 'NOTA CREDITO'
+END, a.documentno,count(DISTINCT a.c_invoice_id) AS count,
+sum(CASE a.em_ssre_isrefund
+      WHEN 'N'THEN
+                CASE f.istaxundeductable
+                    WHEN 'Y'THEN
+                    CASE f.rate
+                        WHEN 0 THEN e.taxbaseamt
+                        ELSE 0.00
+                    END
+                    ELSE 0.00
+                END
+                ELSE 0.00
+                END) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_no_iva, sum(
+
+                    CASE f.istaxdeductable
+                        WHEN 'Y'THEN
+                        CASE f.rate
+                            WHEN 0 THEN e.taxbaseamt
+                            ELSE 0.00
+                        END
+                        ELSE 0.00
+                    END
+                ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_iva_cero, sum(
+                    CASE a.em_ssre_isrefund
+                    WHEN 'N'THEN
+                    CASE f.istaxdeductable
+						WHEN 'Y' THEN
+                        CASE WHEN f.rate <> 0 THEN e.taxbaseamt
+                            ELSE 0.00
+                        END
+                        ELSE 0.00
+                    END
+                    ELSE 0.00
+                END) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS base_iva_doce, sum(
+
+                CASE f.istaxdeductable
+					WHEN 'Y' THEN
+                    CASE WHEN f.rate <> 0 THEN e.taxamt
+                        ELSE 0.00
+                    END
+                    ELSE 0.00
+                END
+
+                ) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_iva, sum(
+                CASE a.em_ssre_isrefund
+                 WHEN 'N'THEN
+                CASE f.em_sswh_ats_iva
+                    WHEN 'Y'THEN e.taxamt
+                    ELSE 0.00
+                END
+                ELSE 0.00
+                END) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_ret_iva, sum(
+                CASE a.em_ssre_isrefund
+                WHEN 'N'THEN
+                CASE f.em_sswh_ats_source
+                    WHEN 'Y'THEN e.taxamt
+                    ELSE 0.00
+                END
+              ELSE 0.00
+            END) * (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS monto_ret_renta,
+COALESCE(
+(CASE a.em_ssre_isrefund
+      WHEN 'Y'THEN
+sum(
+CASE f.istaxdeductable
+                 WHEN 'Y'THEN
+                      CASE
+                          WHEN f.rate <> 0 THEN e.taxbaseamt
+                          ELSE 0.00
+                      END
+                ELSE 0.00
+            END)
+
+   END
+
+   ),0.00 )* (CASE WHEN G.ISREVERSAL='Y' THEN -1 ELSE 1 END) AS VALOR_REEMBOLSO
+FROM c_invoice a
+   LEFT JOIN C_INVOICELINE AL ON A.C_INVOICE_ID = AL.C_INVOICE_ID
+   LEFT JOIN c_bpartner c ON a.c_bpartner_id = c.c_bpartner_id
+   LEFT JOIN c_invoicelinetax e ON al.c_invoiceline_id = e.c_invoiceline_id
+   LEFT JOIN c_tax f ON e.c_tax_id = f.c_tax_id
+   LEFT JOIN c_doctype g ON a.c_doctype_id = g.c_doctype_id
+
+  WHERE a.issotrx = 'Y'
+AND (A.DATEACCT BETWEEN $P{Datefrom} AND $P{Dateto} )
+AND a.processed = 'Y'AND a.docstatus <> 'VO' AND g.em_sswh_implementautoriza = 'Y'
+AND (g.isreversal = 'Y' OR g.docbasetype IN ('ARC','ARI_RM'))
+and ('Y' = (case when $P{Docstatus} = 'Y' THEN case when posted = 'Y' then 'Y' else 'N'  end ELSE case when posted <> 'Y' then 'Y' else 'N' end END) or $P{Docstatus} is null)
+GROUP BY g.docbasetype, c.em_sswh_taxidtype, c.taxid, c.name,g.name,a.documentno,  a.c_invoice_id,a.em_ssre_isrefund,G.ISREVERSAL
+ORDER BY 6]]>
+	</queryString>
+	<field name="datefrom" class="java.lang.String"/>
+	<field name="dateto" class="java.lang.String"/>
+	<field name="c_invoice_id" class="java.lang.String"/>
+	<field name="tipo_identificador" class="java.lang.String"/>
+	<field name="identif_cliente" class="java.lang.String"/>
+	<field name="nombre_cliente" class="java.lang.String"/>
+	<field name="cod_tipo_comprobante" class="java.lang.String"/>
+	<field name="doctype" class="java.lang.String"/>
+	<field name="basedoctype" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="count" class="java.lang.Long"/>
+	<field name="base_no_iva" class="java.math.BigDecimal"/>
+	<field name="base_iva_cero" class="java.math.BigDecimal"/>
+	<field name="base_iva_doce" class="java.math.BigDecimal"/>
+	<field name="monto_iva" class="java.math.BigDecimal"/>
+	<field name="monto_ret_iva" class="java.math.BigDecimal"/>
+	<field name="monto_ret_renta" class="java.math.BigDecimal"/>
+	<field name="valor_reembolso" class="java.math.BigDecimal"/>
+	<variable name="VALOR_REEMBOLSO_1" class="java.math.BigDecimal" resetType="Group" resetGroup="BaseDocType" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_reembolso}]]></variableExpression>
+	</variable>
+	<variable name="BASE_IVA_CERO_1" class="java.math.BigDecimal" resetType="Group" resetGroup="BaseDocType" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_iva_cero}]]></variableExpression>
+	</variable>
+	<variable name="MONTO_IVA_1" class="java.math.BigDecimal" resetType="Group" resetGroup="BaseDocType" calculation="Sum">
+		<variableExpression><![CDATA[$F{monto_iva}]]></variableExpression>
+	</variable>
+	<variable name="BASE_IVA_DOCE_1" class="java.math.BigDecimal" resetType="Group" resetGroup="BaseDocType" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_iva_doce}]]></variableExpression>
+	</variable>
+	<variable name="COUNT_1" class="java.math.BigDecimal" resetType="Group" resetGroup="BaseDocType" calculation="Sum">
+		<variableExpression><![CDATA[$F{count}]]></variableExpression>
+	</variable>
+	<variable name="V_TOTALCOMPROBANTES" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{count}]]></variableExpression>
+	</variable>
+	<variable name="V_TOTALBASEIVADOCE" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_iva_doce}]]></variableExpression>
+	</variable>
+	<variable name="V_TOTALMONTOIVA" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{monto_iva}]]></variableExpression>
+	</variable>
+	<variable name="V_TOTALBASEIVACERO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_iva_cero}]]></variableExpression>
+	</variable>
+	<variable name="V_TOTALREEMBOLSO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_reembolso}]]></variableExpression>
+	</variable>
+	<group name="BaseDocType">
+		<groupExpression><![CDATA[$F{basedoctype}]]></groupExpression>
+		<groupHeader>
+			<band height="45">
+				<staticText>
+					<reportElement key="staticText-1" x="0" y="25" width="120" height="20" uuid="3d7222fa-58ba-4d0b-bf58-28dd8ee3aebc"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[IDENTIFICADOR]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-2" x="120" y="25" width="350" height="20" uuid="40afb560-632f-4221-a6a4-921bdd35a2be"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[NOMBRE CLIENTE]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-3" x="470" y="25" width="321" height="20" uuid="220c4849-7532-4273-acd9-2a63fb45b85d"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[TIPO DOCUMENTO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-8" x="1151" y="25" width="120" height="20" uuid="960b79b1-59e5-4c55-a4b6-021ad28863af"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[TOTAL IVA]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-9" x="1271" y="25" width="120" height="20" uuid="71f84ed0-6d85-4f6d-8668-f5f22f0d8484"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[BASE TARIFA 0]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-10" x="1391" y="25" width="120" height="20" uuid="34fe5505-4340-4011-afab-9ac0af85b200"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[REEMBOLSO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-11" x="1031" y="25" width="120" height="20" uuid="2f6952f1-837a-4f4b-85b4-f3354f8bb436"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[BASE IMP. GRAV.]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-14" x="911" y="25" width="120" height="20" uuid="b002e3ae-beed-42ce-81a5-491b22e53cf7"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[# COMPROBANTES]]></text>
+				</staticText>
+				<staticText>
+					<reportElement key="staticText-15" x="791" y="25" width="120" height="20" uuid="af4f4ad3-c187-4442-99d8-3c6a8a4870c3"/>
+					<box>
+						<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+						<bottomPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true" pdfFontName="Helvetica-Bold"/>
+					</textElement>
+					<text><![CDATA[# DOCUMENTO]]></text>
+				</staticText>
+				<textField isBlankWhenNull="true">
+					<reportElement x="0" y="0" width="120" height="25" uuid="a9806a44-d2ba-46fa-9f7e-2a8f6b8feca5"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement verticalAlignment="Middle">
+						<font fontName="SansSerif"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{basedoctype}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="20">
+				<textField pattern="#,##0.00;-#,##0.00">
+					<reportElement x="1391" y="0" width="120" height="20" uuid="9c4198b7-e31d-47cf-bcce-d66639b55b64"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{VALOR_REEMBOLSO_1}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;-#,##0.00">
+					<reportElement x="1271" y="0" width="120" height="20" uuid="bfa1bc7f-5993-439f-87bb-a29138c12669"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{BASE_IVA_CERO_1}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;-#,##0.00">
+					<reportElement x="1151" y="0" width="120" height="20" uuid="fcdbafc6-eedf-4e81-ab0f-c7c37bb9c202"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{MONTO_IVA_1}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+					<reportElement x="1031" y="0" width="120" height="20" uuid="06eca64b-71ab-479a-8a69-d1a531fd51c2"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{BASE_IVA_DOCE_1}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="911" y="0" width="120" height="20" uuid="9a93f2e2-bf1d-4a2d-8d5b-be5282991ef8"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{COUNT_1}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="791" y="0" width="120" height="20" uuid="020ba803-d394-41f0-ab8b-04163a66628a"/>
+					<box leftPadding="2" rightPadding="2"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font fontName="SansSerif" isBold="true"/>
+					</textElement>
+					<text><![CDATA[TOTAL:]]></text>
+				</staticText>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="31" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-12" x="0" y="0" width="1511" height="31" uuid="2214f8f4-c6dd-4ec3-9a6d-caa1be8c700b"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="12" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[IVA VENTAS - POR CLIENTE Y FACTURA]]></text>
+			</staticText>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="52" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="120" height="52" uuid="e5712fe6-951e-44ec-aa6c-d7219d453e94"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle" markup="html">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>FECHA DESDE:&nbsp</b>"+"<br>"+$F{datefrom} +"<br>" +"<b>FECHA HASTA:&nbsp</b>"+"<br>"+$F{dateto}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="0" y="0" width="120" height="20" uuid="573ec83e-4a7e-4aed-883c-74e72a49dab4"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{identif_cliente}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="120" y="0" width="350" height="20" uuid="d67b835a-f142-4382-8e29-9b731c37e4cd"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{nombre_cliente}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="470" y="0" width="321" height="20" uuid="088ce26b-2633-487d-84bf-9e2f35791fd1"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{doctype}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="1151" y="0" width="120" height="20" uuid="35f68588-9583-41b8-8248-abd464aa9965"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{monto_iva}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="1271" y="0" width="120" height="20" uuid="705ed313-93db-45b3-8201-0554e54de63f"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{base_iva_cero}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="1031" y="0" width="120" height="20" uuid="d43a2578-0967-4417-ab85-694f292fce6c"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{base_iva_doce}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="911" y="0" width="120" height="20" uuid="71fe3229-a274-49af-91f2-d803c24174e8"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{count}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="791" y="0" width="120" height="20" uuid="3f5da6d3-80be-4c20-9d07-c5c49214f5f2"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1391" y="0" width="120" height="20" uuid="e6c84249-f79c-4d7d-88cf-ec1074ce08cf"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{valor_reembolso}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="14" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="18" splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="12" splitType="Stretch"/>
+	</lastPageFooter>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="911" y="0" width="120" height="20" uuid="0a32e6b9-6d77-4bd9-a5e5-078b0f460589"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_TOTALCOMPROBANTES}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1031" y="0" width="120" height="20" uuid="e34cdc6c-bffa-41ae-aec1-b448cd8dffda"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_TOTALBASEIVADOCE}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1151" y="0" width="120" height="20" uuid="84bb90e2-9efd-4ac7-a2f5-99061b7d256d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_TOTALMONTOIVA}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1271" y="0" width="120" height="20" uuid="94b925c9-17a8-45ee-a6f2-e9dab73ddb12"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_TOTALBASEIVACERO}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1391" y="0" width="120" height="20" uuid="95af5cc9-c1ab-416e-8004-971231a387fa"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_TOTALREEMBOLSO}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="791" y="0" width="120" height="20" uuid="e108d8d3-7249-45fa-a929-4410d3da7d07"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL GENERAL:]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

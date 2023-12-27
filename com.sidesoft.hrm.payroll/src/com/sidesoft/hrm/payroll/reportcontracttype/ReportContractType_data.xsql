@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ReportContractTypeData" package="com.sidesoft.hrm.payroll.reportcontracttype">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+Select  
+ c.name as trabajador,  
+ c.taxid as dnitrabajador,  
+ to_char(l.address1||', '||l.city) as direciontrabajo,  
+ o.name as empresa,  
+ oi.taxid as rucempresa,  
+ (bp_o.name ) as empresarepr,  
+ (bp_o.taxid) as reprdni,  
+ reprdir1 as reprdir,  
+  to_char(lc_o.address1||', '||lc_o.city ) as empdir,  
+ ch.name as cargo,  
+ ec.activity as actividad,   
+ trim(to_char(salaryev.permanentremuneration,'999999,990.00')) as pago,  
+ to_char(ec.startdate,'fmDD  Month  YYYY') as fincont,  
+ o.description as empresafuncion,  
+ to_char(now(),'fmDD  Month  YYYY') as fechaactual,  
+ to_char(ec.startdate,'HH24:MI:SS AM')  as horainicia,  
+ to_char(ec.enddate,'HH24:MI:SS')||' PM' as horafinal,  
+ to_char(round(to_number((now()-ec.startdate)),0)) ||' dia(s)' as nrdias,  
+ ctp.code as contracttype,  
+ ctp.format as formatop,  
+ ctp.name as namecontract,  
+ ((to_char(ec.startdate,'dd') ||  
+case  
+when to_number(to_char(ec.startdate,'MM')) = 1 then ' de Enero del '  
+when to_number(to_char(ec.startdate,'MM')) = 2 then ' de Febrero del '  
+when to_number(to_char(ec.startdate,'MM')) = 3 then ' de Marzo del '  
+when to_number(to_char(ec.startdate,'MM')) = 4 then ' de Abril del '  
+when to_number(to_char(ec.startdate,'MM')) = 5 then ' de Mayo del '  
+when to_number(to_char(ec.startdate,'MM')) = 6 then ' de Junio del '  
+when to_number(to_char(ec.startdate,'MM')) = 7 then ' de Julio del '  
+when to_number(to_char(ec.startdate,'MM')) = 8 then ' de Agosto del '  
+when to_number(to_char(ec.startdate,'MM')) = 9 then ' de Septiembre del '  
+when to_number(to_char(ec.startdate,'MM')) = 10 then ' de Octubre del '  
+when to_number(to_char(ec.startdate,'MM')) = 11 then ' de Noviembre del '  
+when to_number(to_char(ec.startdate,'MM')) = 12 then ' de Diciembre del '  
+end) || to_char(ec.startdate,'yyyy')) as entry_date  
+,coalesce(to_char(cct.name),to_char(' ')) as ciudad   
+  from c_bpartner c  
+ left join c_bpartner_location cl on cl.c_bpartner_id = c.c_bpartner_id  
+ left join c_location l  on l.c_location_id = cl.c_location_id  
+ left join ad_org o  on o.ad_org_id = c.ad_org_id  
+ left join ad_orginfo oi  on oi.ad_org_id = o.ad_org_id   
+ left join sspr_contract ec  on ec.c_bpartner_id = c.c_bpartner_id   
+ left join c_bpartner_location cc  on cc.c_bpartner_id = ec.c_bpartner_id and cc.isbillto = 'Y'   
+ left join sspr_contract_position cpst on cpst.sspr_contract_id = ec.sspr_contract_id   
+ left join sspr_position ch on ch.sspr_position_id = cpst.sspr_position_id   
+ left join sspr_contracttype ctp on ctp.sspr_contracttype_id = ec.sspr_contracttype_id   
+ left join c_location lc_o on  lc_o.c_location_id =oi.c_location_id   
+ left join  (Select to_char(l.address1||', '||l.city ) as reprdir1,c_bpartner_id from c_location l   
+ left join c_bpartner_location cl on cl.c_location_id = l.c_location_id   
+  ) rep on  rep.c_bpartner_id =oi.c_bpartner_id  
+ left join c_bpartner bp_o on bp_o.c_bpartner_id = oi.c_bpartner_id  
+ left join (  
+  select min(c.amount) as permanentremuneration,min(c.startdate) as fecha,b.c_bpartner_id,b.SSPR_CONTRACT_ID  from sfpr_evolution_salary c  
+left join sspr_contract b on b.sspr_contract_id = c.sspr_contract_id  
+left join c_bpartner a on a.c_bpartner_id = b.c_bpartner_id  
+group by b.sspr_contract_id,b.c_bpartner_id,b.SSPR_CONTRACT_ID  
+ ) salaryev on ec.SSPR_CONTRACT_ID = salaryev.SSPR_CONTRACT_ID and salaryev.c_bpartner_id = c.c_bpartner_id 
+ left join c_city cct on cct.c_city_id = ec.c_city_id  
+ where c.isemployee = 'Y'  
+ and cc.isactive='Y'  
+ AND  ec.SSPR_CONTRACT_ID IN  (SELECT SSPR_CONTRACT_ID  
+  FROM SSPR_CONTRACT  
+  WHERE STARTDATE =  
+  (  
+  select max(startdate)  
+  from sspr_contract  
+  where c_bpartner_id = ?  
+  ))  
+  and ec.c_bpartner_id = c.c_bpartner_id  
+  and c.c_bpartner_id = ?     
+        ]]>
+        </Sql>
+        <Parameter name="bparnterid"/>
+	<Parameter name="bparnterid"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

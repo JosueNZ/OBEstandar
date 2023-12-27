@@ -1,0 +1,121 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_UPDATE_ADDITIONAL_DAYS">
+    <function name="SSPR_UPDATE_ADDITIONAL_DAYS" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Employee RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);
+  v_SSconcept_ID VARCHAR2(32);
+
+  v_Period_ID VARCHAR2(32);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  v_SSconceptCompany_ID VARCHAR2(32);
+  V_Concept_FR VARCHAR2(32);
+  v_c_bpartner_id VARCHAR2(32);
+  v_sspr_conceptin_id  VARCHAR2(32);
+  v_sspr_conceptout_id  VARCHAR2(32);
+  i NUMBER;
+  v_tempstartdate DATE;
+  v_tempenddate DATE;
+
+
+	
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+ 
+	--Variables
+	v_Period_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+	v_sspr_conceptin_id := p_conceptin_id;
+	v_sspr_conceptout_id := p_conceptout_id;
+	        	
+	--Obtengo el periodo
+	SELECT startdate, enddate
+	INTO v_StartPeriod,v_EndPeriod
+	FROM C_period
+	WHERE C_period_ID = v_Period_ID;
+
+	DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = v_sspr_conceptout_id AND C_Period_ID = v_Period_ID;
+
+	--CURSOR EMLEADOS
+	FOR Cur_Employee IN(
+	SELECT CBP.C_BPartner_ID,CBP.EM_SSPR_RESERVEFUNDSCOMPANY,CBP.EM_SSPR_RESERVEFUNDSIESS,EM_SSPR_CONCEPT_ID,CBP.EM_SSPR_CURRENTSALARY, b.sspr_contract_id, b.startdate, b.enddate
+	FROM C_BPartner CBP 
+	left join sspr_contract b on b.c_bpartner_id = cbp.c_bpartner_iD
+	WHERE IsEmployee = 'Y' 
+	AND CBP.Ad_Client_ID = v_Client_ID 
+	AND CBP.Ad_Org_ID = v_Org_ID
+        AND CBP.em_sspr_create_payroll = 'Y'
+	and CBP.EM_SSPR_Status='A'
+	and b.startdate = (select max(b.startdate)
+				  from c_bpartner a
+				  left join sspr_contract b on b.c_bpartner_id = a.c_bpartner_id
+				  where a.c_bpartner_id = CBP.C_BPartner_ID)
+	)
+	LOOP
+
+	i:=0;
+	v_tempstartdate := (Cur_Employee.startdate);
+	v_tempenddate := ((v_EndPeriod)) + INTERVAL '1' DAY;
+	
+	WHILE (v_tempstartdate < v_tempenddate) LOOP
+	i:=i+1;
+	v_tempstartdate := (Cur_Employee.startdate) + INTERVAL '1' YEAR * i;
+	END LOOP;
+
+	v_tempstartdate := v_tempstartdate - INTERVAL '1' YEAR;
+	
+	
+		--CREA CONCEPTO EN LAS LINEAS         
+		INSERT INTO SSPR_Concept_Amount
+		    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+		    Created, CreatedBy, Updated, UpdatedBy,
+		    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID,Amount)
+		VALUES
+		    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+		    now(), v_User_ID, now(), v_User_ID,
+		    v_sspr_conceptout_id,Cur_Employee.C_BPARTNER_ID,v_Period_ID, 
+		    (coalesce((sspr_return_additional_days(Cur_Employee.C_BPARTNER_ID, Cur_Employee.sspr_contract_id,'DAG',v_tempstartdate,v_EndPeriod)),0)/12));
+		v_n_insertions:= v_n_insertions +1;
+		
+	END LOOP;
+
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  				
+RETURN;
+END SSPR_UPDATE_ADDITIONAL_DAYS
+]]></body>
+    </function>
+  </database>

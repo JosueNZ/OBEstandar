@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptPR_PayrollGeneral" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="IsPayroll" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_Period_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select cliente as "cliente",
+codigotercero as "codigotercero",
+Tercero as "tercero",
+concepto as "concepto",
+tipoconcepto as "tipoconcepto",
+periodo as "periodo",
+anio as "anio",
+valorconcepto as "valorconcepto",
+tingresos as "tingresos",
+tegresos as "tegresos",
+totalrecibir as "totalrecibir",
+mes as "mes",
+SumaIn as "sumain",
+SumaOut as "sumaout"
+from (select
+(select UPPER(ad_client.name) from ad_client where ad_client.ad_client_id=st.ad_client_id) as cliente
+,(select c_bpartner.value from c_bpartner where c_bpartner.c_bpartner_id=st.c_bpartner_id and c_bpartner.isactive='Y' and c_bpartner.isemployee='Y' ) as codigotercero
+,(select c_bpartner.name from c_bpartner where c_bpartner.c_bpartner_id=st.c_bpartner_id and c_bpartner.isactive='Y' and c_bpartner.isemployee='Y') as Tercero
+,(select sspr_concept.name from sspr_concept where sspr_concept.sspr_concept_id=stc.sspr_concept_id ) as concepto
+,(select sspr_concept.conceptsubtype from sspr_concept where sspr_concept.sspr_concept_id=stc.sspr_concept_id )   as tipoconcepto
+,(select UPPER(c_period.name) from c_period where c_period.c_period_id=spr.c_period_id) as periodo
+,(select c_year.year from c_year where c_year.c_year_id=(select c_period.c_year_id from c_period where c_period.c_period_id=spr.c_period_id)) as anio
+,stc.amount as valorconcepto
+,st.totalincome as tingresos, st.totalexpense as tegresos, st.totalnet as totalrecibir,
+case extract(month from C.STARTDATE)
+when 1 then 'SUELDO ENERO'
+when 2 then 'SUELDO FEBRERO'
+when 3 then 'SUELDO MARZO'
+when 4 then 'SUELDO ABRIL'
+when 5 then 'SUELDO MAYO'
+when 6 then 'SUELDO JUNIO'
+when 7 then 'SUELDO JULIO'
+when 8 then 'SUELDO AGOSTO'
+when 9 then 'SUELDO SEPTIEMBRE'
+when 10 then 'SUELDO OCTUBRE'
+when 11 then 'SUELDO NOVIEMBRE'
+when 12 then 'SUELDO DICIEMBRE'
+END  as  mes
+,
+(select
+SUM(stc.amount) as SumIngre
+from SSPR_Payroll_Ticket_concept stc
+join SSPR_Payroll_Ticket st on stc.SSPR_Payroll_Ticket_id=st.SSPR_Payroll_Ticket_id
+join SSPR_Payroll spr on st.sspr_payroll_id=spr.sspr_payroll_id
+left join c_period c on spr.c_period_id = c.c_period_id
+left join c_bpartner e on st.c_bpartner_id=e.c_bpartner_id
+where spr.c_period_id =$P{C_Period_ID} and spr.ispayroll=$P{IsPayroll}
+and e.c_bpartner_id=p.c_bpartner_id
+and (select sspr_concept.conceptsubtype from sspr_concept where sspr_concept.sspr_concept_id=stc.sspr_concept_id )='In') as SumaIn
+,
+(select
+SUM(stc.amount)
+from SSPR_Payroll_Ticket_concept stc
+join SSPR_Payroll_Ticket st on stc.SSPR_Payroll_Ticket_id=st.SSPR_Payroll_Ticket_id
+join SSPR_Payroll spr on st.sspr_payroll_id=spr.sspr_payroll_id
+left join c_period c on spr.c_period_id = c.c_period_id
+left join c_bpartner e on st.c_bpartner_id=e.c_bpartner_id
+where
+spr.c_period_id = $P{C_Period_ID} and spr.ispayroll=$P{IsPayroll}
+and e.c_bpartner_id=p.c_bpartner_id
+and (select sspr_concept.conceptsubtype from sspr_concept where sspr_concept.sspr_concept_id=stc.sspr_concept_id )='Out') as SumaOut
+
+from SSPR_Payroll_Ticket_concept stc
+join SSPR_Payroll_Ticket st on stc.SSPR_Payroll_Ticket_id=st.SSPR_Payroll_Ticket_id
+join SSPR_Payroll spr on st.sspr_payroll_id=spr.sspr_payroll_id
+left join c_period c on spr.c_period_id = c.c_period_id
+left join c_bpartner p on p.c_bpartner_id=st.c_bpartner_id  and p.isactive='Y' and p.isemployee='Y'
+where spr.c_period_id = $P{C_Period_ID}
+and spr.ispayroll= $P{IsPayroll}
+group by 1,2,3,4,5,6,7,8,9,10,11,12,p.c_bpartner_id
+order by 3,5) payroll
+order by tercero, tipoconcepto]]>
+	</queryString>
+	<field name="cliente" class="java.lang.String"/>
+	<field name="codigotercero" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="concepto" class="java.lang.String"/>
+	<field name="tipoconcepto" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="anio" class="java.lang.String"/>
+	<field name="valorconcepto" class="java.math.BigDecimal"/>
+	<field name="tingresos" class="java.math.BigDecimal"/>
+	<field name="tegresos" class="java.math.BigDecimal"/>
+	<field name="totalrecibir" class="java.math.BigDecimal"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="sumain" class="java.math.BigDecimal"/>
+	<field name="sumaout" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="32" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="90" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CLIENT]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="107" y="0" width="196" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<text><![CDATA[PAYROLL OF PERDIOD]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="372" y="0" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{mes}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="503" y="0" width="70" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{anio}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="26" splitType="Stretch">
+			<textField>
+				<reportElement x="180" y="0" width="77" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipoconcepto}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="270" y="0" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concepto}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="448" y="0" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valorconcepto}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="0" width="157" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

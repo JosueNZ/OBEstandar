@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="RptFinalSettlementData" package="com.sidesoft.hrm.payroll.ad_Reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+      select sspr_settlement.ad_org_id as organizationid,
+	      ad_org.name as organizacion,
+	      c_bpartner.value as codigo,
+	      c_bpartner.name as nombreempleado,
+	      c_bpartner.taxid as ci,
+	      c_costcenter.name as gerencia,
+	      sspr_position.name as cargo,
+	      to_char(sspr_contract.startdate) as fechaentrada,
+	      to_char(sspr_contract.enddate) as fechasalida,
+	      upper(c_location.city || ', ' || to_char(sspr_settlement.movementdate,'dd MONTH yyyy')) as fecha,
+	      case when Reasonendperiod = '01' then 'Renuncia Voluntaria'
+		  when Reasonendperiod = '02' then 'Fin de Contrato'
+		  when Reasonendperiod = '03' then 'Despido Intempestivo'
+		  when Reasonendperiod = '04' then 'Visto Bueno'
+	      end as motivorenuncia,
+	      sspr_labor_regime.name as regimenlaboral,
+	      case when sspr_concept.conceptsubtype = 'In' then 'INGRESOS'
+		  when sspr_concept.conceptsubtype = 'Out' then 'DESCUENTOS'
+	      end as tipoconcepto,
+	      sspr_concept.name as nombreconcepto,
+	      sspr_settlementline.totalnet as amount,
+	      c_bpartner.em_sspr_currentsalary as RMU,
+	      round((to_number(sspr_contract.enddate - sspr_contract.startdate )/365),2) as tiemposervicio,
+	      (select sum(nodays)
+	      from sspr_vacations
+	      where sspr_vacations.c_bpartner_id = c_bpartner.c_bpartner_id) as saldovacaciones
+      from sspr_settlement 
+      left join sspr_settlementline on sspr_settlementline.sspr_settlement_id = sspr_settlement.sspr_settlement_id
+      left join c_bpartner on c_bpartner.c_bpartner_id = sspr_settlement.c_bpartner_id
+      left join c_costcenter on c_costcenter.c_costcenter_id = c_bpartner.em_sspr_costcenter_id
+      left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_settlement.sspr_contract_id = sspr_contract.sspr_contract_id
+      left join sspr_contract_position on sspr_contract_position.sspr_contract_id = sspr_contract.sspr_contract_id
+      left join sspr_position on sspr_position.sspr_position_id = sspr_contract_position.sspr_position_id
+      left join sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = sspr_contract.sspr_labor_regime_id
+      left join sspr_concept on sspr_concept.sspr_concept_id = sspr_settlementline.sspr_concept_id
+      left join ad_org on ad_org.ad_org_id = sspr_settlement.ad_org_id
+      left join ad_orginfo  on ad_orginfo.ad_org_id = ad_org.ad_org_id
+      left join c_location on c_location.c_location_id = ad_orginfo.c_location_id
+      where sspr_settlement.sspr_settlement_id = ?    
+      and sspr_contract_position.isactive='Y'     
+      order by  sspr_concept.conceptsubtype, c_bpartner.name, sspr_concept.name
+        ]]>
+        </Sql>
+        <Parameter name="finalsettlement"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

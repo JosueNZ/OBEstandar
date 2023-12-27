@@ -1,0 +1,349 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPH_GETTENTHLINES">
+    <function name="SSPH_GETTENTHLINES" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Lines RECORD;
+  Cur_LinesSettlement RECORD;
+  Cur_Line2 RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  V_Record_Id  Varchar2(32);
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_Message VARCHAR2(2000):='';
+
+  V_Labor_Regime_ID VARCHAR2(32):=null; 
+  V_TypeConcept VARCHAR2(60); 
+  V_Year_ID VARCHAR2(32); 
+  V_Year VARCHAR2(10); 
+  V_Line NUMBER(10,0):=0;
+  V_Salbasic NUMBER(10,2):=0.0;
+  V_CheckDate NUMBER:=0;
+  V_DocumentDate DATE;
+  V_Processed Varchar2(60);
+
+  V_CONTAR_REG NUMBER(10,0):=0;
+  V_MENSAJE VARCHAR(2000):='';
+  V_MonthlyValue NUMBER(10,2):=0.0;
+  V_Monthly NUMBER(10,2):=0.0;
+
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+    
+    -- Get Tenth Data
+    select  th.processed, th.settlementdate, th.sspr_labor_regime_id, th.typeconcept, th.c_year_id, y.year
+    into  V_Processed, V_DocumentDate, V_Labor_Regime_ID, V_TypeConcept, V_Year_ID, V_Year
+    from ssph_tenth_settlement th
+    join c_year y on y.c_year_id = th.c_year_id
+    where th.ssph_tenth_settlement_id = v_Record_ID;
+    
+    if V_Processed = 'Y' then
+      RAISE_APPLICATION_ERROR(-20000, '@DocumentProcessed@');
+    end if;
+   
+    --Get Salaio Basico
+    IF (V_TypeConcept='14TH') THEN
+      select amount 
+      into V_Salbasic
+      from ssph_basicincome bs
+      where V_DocumentDate>=bs.datefrom 
+        and V_DocumentDate<=bs.dateto;
+    END IF;
+    -- Unload Lines
+     
+    -- New CC
+    IF  V_Processed = 'N' THEN
+
+      FOR Cur_LinesSettlement IN(
+        SELECT L.ssph_tenth_settlement_line_id
+        from ssph_tenth_settlement_line L
+        WHERE L.ssph_tenth_settlement_id = v_Record_ID
+      )LOOP
+          update sspr_payroll_ticket_concept prtc 
+          set em_ssph_tenth_sett_line_id = NULL
+          where em_ssph_tenth_sett_line_id = Cur_LinesSettlement.ssph_tenth_settlement_line_id;
+      END LOOP;
+
+      SELECT COALESCE(COUNT(*),0) AS CONTAR
+      INTO V_CONTAR_REG
+      FROM ssph_tenth_settlement WHERE settlementdate = V_DocumentDate 
+        AND ssph_tenth_settlement_id <> v_Record_ID;
+
+      IF (V_CONTAR_REG >=1) THEN
+
+        FOR Cur_LinesSettlement IN(
+          SELECT ' Documento(s):  ' || documentno || ' - Estado: ' || (case processed when 'Y' then 'Procesado' when 'N' then 'No procesado' end)
+          || ' y ' ||(case docstatus when 'DR' then 'Borrador' when 'CO' then 'Completado' end) AS DOCUMENTO
+          FROM ssph_tenth_settlement 
+          WHERE settlementdate = V_DocumentDate 
+            AND ssph_tenth_settlement_id <> v_Record_ID
+        )LOOP
+        V_MENSAJE:=V_MENSAJE || ',' || Cur_LinesSettlement.DOCUMENTO;
+        END LOOP;
+    	    
+        RAISE_APPLICATION_ERROR(-20000,'@Ya existe una liquidación para esta fecha@' || COALESCE(V_MENSAJE,''));
+
+	    END IF;
+    END IF;
+
+    -- END NEW
+
+    delete from ssph_tenth_settlement_line thsl where thsl.ssph_tenth_settlement_id = v_Record_ID;
+ 
+    -- Check date periods
+    if V_TypeConcept = '13TH' then
+      select count(*)
+      into V_CheckDate
+      from sspr_labor_regime lr
+      join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id
+      where lrd.typeconcept = V_TypeConcept
+        and (lrd.startdate is null or lrd.enddate is null);
+    elsif V_TypeConcept = '14TH' then
+      select count(*)
+      into V_CheckDate
+      from sspr_labor_regime lr
+      join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id
+      where lrd.typeconcept = V_TypeConcept and lr.sspr_labor_regime_id = V_Labor_Regime_ID
+        and (lrd.startdate is null or lrd.enddate is null);
+    end if;
+    
+    if V_CheckDate <> 0 then
+      RAISE_APPLICATION_ERROR(-20000, '@SSPH_NoRegimenDetailDate@');
+    end if;
+      
+    -- Lines
+    FOR Cur_Lines IN
+    (
+      select V_TypeConcept || ' - ' || lr.description as description, bp.c_bpartner_id, lr.sspr_labor_regime_id, sum(prtc.amount) as linenetamt, camt.workeddays,
+      camt_b.workeddays as workeddays_b
+      from sspr_payroll pr
+      left join sspr_payroll_ticket prt on pr.sspr_payroll_id = prt.sspr_payroll_id
+      left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+      join sspr_concept cp on cp.sspr_concept_id = prtc.sspr_concept_id and cp.concepttypepayroll = (case V_TypeConcept when '14TH' then 'DC' when '13TH' then 'DT' else '' end)
+      left join c_bpartner bp on prt.c_bpartner_id = bp.c_bpartner_id
+      left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.isactive='Y' and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, V_DocumentDate)
+      left join sspr_labor_regime lr on con.sspr_labor_regime_id = lr.sspr_labor_regime_id and (V_TypeConcept = '13TH' or lr.sspr_labor_regime_id = V_Labor_Regime_ID)
+      left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept  and lrd.isactive ='Y'
+      join c_period per on pr.c_period_id = per.c_period_id
+      join c_year y on y.c_year_id = per.c_year_id
+      left join (
+      	select cpa.c_bpartner_id, sum(cpa.amount) as workeddays
+        from  sspr_concept_amount cpa 
+        left join sspr_concept cp on cpa.sspr_concept_id=cp.sspr_concept_id 
+        left join SSPR_Contract ct on cpa.c_bpartner_id=ct.c_bpartner_id  and ct.isactive='Y' AND ct.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(ct.c_bpartner_id, V_DocumentDate)
+        left join sspr_labor_regime lr on ct.sspr_labor_regime_id = lr.sspr_labor_regime_id
+        left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept and lrd.isactive ='Y'
+        left join c_period per on cpa.c_period_id = per.c_period_id
+        join c_year y on y.c_year_id = per.c_year_id
+        where cp.concepttypepayroll='WD'
+          --and ct.startdate >= lrd.startdate
+          and cpa.c_period_id in (select
+					cp.c_period_id
+					--,cp.name as periodo
+					--,cp.periodno 
+					--,cy.year
+					--,slrd.sspr_labor_regime_id
+					from sspr_labor_regime slr 
+					join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id and slrd.isactive ='Y' and slrd.typeconcept = V_TypeConcept
+					left join c_period cp on (cp.startdate>= slrd.startdate and cp.startdate<= slrd.enddate) and (cp.enddate >= slrd.startdate and cp.enddate <=slrd.enddate)
+					left join c_year cy on cy.c_year_id = cp.c_year_id
+					where slrd.typeconcept = V_TypeConcept
+            and slrd.sspr_labor_regime_id =lr.sspr_labor_regime_id
+            and slrd.isactive ='Y'
+            and cp.startdate >= ('01/'||to_char(ct.startdate,'MM/yyyy'))
+				  )
+				  
+        group by cpa.c_bpartner_id
+      ) camt on camt.c_bpartner_id = bp.c_bpartner_id
+      --Dias 14TH
+	left join (
+      	select cpa.c_bpartner_id, sum(cpa.amount) as workeddays
+        from  sspr_concept_amount cpa 
+        left join sspr_concept cp on cpa.sspr_concept_id=cp.sspr_concept_id 
+        left join SSPR_Contract ct on cpa.c_bpartner_id=ct.c_bpartner_id  and ct.isactive='Y' AND ct.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(ct.c_bpartner_id, V_DocumentDate)
+        left join sspr_labor_regime lr on ct.sspr_labor_regime_id = lr.sspr_labor_regime_id
+        left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept and lrd.isactive ='Y'
+        left join c_period per on cpa.c_period_id = per.c_period_id
+        join c_year y on y.c_year_id = per.c_year_id
+        where cp.concepttypepayroll='WD'
+          and cpa.c_period_id in (select
+					cp.c_period_id
+					from sspr_labor_regime slr 
+					join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id and slrd.isactive ='Y' and slrd.typeconcept = V_TypeConcept
+					left join c_period cp on (cp.startdate>= slrd.startdate and cp.startdate<= slrd.enddate) and (cp.enddate >= slrd.startdate and cp.enddate <=slrd.enddate)
+					left join c_year cy on cy.c_year_id = cp.c_year_id
+					left join (
+						select aa.c_period_id, cc.amount, bb.c_bpartner_id
+						from sspr_payroll aa
+						left join sspr_payroll_ticket bb on bb.sspr_payroll_id = aa.sspr_payroll_id
+						left join sspr_payroll_ticket_concept cc on cc.sspr_payroll_ticket_id = bb.sspr_payroll_ticket_id
+						left join sspr_concept dd on dd.sspr_concept_id = cc.sspr_concept_id 
+						where aa.isliquidation = 'N'
+						and aa.ispayroll = 'N'
+						and dd.concepttypepayroll = 'DC'
+					) pay on pay.c_period_id = cp.c_period_id 
+					where slrd.typeconcept = V_TypeConcept and pay.c_bpartner_id = cpa.c_bpartner_id
+            and slrd.sspr_labor_regime_id =lr.sspr_labor_regime_id
+            and slrd.isactive ='Y'
+            and cp.startdate >= ('01/'||to_char(ct.startdate,'MM/yyyy'))
+            and pay.amount > 0 )
+        group by cpa.c_bpartner_id
+      ) camt_b on camt_b.c_bpartner_id = bp.c_bpartner_id
+      --Fin Dias 14TH
+      where bp.em_sspr_status = 'A'
+        and (
+          y.c_year_id = V_Year_ID 
+          and per.periodno <= (extract (month from lrd.enddate))
+          or (cast (y.year as NUMBER) = cast (V_Year as NUMBER) - 1)
+          and per.periodno >= (extract (month from lrd.startdate))
+        ) 
+        and pr.datedoc <= (V_DocumentDate)
+        and pr.ispayroll = 'N'
+        and prtc.amount <> 0
+        and prtc.em_ssph_tenth_sett_line_id is NULL
+        and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+      group by lr.description, bp.c_bpartner_id, lr.sspr_labor_regime_id, camt.workeddays, camt_b.workeddays
+    ) 
+    LOOP
+
+      V_Line := V_Line + 10;
+
+      -- Get Monthly Value
+      SELECT (coalesce(sum(sptc2.amount), 0) * (-1))
+      INTO  V_MonthlyValue
+      FROM sspr_payroll_ticket spt2
+        JOIN sspr_payroll sp2 on sp2.sspr_payroll_id = spt2.sspr_payroll_id 
+        JOIN sspr_payroll_ticket_concept sptc2 on spt2.sspr_payroll_ticket_id = sptc2.sspr_payroll_ticket_id 
+        JOIN sspr_concept pc2 on sptc2.sspr_concept_id = pc2.sspr_concept_id
+      WHERE sp2.ispayroll = 'Y'
+        AND sp2.datedoc >= (SELECT sts.startdate FROM ssph_tenth_settlement sts 
+                            WHERE sts.ssph_tenth_settlement_id = v_Record_ID)
+        AND sp2.datedoc <= (SELECT sts.enddate FROM ssph_tenth_settlement sts 
+                            WHERE sts.ssph_tenth_settlement_id = v_Record_ID)
+        AND pc2.concepttypepayroll = 'DC'
+        AND spt2.c_bpartner_id = Cur_Lines.c_bpartner_id;
+      
+      SELECT SUM(cc.amount)*-1
+      INTO V_Monthly
+      FROM sspr_payroll aa
+      LEFT JOIN sspr_payroll_ticket bb ON bb.sspr_payroll_id = aa.sspr_payroll_id
+      LEFT JOIN sspr_payroll_ticket_concept cc ON cc.sspr_payroll_ticket_id = bb.sspr_payroll_ticket_id
+      LEFT JOIN sspr_concept dd ON dd.sspr_concept_id = cc.sspr_concept_id 
+      LEFT JOIN c_period p ON p.c_period_id=aa.c_period_id
+      LEFT JOIN ssph_tenth_settlement ts ON ts.ssph_tenth_settlement_id = v_Record_ID
+      WHERE aa.ispayroll = 'Y'
+      AND CASE 
+        WHEN ts.typeconcept='13TH' THEN dd.concepttypepayroll = 'DT' 
+        WHEN ts.typeconcept='14TH' THEN dd.concepttypepayroll = 'DC' 
+        ELSE  dd.concepttypepayroll='NA' END
+	AND (TRUNC(p.enddate) BETWEEN TRUNC(ts.startdate) AND TRUNC(ts.enddate)
+	OR TRUNC(p.startdate) BETWEEN TRUNC(ts.startdate) AND TRUNC(ts.enddate))      
+	AND bb.c_bpartner_id = Cur_Lines.c_bpartner_id
+      GROUP BY bb.c_bpartner_id;
+
+      insert into ssph_tenth_settlement_line
+      (
+        ssph_tenth_settlement_line_id, ad_client_id, ad_org_id, isactive,
+        created, createdby, updated, updatedby,
+        description, ssph_tenth_settlement_id, line, c_bpartner_id,
+        linenetamt, sspr_labor_regime_id, adjustmentamt, calculateamount,
+        daysworked, monthlytotalamount, monthly_value
+      )
+      Values
+      (
+        get_uuid(), v_Client_ID, v_Org_ID, 'Y', 
+        now(), v_User_ID, now(), v_User_ID, 
+        Cur_Lines.description, v_Record_ID, V_Line, Cur_Lines.c_bpartner_id, Cur_Lines.linenetamt, Cur_Lines.sspr_labor_regime_id, 
+        case when V_TypeConcept = '14TH' then 
+          coalesce((case when Cur_Lines.workeddays_b > 359 then V_Salbasic else (Cur_Lines.workeddays_b * V_Salbasic)/360 end), 0) - Cur_Lines.linenetamt 
+        else 0 end,
+        case when V_TypeConcept = '14TH' then
+          coalesce((case when Cur_Lines.workeddays_b > 359 then V_Salbasic else (Cur_Lines.workeddays_b * V_Salbasic)/360 end), 0)
+        else 0 end,
+        coalesce((case when Cur_Lines.workeddays >= 360 then 360 else Cur_Lines.workeddays end), 0), V_MonthlyValue, COALESCE(V_Monthly,0)  
+      );
+      
+    END LOOP; -- End Lines
+
+BEGIN
+
+    FOR Cur_Line2 IN -- NEW
+    (
+      select prtc.sspr_payroll_ticket_concept_id as payroll_ticket_concept_id,em_ssph_tenth_sett_line_id, thl.ssph_tenth_settlement_line_id as tenth_sett_line_id
+       from sspr_payroll pr
+        left join sspr_payroll_ticket prt on pr.sspr_payroll_id = prt.sspr_payroll_id
+        left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+        join sspr_concept cp on cp.sspr_concept_id = prtc.sspr_concept_id and cp.concepttypepayroll = (case V_TypeConcept when '14TH' then 'DC' when '13TH' then 'DT' else '' end)
+        left join c_bpartner bp on prt.c_bpartner_id = bp.c_bpartner_id
+        left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, V_DocumentDate)
+        left join sspr_labor_regime lr on con.sspr_labor_regime_id = lr.sspr_labor_regime_id and (V_TypeConcept = '13TH' or lr.sspr_labor_regime_id = V_Labor_Regime_ID)
+        left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id and lrd.typeconcept = V_TypeConcept and lrd.isactive ='Y'
+        join c_period per on pr.c_period_id = per.c_period_id
+        join c_year y on y.c_year_id = per.c_year_id
+        join ssph_tenth_settlement_line thl on thl.sspr_labor_regime_id = lr.sspr_labor_regime_id and thl.c_bpartner_id = bp.c_bpartner_id and thl.ssph_tenth_settlement_id = v_Record_ID
+        where bp.em_sspr_status = 'A'
+          and (
+            y.c_year_id = V_Year_ID 
+            and per.periodno <= (extract (month from lrd.enddate))
+            or (cast (y.year as NUMBER) = cast (V_Year as NUMBER) - 1)
+            and per.periodno >= (extract (month from lrd.startdate))
+          )  and pr.datedoc <= (V_DocumentDate)
+      )
+    LOOP
+
+      update sspr_payroll_ticket_concept prtc 
+      set em_ssph_tenth_sett_line_id = Cur_Line2.tenth_sett_line_id 
+      where prtc.sspr_payroll_ticket_concept_id = Cur_Line2.payroll_ticket_concept_id;
+
+  END LOOP;--NEW
+END;
+    
+    v_Message := '@RowsInserted@';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPH_GETTENTHLINES
+]]></body>
+    </function>
+  </database>

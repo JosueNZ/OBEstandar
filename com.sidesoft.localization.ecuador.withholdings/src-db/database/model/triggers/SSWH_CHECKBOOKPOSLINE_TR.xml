@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_CHECKBOOKPOSLINE_TR">
+    <trigger name="SSWH_CHECKBOOKPOSLINE_TR" table="SSWH_CHECKBOOKPOSLINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+V_INVOICEID VARCHAR2(32);
+V_BPARTNER_ID VARCHAR2(32);
+Begin
+
+IF (:NEW.c_debt_payment_id IS NOT NULL) THEN
+   IF INSERTING THEN
+      SELECT c_debt_payment_id INTO V_INVOICEID
+      FROM sswh_CHECKBOOKPOSLINE
+      WHERE sswh_CHECKBOOKPOS_ID=:NEW.sswh_CHECKBOOKPOS_ID
+      AND c_debt_payment_id=:NEW.c_debt_payment_id;
+   
+      IF (V_INVOICEID =:NEW.c_debt_payment_id)THEN
+         RAISE_APPLICATION_ERROR( -20000, '@SSWH_CheckbookpostInvoice@');
+      END IF;   
+   END IF;
+   
+   IF UPDATING THEN
+      SELECT c_debt_payment_id INTO V_INVOICEID
+      FROM sswh_CHECKBOOKPOSLINE
+      WHERE sswh_CHECKBOOKPOS_ID=:OLD.sswh_CHECKBOOKPOS_ID AND sswh_CHECKBOOKPOSLINE_ID <> :NEW.sswh_CHECKBOOKPOSLINE_ID
+      AND c_debt_payment_id=:NEW.c_debt_payment_id;
+      
+      IF (:NEW.c_debt_payment_id=V_INVOICEID)THEN
+         RAISE_APPLICATION_ERROR(-20000, '@SSWH_CheckbookpostInvoice@');
+      END IF;
+   END IF;
+END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE;
+END SSWH_CHECKBOOKPOSLINE_TR
+]]></body>
+    </trigger>
+  </database>

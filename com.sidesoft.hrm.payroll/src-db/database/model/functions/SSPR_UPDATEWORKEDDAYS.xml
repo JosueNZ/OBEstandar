@@ -1,0 +1,335 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_UPDATEWORKEDDAYS">
+    <function name="SSPR_UPDATEWORKEDDAYS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+CUR_BPARTNER RECORD; 
+CUR_LEAVE RECORD;
+CUR_LEAVE2 RECORD;
+Cur_Parameter RECORD;
+
+V_CLIENT_ID CHARACTER VARYING(32);		--OBTG:VARCHAR2-- 
+V_ORG_ID CHARACTER VARYING(32); 		--OBTG:VARCHAR2--
+V_USER_ID CHARACTER VARYING(32);		--OBTG:VARCHAR2--
+V_ENTRY_DATE DATE;
+V_LOW_DATE DATE;
+V_PERIOD_ID CHARACTER VARYING(32); 		--OBTG:VARCHAR2--
+V_CONCEPTIN_ID CHARACTER VARYING(32); 		--OBTG:VARCHAR2--
+V_CONCEPTOUT_ID CHARACTER VARYING(32); 		--OBTG:VARCHAR2--
+V_BPARTNER_ID CHARACTER VARYING(32);		--OBTG:VARCHAR2-- 
+V_LEAVE_ID CHARACTER VARYING(32);		--OBTG:VARCHAR2-- 
+V_STARTDATE DATE;
+V_ENDDATE DATE;
+
+V_PERIOD2_ID CHARACTER VARYING(32); 		--OBTG:VARCHAR2--
+V_NODAYS NUMBER;				--OBTG:NUMBER--
+V_COUNT NUMBER;				--OBTG:NUMBER--
+V_DAYS NUMBER;					--OBTG:NUMBER--
+V_DAYSNO NUMBER;				--OBTG:NUMBER--
+V_ACUMD  NUMBER;				--OBTG:NUMBER--
+V_AUX_C  NUMBER;				--OBTG:NUMBER--
+V_SDATE DATE;
+V_EDATE DATE;
+v_tmp CHARACTER VARYING(400);                   --OBTG:VARCHAR2--
+v1 CHARACTER VARYING(10);                       --OBTG:VARCHAR2--
+v2 CHARACTER VARYING(10);                       --OBTG:VARCHAR2--
+v3 CHARACTER VARYING(300);                      --OBTG:VARCHAR2--
+
+v_Payroll_ID VARCHAR2(32);                      
+v_ResultStr VARCHAR2(2000) := ''; 	       
+v_isliquidation VARCHAR2(32) := 'N';    	       
+v_c_bpartner_id_liquidation VARCHAR2(32);           
+v_enddate_contract DATE;
+v_days_contract NUMBER;
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+v_daysmonth NUMBER; --OBTG:NUMBER--
+v_StartPeriod DATE;
+v_EndPeriod DATE;
+v_daysliquidation NUMBER; --OBTG:NUMBER--
+v_enddate_liquidation DATE;
+v_dayseentry NUMBER; --OBTG:NUMBER--
+v_dayswork NUMBER; --OBTG:NUMBER--
+
+
+BEGIN
+
+ --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	 -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_Payroll_ID := Cur_Parameter.Record_ID;
+      
+    END LOOP; 
+    -- Get Parameter
+
+	V_PERIOD_ID:= p_period_id ; 
+	V_CONCEPTIN_ID:= p_conceptin_id; 
+	V_CONCEPTOUT_ID:= p_conceptout_id; 
+	V_CLIENT_ID:= p_client_id;
+	V_ORG_ID:= p_org_id;
+	V_USER_ID:= p_user_id;
+
+	SELECT STARTDATE,ENDDATE
+	INTO V_STARTDATE,V_ENDDATE
+	FROM C_PERIOD
+	WHERE C_PERIOD_ID = V_PERIOD_ID;
+
+	v1:=to_char(V_ENDDATE,'dd-MM-yyyy');
+	v2:=to_char(V_STARTDATE,'dd-MM-yyyy');
+
+	V_SDATE:= TO_DATE(v1);
+	V_EDATE:= TO_DATE(v2);
+
+	V_DAYS:=to_number(V_SDATE - V_EDATE);
+
+
+    --OBTENGO EL TIPO DE NOMINA Y EMPLEADO
+    SELECT isliquidation, c_bpartner_id
+    INTO v_isliquidation, v_c_bpartner_id_liquidation
+    FROM sspr_payroll
+    WHERE sspr_payroll_id = v_Payroll_ID;
+
+    --OBTENGO EL PERIODO 
+    SELECT startdate, enddate
+    INTO v_StartPeriod,v_EndPeriod
+    FROM C_period
+    WHERE C_period_ID = V_PERIOD_ID;
+
+    --CÁLCULO DE NUMERO DE DIAS DEL MES
+    v_daysmonth := to_number(to_char(v_EndPeriod,'dd'));
+
+
+
+   select
+   coalesce(((SELECT enddate
+   FROM sspr_contract
+   WHERE c_bpartner_id = v_c_bpartner_id_liquidation
+   )),null)
+      INTO v_enddate_liquidation
+    from dual;
+
+
+  -- If (v_enddate_liquidation is null) then
+--	RAISE_APPLICATION_ERROR(-20000,'@Error: End date this contract is null@');
+--   end if;
+
+   --CALCULO DE NUMERO DE DIAS LABORADOS LIQUIDACION
+    --v_daysliquidation := to_number(to_char(v_enddate_liquidation,'dd'));
+
+
+	IF(v_isliquidation = 'N') THEN
+
+		FOR CUR_BPARTNER IN
+		(
+
+		SELECT EM_SSPR_Entrydate ,C_BPARTNER_ID 
+		FROM C_BPARTNER
+		WHERE ISEMPLOYEE = 'Y' --AND ISACTIVE = 'Y'
+		AND EM_SSPR_Status='A'
+		)
+		LOOP
+
+		    SELECT startdate, enddate
+		    INTO v_StartPeriod,v_EndPeriod
+		    FROM C_period
+		    WHERE C_period_ID = V_PERIOD_ID;
+
+		    select coalesce((select case when daysmonth = 'TD' then 30
+		    else to_number(to_char(v_EndPeriod,'dd')) 
+	            end as daysmonth
+		    from sspr_hours_work),0)
+		    into v_dayswork
+		    from dual;
+
+			If(v_dayswork = 0)Then
+				RAISE_APPLICATION_ERROR(-20000,'@sspr_general_configuration@');
+			End If;
+
+		    v_dayseentry := 0;
+
+		 --   select to_date(to_char('30' || '-' || to_char(to_date('01-10-2015'),'mm') || '-' || to_char(to_date('01-10-2015'),'yyyy')),'DD-MM-YYYY')
+		    --from dual 
+		    
+			If(CUR_BPARTNER.EM_SSPR_Entrydate >= v_StartPeriod and CUR_BPARTNER.EM_SSPR_Entrydate <=  v_EndPeriod)Then
+
+				v_dayseentry := to_number(to_char(CUR_BPARTNER.EM_SSPR_Entrydate,'dd'));
+				--v_daysmonth := (to_number(to_char(v_EndPeriod,'dd')) - v_dayseentry) + 1 ;
+				v_daysmonth := (v_dayswork - v_dayseentry) + 1 ;
+
+			Else 
+				v_daysmonth := v_dayswork; --to_number(to_char(v_EndPeriod,'dd'));
+
+			End If;
+			
+			
+			DELETE FROM SSPR_CONCEPT_AMOUNT 
+			WHERE C_PERIOD_ID = V_PERIOD_ID 
+			AND SSPR_CONCEPT_ID = V_CONCEPTOUT_ID
+			AND C_BPARTNER_ID = CUR_BPARTNER.C_BPARTNER_ID;
+
+			V_COUNT:=0;	
+			V_AUX_C:= 0;
+
+			V_BPARTNER_ID:= CUR_BPARTNER.C_BPARTNER_ID;
+
+			SELECT COALESCE((SELECT COUNT(*) 
+			FROM  SSPR_LEAVE_EMP 
+			WHERE C_BPARTNER_ID = V_BPARTNER_ID),0)
+			INTO V_COUNT
+			FROM DUAL;
+
+			IF V_COUNT = 0 THEN
+
+				INSERT INTO SSPR_CONCEPT_AMOUNT
+				(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY
+				,SSPR_CONCEPT_ID, C_BPARTNER_ID, C_PERIOD_ID, AMOUNT, ISMODIFIED, EM_SFPR_SURROGATE_DETAIL_ID
+				,EM_SFPR_RVE_DETAIL_ID,EM_SFPR_DESCRIPTION)
+				VALUES
+				(GET_UUID(),V_CLIENT_ID,V_ORG_ID,'Y',now(),V_USER_ID,now(),V_USER_ID
+				,V_CONCEPTOUT_ID,V_BPARTNER_ID, V_PERIOD_ID,v_daysmonth,'N',NULL,NULL,NULL);
+				
+			ELSE
+			
+			V_COUNT:=0;
+			
+				SELECT COALESCE((SELECT COUNT(*) 
+				FROM  SSPR_LEAVE_EMP 
+				WHERE C_BPARTNER_ID = V_BPARTNER_ID AND ISDISCOUNTLABORDAY = 'N'),0)
+				INTO V_COUNT
+				FROM DUAL;
+
+				IF V_COUNT >= 1 THEN
+
+					INSERT INTO SSPR_CONCEPT_AMOUNT
+					(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY
+					,SSPR_CONCEPT_ID, C_BPARTNER_ID, C_PERIOD_ID, AMOUNT, ISMODIFIED, EM_SFPR_SURROGATE_DETAIL_ID
+					,EM_SFPR_RVE_DETAIL_ID,EM_SFPR_DESCRIPTION)
+					VALUES
+					(GET_UUID(),V_CLIENT_ID,V_ORG_ID,'Y',now(),V_USER_ID,now(),V_USER_ID
+					,V_CONCEPTOUT_ID,V_BPARTNER_ID, V_PERIOD_ID, v_daysmonth,'N',NULL,NULL,NULL);
+					
+
+				ELSE
+					V_ACUMD:=0;
+					FOR CUR_LEAVE2 IN 
+					(
+						SELECT STARDATE,ENDDATE,SSPR_LEAVE_EMP_ID
+						FROM SSPR_LEAVE_EMP 
+						WHERE C_BPARTNER_ID = V_BPARTNER_ID
+						AND ((STARDATE BETWEEN V_STARTDATE AND V_ENDDATE)
+						AND (ENDDATE BETWEEN V_STARTDATE AND V_ENDDATE))
+						AND ISDISCOUNTLABORDAY = 'Y'
+					)
+					LOOP
+						V_LEAVE_ID:= CUR_LEAVE2.SSPR_LEAVE_EMP_ID;
+						
+						FOR CUR_LEAVE IN 
+						(
+							SELECT STARDATE,ENDDATE 
+							FROM SSPR_LEAVE_EMP 
+							WHERE C_BPARTNER_ID = V_BPARTNER_ID
+							AND ((STARDATE BETWEEN V_STARTDATE AND V_ENDDATE)
+							AND (ENDDATE BETWEEN V_STARTDATE AND V_ENDDATE))
+							AND ISDISCOUNTLABORDAY = 'Y'
+							AND SSPR_LEAVE_EMP_ID = V_LEAVE_ID
+						)
+						LOOP
+
+						V_SDATE:= CUR_LEAVE.STARDATE;
+						V_EDATE:= CUR_LEAVE.ENDDATE;
+
+						SELECT C_PERIOD_ID
+						INTO  V_PERIOD2_ID
+						FROM C_PERIOD 
+						WHERE (V_SDATE BETWEEN STARTDATE AND ENDDATE)
+						AND (V_EDATE BETWEEN STARTDATE AND ENDDATE);
+
+						IF V_PERIOD_ID = V_PERIOD2_ID THEN
+
+							V_NODAYS := TO_NUMBER((V_EDATE - V_SDATE));
+							V_ACUMD:= V_ACUMD + V_NODAYS;
+
+						END IF;
+						
+						END LOOP;
+
+					END LOOP;
+
+					V_DAYSNO := (V_DAYS)- (V_ACUMD) - (v_dayseentry);  
+
+					IF V_DAYSNO>0 THEN
+
+						INSERT INTO SSPR_CONCEPT_AMOUNT
+						(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY
+						,SSPR_CONCEPT_ID, C_BPARTNER_ID, C_PERIOD_ID, AMOUNT, ISMODIFIED, EM_SFPR_SURROGATE_DETAIL_ID
+						,EM_SFPR_RVE_DETAIL_ID,EM_SFPR_DESCRIPTION)
+						VALUES
+						(GET_UUID(),V_CLIENT_ID,V_ORG_ID,'Y',now(),V_USER_ID,now(),V_USER_ID
+						,V_CONCEPTOUT_ID,V_BPARTNER_ID, V_PERIOD_ID, V_DAYSNO,'N',NULL,NULL,NULL);
+						
+					END IF;
+					V_ACUMD:=0;
+				END IF;
+
+			END IF;
+
+
+
+		END LOOP;		
+	END IF; 
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_UPDATEWORKEDDAYS
+]]></body>
+    </function>
+  </database>

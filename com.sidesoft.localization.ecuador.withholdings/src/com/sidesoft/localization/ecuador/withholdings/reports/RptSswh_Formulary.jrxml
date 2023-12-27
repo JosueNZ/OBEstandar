@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSswh_Formulary" pageWidth="666" pageHeight="802" whenNoDataType="NoDataSection" columnWidth="666" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="0.9090909090909096"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+sf.ad_org_id as "organization"
+, sf.formulary_type AS "tipo"
+,case when sf.formulary_type = 'F103' then to_char('FORMULARIO 103')
+ ELSE TO_CHAR('FORMULARIO 104') END "titulo"
+,to_char ('Desde el ') || (to_char(sf.startdate,'dd')) ||
+(case to_char(sf.startdate,'MM')
+	when '01' then ' Enero '
+	when '02' then ' Febrero '
+	when '03' then ' Marzo '
+	when '04' then ' Abril '
+	when '05' then ' Mayo '
+	when '06' then ' Junio '
+	when '07' then ' Julio '
+	when '08' then ' Agosto '
+	when '09' then ' Septiembre '
+	when '10' then ' Octubre '
+	when '11' then ' Noviembre '
+	when '12' then ' Diciembre '
+END
+)  || to_char('al ') || (to_char(sf.enddate,'dd')) || (case to_char(sf.enddate,'MM')
+	when '01' then ' Enero '
+	when '02' then ' Febrero '
+	when '03' then ' Marzo '
+	when '04' then ' Abril '
+	when '05' then ' Mayo '
+	when '06' then ' Junio '
+	when '07' then ' Julio '
+	when '08' then ' Agosto '
+	when '09' then ' Septiembre '
+	when '10' then ' Octubre '
+	when '11' then ' Noviembre '
+	when '12' then ' Diciembre '
+END) as "fechas"
+,(select coalesce(cbp.name,au.name) from ad_user au left join c_Bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id
+where au.ad_user_id = $P{AD_USER_ID}
+) || to_char(now(),' dd') || to_char(' ')  || (case to_char(now(),'MM')
+	when '01' then ' Enero '
+	when '02' then ' Febrero '
+	when '03' then ' Marzo '
+	when '04' then ' Abril '
+	when '05' then ' Mayo '
+	when '06' then ' Junio '
+	when '07' then ' Julio '
+	when '08' then ' Agosto '
+	when '09' then ' Septiembre '
+	when '10' then ' Octubre '
+	when '11' then ' Noviembre '
+	when '12' then ' Diciembre '
+END)  || to_char(' ') || to_char(now(),'yyyy')  as "usuario"
+,sfl.line as "linea"
+,sfl.father_code as "codigo_padre"
+,sfl.baseamount as "base_imponible"
+,sfl.son_code as "codigo_hijo"
+,sfl.taxamount as "valor_retenico"
+, (CASE WHEN sf.formulary_type = '104' THEN  to_char(sfl.grandfather_code) ELSE to_char('') END)  AS "codigo_abuelo"
+, (CASE WHEN sf.formulary_type = '104' THEN  to_number(sfl.gf_amount) ELSE to_number(0) END)  AS "valor_abuelo"
+from sswh_formulary sf
+left join sswh_formularyline sfl on sf.sswh_formulary_id = sfl.sswh_formulary_id
+where sf.sswh_formulary_id =  $P{DOCUMENT_ID}
+and sf.status ='CO'
+order by sfl.line asc]]>
+	</queryString>
+	<field name="organization" class="java.lang.String"/>
+	<field name="tipo" class="java.lang.String"/>
+	<field name="titulo" class="java.lang.String"/>
+	<field name="fechas" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="linea" class="java.math.BigDecimal"/>
+	<field name="codigo_padre" class="java.lang.String"/>
+	<field name="base_imponible" class="java.math.BigDecimal"/>
+	<field name="codigo_hijo" class="java.lang.String"/>
+	<field name="valor_retenico" class="java.math.BigDecimal"/>
+	<field name="codigo_abuelo" class="java.lang.String"/>
+	<field name="valor_abuelo" class="java.math.BigDecimal"/>
+	<title>
+		<band height="71" splitType="Stretch">
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="100" height="70"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organization})]]></imageExpression>
+			</image>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="31" width="225" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F103")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechas}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="225" height="31">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F103")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{titulo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="31" width="468" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechas}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="357" y="50" width="309" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="51" width="353" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F103")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="468" height="31">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{titulo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="100" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CODIGO PADRE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="100" y="0" width="125" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[BASE IMPONIBLE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="225" y="0" width="100" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CODIGO HIJO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="325" y="0" width="128" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR RETENIDO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="453" y="0" width="115" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CODIGO ABUELO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="568" y="0" width="98" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[IMPORTE]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="100" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigo_padre}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="125" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{base_imponible}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="225" y="0" width="100" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigo_hijo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="453" y="0" width="115" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigo_abuelo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="568" y="0" width="98" height="20">
+					<printWhenExpression><![CDATA[$F{tipo}.equals("F104")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valor_abuelo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="325" y="0" width="128" height="20"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valor_retenico}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<noData>
+		<band height="33">
+			<staticText>
+				<reportElement x="0" y="0" width="666" height="33"/>
+				<textElement>
+					<font size="22"/>
+				</textElement>
+				<text><![CDATA[La transacción debe estar en estado completado..!]]></text>
+			</staticText>
+		</band>
+	</noData>
+</jasperReport>

@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_GENERAL_LEDGER_JOURNAL">
+    <function name="SSFI_GENERAL_LEDGER_JOURNAL" type="VARCHAR">
+      <parameter name="p_adtable" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_recordid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_column" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_select VARCHAR(5000) :=null;
+  v_tablename VARCHAR(5000) :=null;
+  v_result VARCHAR(5000) :=null; 
+  v_column VARCHAR(5000) :=null;
+  v_idtable VARCHAR(5000) :=null;
+BEGIN
+
+   SELECT TABLENAME into v_tablename FROM AD_TABLE WHERE AD_TABLE_ID= p_adtable;
+
+   IF (P_COLUMN='BP') THEN
+      SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='C_BPARTNER_ID'),'ND')
+     INTO v_column FROM DUAL;
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='291' AND  AC.AD_TABLE_ID = p_adtable;
+      
+      END IF;
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT BP.NAME FROM ' ||v_tablename||' TB LEFT JOIN C_BPARTNER BP ON TB.'||v_column||' = BP.C_BPARTNER_ID 
+        WHERE '||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+     END IF;	
+   END IF;
+
+   IF (P_COLUMN='DT') THEN
+   
+      SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='C_DOCTYPE_ID'),'ND')
+     INTO v_column FROM DUAL;
+     
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='217' AND  AC.AD_TABLE_ID = p_adtable;
+      
+      END IF;
+
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT DT.NAME FROM ' ||v_tablename||' TB LEFT JOIN C_DOCTYPE DT ON TB.'||v_column||' = DT.C_DOCTYPE_ID
+        WHERE '||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+      END IF;	
+      
+   END IF;
+
+   
+
+   IF (P_COLUMN='DN') THEN
+     SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE (( SELECT COLUMNNAME FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND UPPER(COLUMNNAME)= 'DOCUMENTNO'),'ND')  INTO v_column  FROM
+     DUAL;
+
+
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT '||v_column||' FROM '||v_tablename||' WHERE ' ||v_idtable||' = '''||p_recordid||'''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+      END IF;	
+   END IF;
+
+
+   IF (P_COLUMN='CB') THEN
+     SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+                v_select := 'SELECT AU.NAME FROM '||v_tablename||' TB LEFT JOIN AD_USER AU ON TB.CREATEDBY= AU.AD_USER_ID WHERE ' ||v_idtable||' = '''||p_recordid||'''';
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+    END IF;
+
+    IF (P_COLUMN='CR') THEN
+     SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+                v_select := 'SELECT CREATED FROM '||v_tablename||'  WHERE ' ||v_idtable||' = '''||p_recordid||'''';
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+    END IF;
+
+    IF (P_COLUMN='DP') THEN
+         SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+         SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME) LIKE 'DESCRIPTION'),'ND') INTO v_column
+          FROM DUAL;
+         IF( v_column <>'ND') THEN 
+
+                v_select := 'SELECT '||v_column||' FROM '||v_tablename||'  WHERE ' ||v_idtable||' = '''||p_recordid||'''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+        
+         END IF;
+    END IF;
+    
+   IF (P_COLUMN='OR') THEN
+      SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='AD_ORG_ID'),'ND')
+     INTO v_column FROM DUAL;
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='155' AND  AC.AD_TABLE_ID = p_adtable;
+      END IF;
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT ORG.NAME FROM ' ||v_tablename||' TB LEFT JOIN AD_ORG ORG ON TB.'||v_column||' = ORG.AD_ORG_ID 
+        WHERE TB.'||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+     END IF;	
+   END IF;
+
+ IF (P_COLUMN='RU') THEN
+      SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='AD_ORG_ID'),'ND')
+     INTO v_column FROM DUAL;
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='155' AND  AC.AD_TABLE_ID = p_adtable;
+      END IF;
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT ORG.TAXID FROM ' ||v_tablename||' TB LEFT JOIN AD_ORGINFO ORG ON TB.'||v_column||' = ORG.AD_ORG_ID 
+        WHERE TB.'||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+     END IF;	
+   END IF;
+
+ IF (P_COLUMN='FC') THEN
+
+     SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='FIN_FINANCIAL_ACCOUNT_ID'),'ND')
+     INTO v_column FROM DUAL;
+     
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='B129E53BC0E747879F7BA17F0AECEC32' AND  AC.AD_TABLE_ID = p_adtable;
+      END IF;
+      
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT FFA.NAME FROM ' ||v_tablename||' FP JOIN fin_financial_account FFA ON FFA.fin_financial_account_ID  = FP.'||v_column||'
+        WHERE FP.'||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+     END IF;	
+   END IF;
+
+    IF (P_COLUMN='OI') THEN
+      SELECT COLUMNNAME INTO v_idtable FROM AD_COLUMN WHERE AD_TABLE_ID = p_adtable AND ISKEY='Y';
+     SELECT COALESCE ((SELECT COLUMNNAME  FROM AD_COLUMN WHERE AD_TABLE_ID =p_adtable AND UPPER(COLUMNNAME)='AD_ORG_ID'),'ND')
+     INTO v_column FROM DUAL;
+      IF(v_column = 'ND') THEN      
+	  SELECT AC.COLUMNNAME INTO v_column FROM AD_COLUMN AC
+	  LEFT JOIN AD_REFERENCE AR ON AC.AD_REFERENCE_VALUE_ID = AR.AD_REFERENCE_ID
+	  LEFT JOIN AD_REF_TABLE RT ON AR.AD_REFERENCE_ID = RT.AD_REFERENCE_ID  WHERE RT.AD_TABLE_ID='155' AND  AC.AD_TABLE_ID = p_adtable;
+      END IF;
+      IF (v_column <>'ND') THEN
+        v_select := 'SELECT ORG.AD_ORG_ID FROM ' ||v_tablename||' TB LEFT JOIN AD_ORG ORG ON TB.'||v_column||' = ORG.AD_ORG_ID 
+        WHERE TB.'||v_idtable||' = '''||p_recordid|| '''';
+
+        EXECUTE IMMEDIATE   v_select INTO v_result ; 
+     END IF;	
+   END IF;
+   
+    RETURN v_result;
+END SSFI_GENERAL_LEDGER_JOURNAL
+]]></body>
+    </function>
+  </database>

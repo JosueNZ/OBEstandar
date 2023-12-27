@@ -1,0 +1,289 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFPR_UPDATECONTRIBUTIONIESS">
+    <function name="SFPR_UPDATECONTRIBUTIONIESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_Bpartner RECORD;
+Cur_Contribution_Type RECORD;
+  v_status VARCHAR2(32);  
+  v_ResultStr VARCHAR2(2000):='';
+  v_StatusDocumento_P VARCHAR(60);--OBTG:VARCHAR2--
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_Record_ID  VARCHAR2(32);
+  v_Message VARCHAR2(2000):='';  
+  v_personal_concet VARCHAR2(32);
+  v_porc_personal NUMBER; --OBTG:NUMBER--
+  v_concep_bosses VARCHAR2(32);
+  v_porc_bosses NUMBER; --OBTG:NUMBER--
+  v_total_income_concept VARCHAR2(32);
+  v_concept VARCHAR2(32);
+  v_amount NUMBER; --OBTG:NUMBER--
+  v_amount_concept NUMBER; --OBTG:NUMBER--
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+  v_value NUMBER; --OBTG:NUMBER--
+  v_msg VARCHAR2(32);
+  sql_script VARCHAR2(300);
+  v_insert NUMBER;  --OBTG:NUMBER-- 
+  V_AUX NUMBER;  --OBTG:NUMBER-- 
+  V_AUX2 NUMBER;  --OBTG:NUMBER-- 
+  v_Incomeconcept VARCHAR2(32);
+  v_IslaboralRegime VARCHAR2(1);
+  v_LaboralRegimeAmount NUMBER;  --OBTG:NUMBER--
+  v_LaboralRegimeConceptID VARCHAR2(32);
+  v_BpartnerID VARCHAR2(32);
+    
+BEGIN
+  --Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  
+  BEGIN --BODY
+
+   FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+      p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy   
+      FROM AD_PInstance i 
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo       
+      )
+    LOOP
+
+	IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+	v_StartPeriod_ID := Cur_Parameter.P_String;      
+	v_Client_ID := Cur_Parameter.AD_Client_ID;
+	v_Org_ID := Cur_Parameter.AD_Org_ID;
+	v_User_ID := Cur_Parameter.CreatedBy;
+	v_Record_ID := Cur_Parameter.Record_ID;	
+	ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+	v_EndPeriod_ID := Cur_Parameter.P_String;
+	ELSE  
+	DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	END IF;       
+    END LOOP; -- End Get Parameter
+    
+	SELECT startdate, enddate
+	INTO v_StartPeriod_StartDate, v_StartPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_StartPeriod_ID;
+
+
+	SELECT startdate, enddate
+	INTO v_EndPeriod_StartDate, v_EndPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_EndPeriod_ID;
+
+	IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+
+	RAISE_APPLICATION_ERROR(-20000, '@SFPR_EndStartPeriod@');
+
+	END IF;
+	
+     V_AUX:=0; --Bandera que valida si se elimina los datos de la línea de los conceptos laborales
+     V_AUX2:=0; --Bandera que valida si se elimina los datos de la línea de los conceptos laborales
+     
+     FOR Cur_Contribution_Type IN  -- Begin Contribution Type
+      (Select personal_concept,porc_personal,concept_bosses,porc_bosses,
+	      total_income_concept,income_concept_id,islaboralregime
+              from sfpr_employee_contribution
+      )
+    LOOP
+  v_personal_concet :=Cur_Contribution_Type.personal_concept ; 
+  v_porc_personal:=Cur_Contribution_Type.porc_personal;
+  v_concep_bosses:=Cur_Contribution_Type.concept_bosses;
+  v_porc_bosses:=Cur_Contribution_Type.porc_bosses;
+  v_total_income_concept:=Cur_Contribution_Type.total_income_concept;
+  v_Incomeconcept:=Cur_Contribution_Type.income_concept_id;
+  v_IslaboralRegime:=Cur_Contribution_Type.islaboralregime;
+  
+  V_AUX:=0; --Bandera que valida si se elimina los datos de la línea de los conceptos laborales
+
+	IF v_IslaboralRegime = 'N' THEN
+	
+		  IF ((v_personal_concet IS NOT NULL AND v_porc_personal >0) AND  (v_concep_bosses IS NULL AND coalesce(to_number(v_porc_bosses),0)=0)) THEN
+
+			v_concept := v_personal_concet;
+			v_amount := v_porc_personal;
+
+			
+		    ELSIF ((v_concep_bosses IS NOT NULL AND v_porc_bosses>0 ) AND (v_personal_concet IS NULL AND coalesce(to_number(v_porc_personal),0)=0)) THEN
+
+			v_concept := v_concep_bosses;
+			v_amount := v_porc_bosses;
+		    ELSE
+		    
+			IF ((v_personal_concet IS NOT NULL OR v_porc_personal >0) AND (v_concep_bosses IS NOT NULL OR v_porc_bosses>0 )) THEN 
+				RAISE_APPLICATION_ERROR(-20000, '@SFPR_INVALIDCONTRIBUTION@');
+			END IF;
+
+		    END IF;
+
+		   FOR Cur_Bpartner IN --Begin Partner
+		      (SELECT c_bpartner_id from c_bpartner
+		      where --isactive = 'Y' 
+		      EM_SSPR_Status='A'
+		      and isemployee = 'Y' and em_sspr_create_payroll = 'Y'
+		      )
+		    LOOP
+
+		  v_value:= SSPR_GET_BUSINESS_CONCEPT(v_concept, v_StartPeriod_ID, Cur_Bpartner.C_BPartner_ID);
+			    
+			IF v_value > 0 THEN
+				v_amount_concept := ((v_value * v_amount)/100);	
+		    
+			ELSE
+				v_amount_concept :=0;
+			END IF;
+		  --	
+			IF V_AUX=0 THEN
+				DELETE FROM SSPR_Concept_Amount 
+				where sspr_concept_id = v_total_income_concept
+				and c_period_id = v_StartPeriod_ID;
+				V_AUX:=1;
+			END IF;
+			
+			SELECT COALESCE(TO_NUMBER((SELECT  COUNT(*) 
+			FROM SSPR_Concept_Amount
+			WHERE c_bpartner_id = Cur_Bpartner.c_bpartner_id 
+			and sspr_concept_id = v_total_income_concept
+			and c_period_id = v_StartPeriod_ID)),0) INTO v_insert FROM DUAL;
+			
+			IF v_insert = 0 THEN
+			
+			  select ad_client_id,ad_org_id
+			  into   v_Client_ID , v_Org_ID 
+			  from sspr_concept where sspr_concept_id = v_total_income_concept;
+			  
+			   INSERT INTO SSPR_Concept_Amount(sspr_concept_amount_id, ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby
+         	   ,sspr_concept_id,c_bpartner_id,c_period_id, amount, ismodified, em_sfpr_surrogate_detail_id
+         	   ,em_sfpr_rve_detail_id, em_sfpr_description) 
+			     VALUES(get_uuid(),    v_Client_ID,       v_Org_ID,
+				 'Y'       ,          now(),    v_Client_ID,
+				 now()     ,    v_Client_ID,    v_total_income_concept,
+				 Cur_Bpartner.c_bpartner_id,    v_StartPeriod_ID, 
+				 v_amount_concept,      'N',null,null,null
+				);
+			
+			/*ELSIF v_insert = 1 THEN
+			
+			Update SSPR_Concept_Amount set amount=v_amount_concept
+			where c_bpartner_id = Cur_Bpartner.c_bpartner_id 
+			and sspr_concept_id = v_total_income_concept
+			and c_period_id = v_StartPeriod_ID;
+			*/
+			
+			END IF;
+			
+		    END LOOP; -- End Bpartner
+		    
+	ELSIF v_IslaboralRegime = 'Y' AND  v_Incomeconcept IS NOT NULL THEN  ----IS LABORAL REGIME
+
+		IF V_AUX2=0 THEN
+			DELETE FROM SSPR_Concept_Amount 
+			WHERE c_period_id = v_StartPeriod_ID
+			AND sspr_concept_id in (SELECT em_sfpr_concept_id
+			FROM c_bpartner cbp
+			LEFT JOIN sspr_contract cbpc ON cbpc.c_bpartner_id = cbp.c_bpartner_id
+			LEFT JOIN sspr_labor_regime lr ON lr.sspr_labor_regime_id = cbpc.sspr_labor_regime_id
+			WHERE em_sfpr_concept_id IS NOT NULL);
+			V_AUX2:=1;
+		END IF;
+
+		FOR Cur_Bpartner IN --Begin Partner
+		      (SELECT c_bpartner_id from c_bpartner
+		      where --isactive = 'Y' 
+		      EM_SSPR_Status='A'
+		      and isemployee = 'Y' and em_sspr_create_payroll = 'Y'
+		      )
+		LOOP
+
+		SELECT COALESCE(TO_NUMBER((SELECT em_sfpr_amount
+		FROM c_bpartner cbp
+		LEFT JOIN sspr_contract cbpc ON cbpc.c_bpartner_id = cbp.c_bpartner_id
+		LEFT JOIN sspr_labor_regime lr ON lr.sspr_labor_regime_id = cbpc.sspr_labor_regime_id
+		WHERE  cbp.c_bpartner_id = Cur_Bpartner.c_bpartner_id)),0) into v_LaboralRegimeAmount
+		FROM DUAL;
+
+		SELECT COALESCE(TO_CHAR((SELECT em_sfpr_concept_id
+		FROM c_bpartner cbp
+		LEFT JOIN sspr_contract cbpc ON cbpc.c_bpartner_id = cbp.c_bpartner_id
+		LEFT JOIN sspr_labor_regime lr ON lr.sspr_labor_regime_id = cbpc.sspr_labor_regime_id
+		WHERE  cbp.c_bpartner_id = Cur_Bpartner.c_bpartner_id)),'') into v_LaboralRegimeConceptID
+		FROM DUAL;
+
+		v_BpartnerID:= Cur_Bpartner.C_BPartner_ID;
+		
+		v_value:= SSPR_GET_BUSINESS_CONCEPT(v_Incomeconcept, v_StartPeriod_ID, v_BpartnerID );
+
+			IF v_value > 0 AND v_LaboralRegimeAmount > 0 THEN
+				v_amount_concept := ((v_value * v_LaboralRegimeAmount)/100);	
+		    
+			ELSE
+				v_amount_concept :=0;
+			END IF;
+		  	
+			SELECT COALESCE(TO_NUMBER((SELECT  COUNT(*) 
+			FROM SSPR_Concept_Amount
+			WHERE c_bpartner_id = Cur_Bpartner.c_bpartner_id 
+			and sspr_concept_id = v_LaboralRegimeConceptID
+			and c_period_id = v_StartPeriod_ID)),0) INTO v_insert FROM DUAL;
+			
+			IF v_insert = 0 and v_LaboralRegimeConceptID IS NOT NULL THEN
+			
+			  select ad_client_id,ad_org_id
+			  into   v_Client_ID , v_Org_ID 
+			  from sspr_concept where sspr_concept_id = v_LaboralRegimeConceptID;
+			  
+			   INSERT INTO SSPR_Concept_Amount(sspr_concept_amount_id, ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby
+         ,sspr_concept_id,c_bpartner_id,c_period_id, amount, ismodified, em_sfpr_surrogate_detail_id
+         ,em_sfpr_rve_detail_id, em_sfpr_description) 
+        VALUES(get_uuid(),    v_Client_ID,       v_Org_ID,
+				 'Y'       ,          now(),    v_Client_ID,
+				 now()     ,    v_Client_ID,    v_LaboralRegimeConceptID,
+				 Cur_Bpartner.c_bpartner_id,    v_StartPeriod_ID, 
+				 v_amount_concept,      'N',null,null,null
+				);
+			
+			END IF;
+			
+		    END LOOP; -- End Bpartner
+	
+	
+		    
+	END IF;
+    
+    END LOOP; -- End Contibution Type
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SFPR_UPDATECONTRIBUTIONIESS
+]]></body>
+    </function>
+  </database>

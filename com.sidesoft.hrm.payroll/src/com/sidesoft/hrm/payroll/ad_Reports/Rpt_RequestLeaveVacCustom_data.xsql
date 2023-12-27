@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+<SqlClass name="RptRequestLeaveVacCustomData" package="com.sidesoft.hrm.payroll.ad_Reports">
+   <SqlClassComment></SqlClassComment>
+     <SqlMethod name="selectv" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[   
+     select b.name as tercero,
+   to_char(stardateabsent,'dd-MM-yyyy') as fechaingreso,
+   p.description as compania,
+   k.name as puesto,
+   d.name as area,
+   e.name as lugar,
+   to_char(a.stardate,'dd-MM-yyyy') as stardate,
+   to_char(a.enddate,'dd-MM-yyyy') as enddate,
+   a.nodays,
+   to_char(a.enddate + 1,'dd-MM-yyyy') as fechaingresoempleado,
+   to_char(entrydate,'yyyy')||'-'||to_char(end_date,'yyyy') as periodo,
+   CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN F.Nodays +  CASE WHEN Typevacations = 'DN' THEN a.nodays ELSE 0 END ELSE F.Nodays END  AS diasbasicos_periodo,
+   CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN F.Noadditionaltotal + CASE WHEN Typevacations = 'DA' THEN a.nodays ELSE 0 END ELSE F.Noadditionaltotal END  as diasadicionales_periodo,
+   CASE WHEN Typevacations = 'DN' THEN CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN a.nodays ELSE NULL END  ELSE 0 END  as diasbasico_goza,
+   CASE WHEN Typevacations = 'DA' THEN CASE WHEN Q.Sspr_Vacations_ID = F.Sspr_Vacations_ID THEN a.nodays ELSE NULL END  ELSE 0 END  as diasadicionales_goza,
+   F.Nodays as diasbasico_saldo,
+   F.Noadditionaltotal as diasadicionales_saldo from SSPR_LEAVE_EMP a left join c_bpartner b on a.c_bpartner_id = b.c_bpartner_id
+    left join sspr_contract i on b.c_bpartner_id = i.c_bpartner_id
+    left join sspr_contract_position j on i.sspr_contract_id = j.sspr_contract_id
+    left join sspr_position k on j.sspr_position_id = k.sspr_position_id
+    left join C_COSTCENTER d on a.C_COSTCENTER_ID = d.C_COSTCENTER_ID
+    left join SSHR_DEPARTMENT e on a.EM_SSHR_DEPARTMENT_ID = e.SSHR_DEPARTMENT_ID
+    left join ad_org p on a.ad_org_id = p.ad_org_id
+    LEFT JOIN sspr_leave_emp_vac Q ON A.SSPR_LEAVE_EMP_ID = Q.SSPR_LEAVE_EMP_ID
+    left join sspr_vacations f on a.c_bpartner_id = f.c_bpartner_id   
+	where a.SSPR_LEAVE_EMP_id = ?  
+	AND ENTRYDATE >=(SELECT ENTRYDATE FROM sspr_vacations WHERE sspr_vacations.Sspr_Vacations_ID= Q.Sspr_Vacations_ID)   
+	order by 11
+        ]]>
+        </Sql>
+        <Parameter name="leave"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>
+

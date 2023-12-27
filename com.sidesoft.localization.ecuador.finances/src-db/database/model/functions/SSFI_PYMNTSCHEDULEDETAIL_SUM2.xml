@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_PYMNTSCHEDULEDETAIL_SUM2">
+    <function name="SSFI_PYMNTSCHEDULEDETAIL_SUM2" type="VARCHAR">
+      <parameter name="p_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_record_id         	    VARCHAR2(60);      
+v_recordreference_id         	    VARCHAR2(60);      
+v_schedule_id        VARCHAR2(32);      
+v_schedule_amount       NUMBER;
+v_issotrx		CHAR(1); 
+v_doctype		VARCHAR(60); 
+v_docbasetype		VARCHAR(60); 
+
+v_schedule_amount_invoice       NUMBER;
+v_Msg VARCHAR(360); 
+v_InvoiceID VARCHAR2(32);      
+v_FinPaymentID VARCHAR2(32);      
+TYPE RECORD IS REF CURSOR;
+   cur_params RECORD;
+BEGIN
+
+
+select coalesce((select ci.em_scnr_invoice_id
+from c_invoice ci
+join c_doctype cd on ci.c_doctype_id = cd.c_doctype_id
+where c_invoice_id=p_record_id and em_scnr_isref_inv = 'Y' and em_scnr_invoice_id is not null
+and em_ssfi_iscrossing='Y'),'ND')
+into v_InvoiceID
+from dual;
+
+IF (v_InvoiceID<>'ND')THEN
+
+	select coalesce((select sum(amount) from fin_payment_scheduledetail ps 
+	where ps.fin_payment_schedule_invoice in 
+	(select fin_payment_schedule_id from fin_payment_schedule where c_invoice_id = v_InvoiceID)
+	and ps.fin_payment_detail_id is not null),0)
+	into v_schedule_amount_invoice
+	from dual ;
+
+	select fin_payment_schedule_id
+	into v_schedule_id
+	from fin_payment_schedule where c_invoice_id = v_InvoiceID;
+
+
+	IF (v_schedule_amount_invoice>0) then
+		UPDATE fin_payment_schedule set paidamt= v_schedule_amount_invoice,outstandingamt =(amount - v_schedule_amount_invoice)   where fin_payment_schedule_id= v_schedule_id ;
+		UPDATE C_INVOICE SET TOTALPAID = v_schedule_amount_invoice, outstandingamt= (GRANDTOTAL - abs(v_schedule_amount_invoice)),DUEAMT = (GRANDTOTAL - abs(v_schedule_amount_invoice)) WHERE C_INVOICE_ID = v_InvoiceID;
+
+		SELECT COALESCE((SELECT FPD.FIN_PAYMENT_ID FROM FIN_PAYMENT_SCHEDULEDETAIL fpsd
+		join FIN_PAYMENT_DETAIL FPD ON FPD.FIN_PAYMENT_DETAIL_ID = FPSD.FIN_PAYMENT_DETAIL_ID
+		WHERE fpsd.FIN_PAYMENT_SCHEDULE_INVOICE in 
+		(select fin_payment_schedule_id from fin_payment_schedule where c_invoice_id = p_record_id)
+		),'ND')
+		INTO v_FinPaymentID
+		FROM DUAL;
+
+		IF (v_FinPaymentID<>'ND') THEN
+			UPDATE FIN_PAYMENT SET USED_CREDIT =0 WHERE FIN_PAYMENT_ID = v_FinPaymentID;
+		END IF;
+
+		
+	END IF;
+
+v_Msg:='OK';
+
+END IF;
+
+RETURN v_Msg;
+
+ EXCEPTION
+WHEN OTHERS THEN
+RAISE;
+END SSFI_PYMNTSCHEDULEDETAIL_SUM2
+]]></body>
+    </function>
+  </database>

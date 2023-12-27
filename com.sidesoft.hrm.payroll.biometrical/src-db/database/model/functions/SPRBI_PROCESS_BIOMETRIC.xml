@@ -1,0 +1,346 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRBI_PROCESS_BIOMETRIC">
+    <function name="SPRBI_PROCESS_BIOMETRIC" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_Biometric RECORD;
+    Cur_Lines RECORD;
+
+    v_ResultStr VARCHAR2(2000) := '';
+    v_Client_ID VARCHAR2(32);
+    v_Org_ID VARCHAR2(32);
+    v_User_ID VARCHAR2(32);
+    v_Record_ID VARCHAR2(32);
+    v_Message VARCHAR2(2000) := '';
+    -- Parametros
+    v_c_bpartner_id VARCHAR2(32);
+    v_date_from DATE;
+    v_date_to DATE;
+    -- Variables
+    v_calc NUMBER(10, 2);
+    v_check BOOLEAN;
+    v_timecalc DATE;
+    v_starttime DATE;
+    v_endtime DATE;
+    v_delayparam DATE;
+    v_overtimeparam DATE;
+    v_entryfrom DATE;
+    v_entryuntil DATE;
+    v_entryprocessed DATE;
+    v_exitfrom DATE;
+    v_exituntil DATE;
+    v_exitprocessed DATE;
+    v_islunch VARCHAR2(1);
+    v_feedp DATE;
+    v_feedv NUMBER(10, 2);
+    v_reason VARCHAR2(32);
+    vMinWorked DATE;
+    v_configlines VARCHAR2(32);
+BEGIN
+    SET timezone TO '0';
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE( 'Updating PInstance - Processing ' || PInstance_ID);
+    v_ResultStr := 'PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL);
+    BEGIN
+        --BODY
+        FOR Cur_Parameter IN (
+            SELECT
+                i.Record_ID,
+                p.ParameterName,
+                p.P_String,
+                p.P_Number,
+                p.P_Date,
+                p.AD_Client_ID,
+                p.AD_Org_ID,
+                p.CreatedBy
+            FROM
+                AD_PInstance i
+            LEFT JOIN AD_PInstance_Para p ON i.AD_PInstance_ID = p.AD_PInstance_ID
+        WHERE
+            i.AD_PInstance_ID = PInstance_ID
+        ORDER BY
+            p.SeqNo)
+        LOOP
+            IF (Cur_Parameter.ParameterName = 'c_bpartner_id') THEN
+                v_c_bpartner_id := Cur_Parameter.P_String;
+            ELSEIF (Cur_Parameter.ParameterName = 'date_from') THEN
+                v_date_from := Cur_Parameter.P_Date;
+                v_Client_ID := Cur_Parameter.AD_Client_ID;
+                v_Org_ID := Cur_Parameter.AD_Org_ID;
+                v_User_ID := Cur_Parameter.CreatedBy;
+            ELSEIF (Cur_Parameter.ParameterName = 'date_to') THEN
+                v_date_to := Cur_Parameter.P_Date;
+            ELSE
+                DBMS_OUTPUT.PUT_LINE( '*** Unknown Parameter=' || Cur_Parameter.ParameterName);
+            END IF;
+        END LOOP;
+        
+        -- Consultamos las marcaciones de entrada segun los parametros
+        FOR Cur_Biometric IN (
+            SELECT
+                To_Char(to_number(To_Char(datemovement, 'D'))-1) as day_movement,
+                datemovement::DATE AS movement,
+                MIN(datemovement::TIME) AS entry,
+                MAX(datemovement::TIME) AS exit,
+                identify,
+                c_bpartner_id
+            FROM
+                sprbi_biometric
+            WHERE
+                datemovement::DATE >= v_date_from::DATE
+                AND datemovement::DATE <= v_date_to::DATE
+                AND (c_bpartner_id = v_c_bpartner_id OR v_c_bpartner_id IS NULL)
+                AND state='DR'
+            GROUP BY
+                day_movement,
+                movement,
+                identify,
+                c_bpartner_id
+            ORDER BY
+                movement ASC,
+                c_bpartner_id,
+                entry ASC)
+            LOOP
+            
+                UPDATE sprbi_biometric SET state='CO' WHERE datemovement::DATE=Cur_Biometric.movement::DATE
+                AND c_bpartner_id = Cur_Biometric.c_bpartner_id;
+                v_entryprocessed := '0001-01-01 00:00:00';
+                v_exitprocessed := '0001-01-01 00:00:00';
+                
+                -- Consultamos los parametros del turno del empleado
+                FOR Cur_Lines IN (
+
+                    SELECT
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.starttime
+                        ELSE s.starttime
+                        END as starttime,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.entry_from
+                        ELSE s.em_sprbi_entry_from
+                        END as entry_from,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.entry_until
+                        ELSE s.em_sprbi_entry_until
+                        END as entry_until,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.minute_delay_param
+                        ELSE s.em_sprbi_minute_delay_param
+                        END as minute_delay_param,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.endtime
+                        ELSE s.endtime
+                        END as endtime,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.exit_from
+                        ELSE s.em_sprbi_exit_from
+                        END as exit_from,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.exit_until
+                        ELSE s.em_sprbi_exit_until
+                        END as exit_until,
+                        CASE WHEN s.em_sprbi_configuration_lines = 'Y' THEN d.overtime_param
+                        ELSE s.em_sprbi_overtime_param
+                        END as overtime_param,
+                        s.islunch,
+                        s.EM_Sprbi_Feed_Param,
+                        s.EM_Sprbi_Feed_Value,
+                        s.em_sprbi_hours_min_worked,
+                        s.em_sprbi_configuration_lines
+                    FROM
+                        c_bpartner AS bp
+                        JOIN sspr_contract AS c ON c.c_bpartner_id = bp.c_bpartner_id
+                        JOIN sspr_shift AS s ON s.sspr_shift_id = c.sspr_shift_id
+                        LEFT JOIN sprbi_days AS d ON s.sspr_shift_id = d.sspr_shift_id
+                    WHERE
+                        bp.c_bpartner_id = Cur_Biometric.c_bpartner_id 
+                        AND CASE WHEN Cur_Biometric.day_movement is not null AND s.em_sprbi_configuration_lines = 'Y'
+                        THEN day = Cur_Biometric.day_movement
+                        ELSE 1 = 1 END
+                ) LOOP
+                
+                    v_starttime := Cur_Lines.starttime;
+                    v_endtime := Cur_Lines.endtime;
+                    v_entryfrom := Cur_Lines.entry_from;
+                    v_entryuntil := Cur_Lines.entry_until;
+                    v_delayparam := Cur_Lines.minute_delay_param;
+                    v_exitfrom := Cur_Lines.exit_from;
+                    v_exituntil := Cur_Lines.exit_until;
+                    v_overtimeparam := Cur_Lines.overtime_param;
+                    v_islunch := Cur_Lines.islunch;
+                    v_feedp := Cur_Lines.EM_Sprbi_Feed_Param;
+                    v_feedv := Cur_Lines.EM_Sprbi_Feed_Value;
+                    vMinWorked := Cur_Lines.em_sprbi_hours_min_worked;
+                    v_configlines := Cur_Lines.em_sprbi_configuration_lines;
+
+                    EXIT WHEN Cur_Lines.starttime is not null;
+
+                END LOOP;
+
+                -- Si tiene turno configurado
+                IF (v_starttime::TIME != '00:00:00' AND v_endtime::TIME != '00:00:00') THEN
+                
+                    -- Creamos el detalle de la marcacion
+                    AD_Sequence_Next('sprov_employee_overtime', v_Client_ID, v_Record_ID);
+                    INSERT INTO sprov_employee_overtime (
+                        sprov_employee_overtime_id,
+                        ad_client_id, ad_org_id,
+                        createdby,
+                        updatedby,
+                        identify,
+                        c_bpartner_id,
+                        datemovement,
+                        entry_1,
+                        exit_1,
+                        non_attendance
+                    ) VALUES (
+                        v_Record_ID,
+                        v_Client_ID,
+                        v_Org_ID,
+                        v_User_ID,
+                        v_User_ID,
+                        Cur_Biometric.identify,
+                        Cur_Biometric.c_bpartner_id,
+                        Cur_Biometric.movement::TIMESTAMP,
+                        v_starttime,
+                        v_endtime,
+                        'N'
+                    );
+                    
+                    -- Alimentacion
+                    IF (v_islunch = 'Y') AND (Cur_Biometric.entry::TIME != '00:00:00') AND (Cur_Biometric.exit::TIME != '00:00:00') THEN
+                        v_timecalc := (Cur_Biometric.movement||' '||Cur_Biometric.exit::TIME)::TIMESTAMP - Cur_Biometric.entry::TIME;
+                        IF (vMinWorked IS NOT NULL) AND (vMinWorked::TIME != '00:00:00') AND (v_timecalc::TIME >= vMinWorked::TIME) THEN
+                            UPDATE sprov_employee_overtime SET Feed_Value = v_feedv WHERE sprov_employee_overtime_id = v_Record_ID;
+                        END IF;
+                    END IF;
+                    
+                    -- Consultamos si la marcacion de entrada esta en el rango del turno
+                    SELECT (Cur_Biometric.entry::TIME >= v_entryfrom::TIME
+                        AND Cur_Biometric.entry::TIME <= v_entryuntil::TIME) INTO v_check;
+                    IF (v_check) THEN
+                        v_entryprocessed := Cur_Biometric.movement::DATE||' '||Cur_Biometric.entry::TIME;
+                        UPDATE sprov_employee_overtime
+                        SET entry_time_processed = v_entryprocessed, entry_dial_1 = v_entryprocessed
+                        WHERE sprov_employee_overtime_id = v_Record_ID;
+                    END IF;
+                    
+                    -- Consultamos si la marcacion de salida esta en el rango del turno
+                    SELECT (Cur_Biometric.exit::TIME >= v_exitfrom::TIME
+                        AND Cur_Biometric.exit::TIME <=v_exituntil::TIME) INTO v_check;
+                    IF (v_check) THEN
+                        v_exitprocessed := Cur_Biometric.movement::DATE||' '||Cur_Biometric.exit::TIME;
+                        UPDATE sprov_employee_overtime
+                        SET output_time_processed = v_exitprocessed, chek_out_1 = v_exitprocessed
+                        WHERE sprov_employee_overtime_id = v_Record_ID;
+                    END IF;
+                    
+                    -- Si existe valor en la entrada y salida procesada
+                    IF (v_entryprocessed::TIME != '00:00:00' AND v_exitprocessed::TIME != '00:00:00') THEN
+                    
+                        -- Horas autorizadas
+                        SELECT
+                            '0001-01-01 '||SUM(PA.n_hour::TIME) AS n_hour INTO v_timecalc
+                        FROM
+                            sprov_period AS P
+                            JOIN sprov_employee AS E ON E.sprov_period_id = P.sprov_period_id
+                            JOIN sprov_planned_activity PA ON PA.sprov_employee_id = E.sprov_employee_id
+                        WHERE
+                            P.status = '1'
+                            AND PA.payment = 'Y'
+                            AND E.c_bpartner_id = Cur_Biometric.c_bpartner_id
+                            AND PA.date::DATE = Cur_Biometric.movement::DATE;
+                            
+                        -- Motivo de generacion de horas
+                        SELECT
+                            PA.Sprov_Extra_Reason_Maint_ID AS n_hour INTO v_reason
+                        FROM
+                            sprov_period AS P
+                            JOIN sprov_employee AS E ON E.sprov_period_id = P.sprov_period_id
+                            JOIN sprov_planned_activity PA ON PA.sprov_employee_id = E.sprov_employee_id
+                        WHERE
+                            P.status = '1'
+                            AND PA.payment = 'Y'
+                            AND E.c_bpartner_id = Cur_Biometric.c_bpartner_id
+                            AND PA.date::DATE = Cur_Biometric.movement::DATE
+                        ORDER BY PA.created ASC LIMIT 1;
+                        
+                        IF (v_timecalc IS NOT NULL) THEN
+                            UPDATE
+                                sprov_employee_overtime
+                            SET
+                                authorized_time = (Cur_Biometric.movement::DATE||' '||v_timecalc::TIME)::TIMESTAMP,
+                                Sprov_Extra_Reason_Maint_ID = v_reason
+                            WHERE
+                                sprov_employee_overtime_id = v_Record_ID;
+                        END IF;
+                        
+                        -- Si la entrada procesada es mayor a la entrada del turno
+                        IF (v_entryprocessed::TIME > v_starttime::TIME) THEN
+                            -- Atraso
+                            SELECT '0001-01-01 '||(v_entryprocessed::TIME - v_delayparam::TIME) INTO v_timecalc;
+                            IF (v_timecalc::TIME > v_starttime::TIME) THEN
+                                UPDATE
+                                    sprov_employee_overtime
+                                SET
+                                    Delay_1 = (Cur_Biometric.movement::DATE||' '||(to_char(v_timecalc,'HH24:mi')::TIME - to_char(v_starttime,'HH24:mi')::TIME))::TIMESTAMP
+                                WHERE
+                                    sprov_employee_overtime_id = v_Record_ID;
+                            END IF;
+                        END IF;
+
+                        -- Si la salida procesada es mayor a la del turno
+                        IF (v_exitprocessed::TIME > v_endtime::TIME) THEN
+                            -- Horas generadas
+                            SELECT '0001-01-01 '||(v_exitprocessed::TIME - v_endtime::TIME) INTO v_timecalc;
+                            UPDATE
+                                sprov_employee_overtime
+                            SET
+                                Generated_Time = (Cur_Biometric.movement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+                            WHERE
+                                sprov_employee_overtime_id = v_Record_ID;
+                        END IF;
+                        
+                        -- Si la salida procesada es menor a la del turno
+                        IF (v_exitprocessed::TIME < v_endtime::TIME) THEN
+                            -- Salida temprano
+                            SELECT '0001-01-01 '||(v_endtime::TIME - v_exitprocessed::TIME) INTO v_timecalc;
+                            UPDATE
+                                sprov_employee_overtime
+                            SET
+                                Early_Dismissal_Hours = (Cur_Biometric.movement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+                            WHERE
+                                sprov_employee_overtime_id = v_Record_ID;
+                        END IF;
+
+                        -- Horas trabajadas y Validado
+                        SELECT '0001-01-01 '||(v_exitprocessed::TIME - v_entryprocessed::TIME) INTO v_timecalc;
+                        UPDATE
+                            sprov_employee_overtime
+                        SET
+                            Worked_Hour = (Cur_Biometric.movement::DATE||' '||v_timecalc::TIME)::TIMESTAMP,
+                            Validated = 'Y'
+                        WHERE
+                            sprov_employee_overtime_id = v_Record_ID;
+
+                        SELECT sprbi_nhour_50 (v_Record_ID) INTO v_check;
+                        SELECT sprbi_nhour_100 (v_Record_ID) INTO v_check;
+                        SELECT sprbi_overtime (v_Record_ID) INTO v_check;
+                    END IF;
+                    SELECT sprbi_absences (Cur_Biometric.movement, Cur_Biometric.c_bpartner_id) INTO v_check;
+                ELSE
+                    RAISE_APPLICATION_ERROR(-20000, '@SPRBI_NoShift@'||', identificador '||Cur_Biometric.identify);
+                END IF;
+            END LOOP;
+        DBMS_OUTPUT.PUT_LINE( 'Updating PInstance - Finished ' || v_Message);
+        AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message);
+        RETURN;
+    END;
+    --BODY
+EXCEPTION
+    WHEN OTHERS THEN
+        v_ResultStr := '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr);
+    RETURN;
+END SPRBI_PROCESS_BIOMETRIC
+]]></body>
+    </function>
+  </database>

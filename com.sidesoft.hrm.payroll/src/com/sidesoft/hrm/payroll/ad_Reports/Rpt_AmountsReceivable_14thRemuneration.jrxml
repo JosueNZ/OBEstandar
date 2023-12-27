@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_AmountsReceivable_14thRemuneration" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="sspr_category_acct_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_year_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="sspr_labor_regime_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select c_bpartner.c_bpartner_id,
+	c_bpartner.em_sspr_category_acct_id,
+	now() as dateprint,
+	sspr_labor_regime.name as regimenlaboral,
+	Sspr_Category_Acct.name as namecategory,
+	c_bpartner.value,
+	c_bpartner.taxid,
+	c_bpartner.name as nameemployee,
+	sspr_Bank.code||'/'||sspr_Bank.name as namebank,
+	C_BP_BankAccount.accountno,
+	case when C_BP_BankAccount.bankaccounttype = 'S' then 'Ahorros'
+	     when C_BP_BankAccount.bankaccounttype = 'C' then 'Corriente'
+	end as bankaccounttype,
+	sum(round(sspr_payroll_ticket_concept.amount,2)) as sum
+	,c_year.c_year_id as id_anio,
+	(select year from c_year where c_year_id = $P{c_year_id}) as anio,
+	ad_month.value as monthregime,
+	(select to_date(to_char(trim(to_char('01'))||'-'||trim(to_char(ad_month.value))||'-'||
+	trim(to_char((select to_number(year) -1 from c_year where c_year_id = $P{c_year_id})))))
+	from dual) as startdate,
+	(select to_date(to_date(to_char(trim(to_char('01'))||'-'||trim(to_char(ad_month.value))||'-'||
+	trim(to_char((select to_number(year)from c_year where c_year_id = $P{c_year_id}))))) -1)
+	from dual) as enddate
+from sspr_payroll_ticket_concept
+left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_ticket_id = sspr_payroll_ticket_concept.sspr_payroll_ticket_id
+left join sspr_payroll on sspr_payroll.sspr_payroll_id = sspr_payroll_ticket.sspr_payroll_id
+left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+left join c_bpartner on c_bpartner.c_bpartner_id =  sspr_payroll_ticket.c_bpartner_id
+left join Sspr_Category_Acct on Sspr_Category_Acct.Sspr_Category_Acct_id = c_bpartner.em_Sspr_Category_Acct_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+left join C_BP_BankAccount on C_BP_BankAccount.c_bpartner_id = c_bpartner.c_bpartner_id
+left join sspr_Bank on sspr_Bank.sspr_bank_id = C_BP_BankAccount.em_sspr_bank_id
+left join c_year on c_year.c_year_id=c_period.c_year_id
+left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+left join sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = sspr_contract.sspr_labor_regime_id
+left join sspr_labor_regime_detail on sspr_labor_regime_detail.sspr_labor_regime_id = sspr_labor_regime.sspr_labor_regime_id
+	  and sspr_labor_regime_detail.typeconcept = '14TH' and sspr_labor_regime_detail.isactive = 'Y'
+left join ad_month on ad_month.ad_month_id = sspr_labor_regime_detail.ad_month_id
+where Sspr_Category_Acct.sspr_category_acct_id =  $P{sspr_category_acct_id}
+      and ispayroll = 'N' and isliquidation = 'N'
+      and sspr_labor_regime.sspr_labor_regime_id = $P{sspr_labor_regime_id}
+      and (c_bpartner.c_bpartner_id = $P{c_bpartner_id} or $P{c_bpartner_id} is null)
+      and sspr_concept.concepttypepayroll = 'DC'
+      and c_period.startdate >= (select 		to_date(to_char(trim(to_char('01'))||'-'||trim(to_char(ad_month.value))||'-'||
+				trim(to_char((select to_number(year) -1 from c_year where c_year_id = $P{c_year_id}))))) from dual)
+      and c_period.enddate <= (select to_date(to_date(to_char(trim(to_char('01'))||'-'||trim(to_char(ad_month.value))||'-'||
+				trim(to_char((select to_number(year)from c_year where c_year_id = $P{c_year_id}))))) -1) from dual)
+group by c_bpartner.c_bpartner_id,
+	sspr_labor_regime.name,
+	c_bpartner.em_sspr_category_acct_id,
+	Sspr_Category_Acct.name,
+	c_bpartner.value,
+	c_bpartner.taxid,
+	c_bpartner.name,
+	sspr_Bank.code||'/'||sspr_Bank.name,
+	C_BP_BankAccount.accountno,
+	case when C_BP_BankAccount.bankaccounttype = 'S' then 'Ahorros'
+	   when C_BP_BankAccount.bankaccounttype = 'C' then 'Corriente'
+	end,
+	c_year.c_year_id,
+	ad_month.value
+order by c_bpartner.name]]>
+	</queryString>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="em_sspr_category_acct_id" class="java.lang.String"/>
+	<field name="dateprint" class="java.sql.Timestamp"/>
+	<field name="regimenlaboral" class="java.lang.String"/>
+	<field name="namecategory" class="java.lang.String"/>
+	<field name="value" class="java.lang.String"/>
+	<field name="taxid" class="java.lang.String"/>
+	<field name="nameemployee" class="java.lang.String"/>
+	<field name="namebank" class="java.lang.String"/>
+	<field name="accountno" class="java.lang.String"/>
+	<field name="bankaccounttype" class="java.lang.String"/>
+	<field name="sum" class="java.math.BigDecimal"/>
+	<field name="id_anio" class="java.lang.String"/>
+	<field name="anio" class="java.lang.String"/>
+	<field name="monthregime" class="java.lang.String"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<variable name="date" class="java.sql.Timestamp"/>
+	<variable name="totalcategoria" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{sum}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="87" splitType="Stretch">
+			<staticText>
+				<reportElement x="121" y="11" width="331" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALORES A RECIBIR - DÉCIMO CUARTO POR CATEGORÍA DE EMPLEADOS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="127" y="30" width="53" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Categoría]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="129" y="47" width="37" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Año]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="222" y="46" width="100" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{anio}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="222" y="29" width="262" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{namecategory}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="129" y="64" width="89" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Regimen Laboral]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="222" y="64" width="262" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{regimenlaboral}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement x="7" y="4" width="64" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ID. Empleado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="99" y="4" width="12" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[C.I]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="140" y="4" width="165" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombre]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="324" y="4" width="64" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Banco]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="410" y="4" width="26" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="454" y="4" width="49" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo CTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="512" y="4" width="53" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[V. a recibir]]></text>
+			</staticText>
+			<line>
+				<reportElement x="5" y="17" width="564" height="1"/>
+			</line>
+			<line>
+				<reportElement x="4" y="1" width="564" height="1"/>
+			</line>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="16" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="3" y="0" width="75" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{value}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="80" y="0" width="60" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{taxid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="146" y="0" width="168" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nameemployee}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="316" y="0" width="72" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{namebank}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="392" y="0" width="60" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{accountno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="454" y="0" width="52" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bankaccounttype}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="510" y="0" width="57" height="15"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{sum}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="16">
+			<staticText>
+				<reportElement x="413" y="0" width="83" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de impresión]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="498" y="0" width="73" height="12"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{dateprint}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="98" splitType="Stretch">
+			<line>
+				<reportElement x="511" y="9" width="60" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="428" y="14" width="75" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Categoría]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="510" y="14" width="59" height="15"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{totalcategoria}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="366" y="84" width="70" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Revisado por.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="148" y="84" width="70" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Elaborado por.]]></text>
+			</staticText>
+			<line>
+				<reportElement x="352" y="80" width="92" height="1"/>
+			</line>
+			<line>
+				<reportElement x="139" y="79" width="92" height="1"/>
+			</line>
+		</band>
+	</summary>
+</jasperReport>

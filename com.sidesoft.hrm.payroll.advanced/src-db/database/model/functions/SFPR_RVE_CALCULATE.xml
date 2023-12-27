@@ -1,0 +1,484 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFPR_RVE_CALCULATE">
+    <function name="SFPR_RVE_CALCULATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);  
+  v_SSconcept_ID VARCHAR2(32);  
+  
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_Period_ID VARCHAR2(32); 
+  v_PRollTemplate_ID VARCHAR2(32);  
+  v_n_insertions NUMBER;	--OBTG:NUMBER--
+  v_count NUMBER;		--OBTG:NUMBER--
+  v_Message VARCHAR2(2000):='';
+  v_grandtotal NUMBER;		--OBTG:NUMBER--
+  
+  V_ISRVE_SURROGATE CHAR(1);
+  V_CONCEPT_RVE_SURROGATE VARCHAR2(32);
+  V_BPARTNER_RVE_SURROGATE VARCHAR2(32);
+  V_AMOUNT_RVE_SURROGATE NUMBER;		--OBTG:NUMBER--
+  V_NEW_AMOUNT NUMBER;		--OBTG:NUMBER--
+  V_SUPERIOR CHAR(1);
+  V_DAYSPERIOD NUMBER;
+  V_DAYSPERIOD_INI NUMBER;
+  v_nameempploye VARCHAR2(60);
+
+BEGIN
+  --  Update AD_PInstance
+  --RAISE NOTICE '%','Updating PInstance - Processing ' || PInstance_ID ;
+  --v_ResultStr := 'PInstanceNotFound';
+  --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;    
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,
+	p.ParameterName,
+	p.P_String,
+	p.P_Number,
+	p.P_Date,
+	p.AD_Client_ID,
+	p.AD_Org_ID,
+	p.CreatedBy        
+	FROM AD_PInstance i
+	LEFT JOIN AD_PInstance_Para p
+	   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+	WHERE i.AD_PInstance_ID = PInstance_ID
+	ORDER BY p.SeqNo
+	)
+	LOOP      	  
+
+	IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+	v_StartPeriod_ID := Cur_Parameter.P_String;      
+	  
+	v_Client_ID := Cur_Parameter.AD_Client_ID;
+	v_Org_ID := Cur_Parameter.AD_Org_ID;
+	v_User_ID := Cur_Parameter.CreatedBy;
+	ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+	v_EndPeriod_ID := Cur_Parameter.P_String;
+	ELSIF (Cur_Parameter.ParameterName = 'C_Bpartner_ID') THEN
+	v_BPartner_ID := Cur_Parameter.P_String;      
+	ELSIF (Cur_Parameter.ParameterName = 'Em_Sfpr_Concept_ID') THEN
+	v_SSconcept_ID := Cur_Parameter.P_String;  
+	ELSE  
+	DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	END IF;     
+
+	END LOOP; -- Get Parameter
+
+	SELECT startdate, enddate
+	INTO v_StartPeriod_StartDate, v_StartPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_StartPeriod_ID;
+
+	V_DAYSPERIOD_INI:=TO_NUMBER((v_StartPeriod_EndDate - v_StartPeriod_StartDate))+1;
+
+
+	SELECT startdate, enddate
+	INTO v_EndPeriod_StartDate, v_EndPeriod_EndDate
+	FROM C_Period
+	WHERE C_Period_ID = v_EndPeriod_ID;
+
+	IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+
+	RAISE_APPLICATION_ERROR(-20000, '@SSPR_EndStartPeriod@');
+
+	END IF;
+
+
+	IF (v_BPartner_ID IS NOT NULL and v_SSconcept_ID IS NOT NULL) THEN
+
+		--Create the RVE and Copy Concepts by employee
+		FOR Cur_Period IN 
+		(
+			SELECT ES.C_BPARTNER_ID,TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1 AS NODAYS,
+			--COALESCE((CASE WHEN UPPER(VT.VESSEL_TYPE) = 'A' THEN RV.RVE_AFRAMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1)
+			--WHEN UPPER(VT.VESSEL_TYPE) = 'H' THEN RV.RVE_HANDIMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1)
+			--WHEN UPPER(VT.VESSEL_TYPE) = 'P' THEN RV.RVE_PANAMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) END),0) AS GRANDTOTAL
+            to_number(0) AS GRANDTOTAL
+			,'Y' AS ISACTIVE
+            --,VT.SSFL_VESSEL_TYPE_ID AS VESSEL_TYPE
+            ,to_char('') AS VESSEL_TYPE
+            , RV.SFPR_RVE_ID,PS.NAME,MT.SFPR_MOVEMENT_TYPE_ID
+			,ES.SFPR_EMPLOYEE_RVE_ID,ES.C_COSTCENTER_ID,( TO_CHAR(ES.ENDDATE) || ' / ' || TO_CHAR(ES.STARTDATE) || ' - ' || CCT.NAME || ' - '-- || VT.NAME 
+            ) AS DETAIL
+			,ES.ISRVE_SURROGATE, ES.EM_SSPR_CONCEPT_ID AS CONCEPT_RVE_S
+			,RV.PORC_HANDIMAX,RV.PORC_PANAMAX,RV.PORC_AFRAMAX
+            --,VT.VESSEL_TYPE AS V_TYPE,
+            ,to_char('') AS V_TYPE,
+		        ES.startdate as startdaterve, ES.enddate as enddaterve,CBP.em_sspr_category_acct_id,
+		        PS.sspr_position_id, COALESCE(EVS.AMOUNT,0) AS rmu,
+		        trunc(36/(V_DAYSPERIOD_INI*1.0),20) * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) AS supplementary,
+			trunc(24/(V_DAYSPERIOD_INI*1.0),20) * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) AS extraordinary,
+                        RV.value1,RV.value2,RV.value3,ES.superior   
+			FROM SFPR_MOVEMENT_TYPE MT
+			LEFT JOIN SFPR_EMPLOYEE_RVE ES ON ES.SFPR_MOVEMENT_TYPE_ID = MT.SFPR_MOVEMENT_TYPE_ID
+			---LEFT JOIN SSFL_VESSEL_TYPE VT ON SSFL_VESSEL_TYPE_ID = EM_SSFL_VESSEL_TYPE_ID
+			LEFT JOIN SFPR_RVE RV ON RV.SFPR_EMPLOYEE_POSITION_ID = ES.surrogate_to_id
+			LEFT JOIN SSPR_POSITION PS ON PS.SSPR_POSITION_ID = ES.SURROGATE_TO_ID
+			LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = ES.C_BPARTNER_ID 
+			LEFT JOIN C_COSTCENTER CCT ON CCT.C_COSTCENTER_ID = ES.C_COSTCENTER_ID
+			LEFT JOIN SSPR_CONTRACT CT ON CT.C_BPARTNER_ID = CBP.C_BPARTNER_ID AND CT.ISACTIVE = 'Y'
+			LEFT JOIN SFPR_EVOLUTION_SALARY EVS ON EVS.SSPR_CONTRACT_ID = CT.SSPR_CONTRACT_ID 
+			--WHERE ES.C_BPARTNER_ID = v_BPartner_ID AND (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_StartPeriod_EndDate)
+			WHERE ES.C_BPARTNER_ID = v_BPartner_ID AND (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_EndPeriod_EndDate)
+			AND ES.PROCESSED = 'N'
+			)
+		LOOP
+
+        V_ISRVE_SURROGATE:=Cur_Period.ISRVE_SURROGATE;
+        V_CONCEPT_RVE_SURROGATE:= Cur_Period.CONCEPT_RVE_S;
+        V_BPARTNER_RVE_SURROGATE:= Cur_Period.C_BPARTNER_ID;
+        V_AMOUNT_RVE_SURROGATE:=0;
+        V_NEW_AMOUNT:=0;
+        V_SUPERIOR:='N';
+        V_DAYSPERIOD:=TO_NUMBER((v_StartPeriod_EndDate - v_StartPeriod_StartDate))+1;
+        
+        IF (V_ISRVE_SURROGATE = 'Y') THEN
+            
+            IF (V_CONCEPT_RVE_SURROGATE IS NOT NULL) THEN
+                
+                  SELECT COALESCE(TO_NUMBER((SELECT AMOUNT FROM SSPR_CONCEPT_AMOUNT
+                  WHERE SSPR_CONCEPT_ID = V_CONCEPT_RVE_SURROGATE
+                  AND C_BPARTNER_ID = V_BPARTNER_RVE_SURROGATE
+                  AND C_PERIOD_ID = v_StartPeriod_ID)),0)
+                  INTO V_AMOUNT_RVE_SURROGATE
+                  FROM DUAL;
+                  
+		   
+		   IF UPPER(Cur_Period.V_TYPE) = 'A' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_AFRAMAX)/100) * Cur_Period.NODAYS);
+                      
+                   ELSIF UPPER(Cur_Period.V_TYPE) = 'H' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_HANDIMAX)/100) * Cur_Period.NODAYS);
+                      
+                   ELSIF UPPER(Cur_Period.V_TYPE) = 'P' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_PANAMAX)/100) * Cur_Period.NODAYS);
+                      
+                   END IF;		
+                  
+                  v_grandtotal:= V_NEW_AMOUNT;
+            
+            END IF;
+          
+        END IF;      
+        
+			SELECT count(*)
+			INTO v_count
+			FROM SFPR_RVE_DETAIL
+			WHERE CONCEPT_RVE =v_SSconcept_ID
+			AND C_BPartner_ID = v_BPartner_ID
+			AND SFPR_EMPLOYEE_RVE_ID = Cur_Period.SFPR_EMPLOYEE_RVE_ID
+			AND C_Period_ID = v_EndPeriod_ID;
+
+			IF v_count = 0 THEN
+
+				IF  Cur_Period.GRANDTOTAL < 0 THEN
+
+					v_grandtotal:=0;
+					
+				ELSIF Cur_Period.GRANDTOTAL > 0 THEN
+        
+					  IF (v_grandtotal > 0 AND V_ISRVE_SURROGATE = 'Y') THEN
+						v_grandtotal:= V_NEW_AMOUNT;
+					  ELSE
+						IF (Cur_Period.SUPERIOR='N') THEN
+						v_grandtotal:= Cur_Period.GRANDTOTAL;
+
+						ELSE 
+						      
+							 IF UPPER(Cur_Period.V_TYPE) = 'A' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value3/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value3=0 or Cur_Period.value3 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Aframax. Empleado-@'||v_nameempploye);
+							      end if;
+							      
+							   ELSIF UPPER(Cur_Period.V_TYPE) = 'H' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value1/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value1=0 or Cur_Period.value1 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Handimax. Empleado-@'||v_nameempploye);
+							      end if;
+							      
+							   ELSIF UPPER(Cur_Period.V_TYPE) = 'P' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value2/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value2=0 or Cur_Period.value2 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Panamax. Empleado-@'||v_nameempploye);
+							      end if;
+							      
+							   END IF;
+						      END IF;
+						END IF;
+
+				END IF;			
+
+
+				if (Cur_Period.em_sspr_category_acct_id is null or Cur_Period.em_sspr_category_acct_id ='' ) then 
+				  select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+					RAISE_APPLICATION_ERROR(-20000,'@La columna Category Accounting es obligatoria. Empleado-@'||v_nameempploye);
+				end if;
+
+				if (Cur_Period.grandtotal is null or Cur_Period.grandtotal = 0 ) then 
+				  select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+				  RAISE_APPLICATION_ERROR(-20000,'@Empleado-@'||v_nameempploye ||' no dispone de valores para el calculo del RVE');
+				end if;
+          
+
+				INSERT INTO SFPR_RVE_DETAIL 
+				(ad_client_id,ad_org_id,created,createdby,updated,updatedby,isactive,
+				sfpr_rve_detail_id,sfpr_rve_id
+				,c_period_id,c_bpartner_id,nodays,grandtotal,--em_ssfl_vessel_type_id,
+				concept_rve,status_rve,processed,period_processed,sfpr_movement_type_id
+				,SFPR_EMPLOYEE_RVE_ID,C_COSTCENTER_ID,DESCRIPTION,
+				startdate,enddate,sspr_category_acct_id,payonboard,
+				sspr_position_id,rmu, supplementary_hours, extraordinary_hours)
+				VALUES(v_Client_ID, v_Org_ID,now(), v_User_ID, now(), v_User_ID,'Y' 
+				,get_uuid(),Cur_Period.sfpr_rve_id,v_EndPeriod_ID, Cur_Period.c_bpartner_id,Cur_Period.nodays,
+				v_grandtotal--,Cur_Period.VESSEL_TYPE
+                ,v_SSconcept_ID,'CO','N',v_EndPeriod_ID,
+				Cur_Period.sfpr_movement_type_id,Cur_Period.SFPR_EMPLOYEE_RVE_ID
+				,Cur_Period.C_COSTCENTER_ID,Cur_Period.DETAIL,
+				Cur_Period.startdaterve, Cur_Period.enddaterve,Cur_Period.em_sspr_category_acct_id,
+				v_grandtotal * 0.20,
+				Cur_Period.sspr_position_id, Cur_Period.rmu,Cur_Period.supplementary,Cur_Period.extraordinary);
+
+				v_n_insertions := v_n_insertions+1; 
+				
+			END IF;	    
+
+		END LOOP;
+	ELSE
+		IF (v_BPartner_ID IS NULL) THEN
+
+		      --Create the RVE and Copy Concepts
+			FOR Cur_Period IN 
+			(
+				SELECT ES.C_BPARTNER_ID,TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1 AS NODAYS,
+				--COALESCE((CASE WHEN UPPER(VT.VESSEL_TYPE) = 'A' THEN RV.RVE_AFRAMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1)
+				--WHEN UPPER(VT.VESSEL_TYPE) = 'H' THEN RV.RVE_HANDIMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1)
+				--WHEN UPPER(VT.VESSEL_TYPE) = 'P' THEN RV.RVE_PANAMAX * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) END),0) AS GRANDTOTAL
+                to_number(0)  AS GRANDTOTAL
+				,'Y' AS ISACTIVE
+                --,VT.SSFL_VESSEL_TYPE_ID AS VESSEL_TYPE
+                ,TO_CHAR('') AS VESSEL_TYPE
+                , RV.SFPR_RVE_ID,PS.NAME,MT.SFPR_MOVEMENT_TYPE_ID
+				,ES.SFPR_EMPLOYEE_RVE_ID,ES.C_COSTCENTER_ID,( TO_CHAR(ES.ENDDATE) || ' / ' || TO_CHAR(ES.STARTDATE) || ' - ' || CCT.NAME --|| ' - ' || VT.NAME 
+                ) AS DETAIL
+				,ES.ISRVE_SURROGATE, ES.EM_SSPR_CONCEPT_ID AS CONCEPT_RVE_S
+				,RV.PORC_HANDIMAX,RV.PORC_PANAMAX,RV.PORC_AFRAMAX
+                --,VT.VESSEL_TYPE AS V_TYPE,
+                ,TO_CHAR('') AS V_TYPE,
+				ES.startdate as startdaterve, ES.enddate as enddaterve,CBP.em_sspr_category_acct_id ,
+				PS.sspr_position_id, COALESCE(EVS.AMOUNT,0) AS rmu,
+				trunc(36/(V_DAYSPERIOD_INI*1.0),20) * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) AS supplementary,
+				trunc(24/(V_DAYSPERIOD_INI*1.0),20) * (TO_NUMBER((ES.ENDDATE - ES.STARTDATE))+1) AS extraordinary,
+				RV.value1,RV.value2,RV.value3,ES.superior 
+				FROM SFPR_MOVEMENT_TYPE MT
+				LEFT JOIN SFPR_EMPLOYEE_RVE ES ON ES.SFPR_MOVEMENT_TYPE_ID = MT.SFPR_MOVEMENT_TYPE_ID
+				--LEFT JOIN SSFL_VESSEL_TYPE VT ON SSFL_VESSEL_TYPE_ID = EM_SSFL_VESSEL_TYPE_ID
+				LEFT JOIN SFPR_RVE RV ON RV.SFPR_EMPLOYEE_POSITION_ID = ES.surrogate_to_id
+				LEFT JOIN SSPR_POSITION PS ON PS.SSPR_POSITION_ID = ES.SURROGATE_TO_ID
+				LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = ES.C_BPARTNER_ID 
+				LEFT JOIN C_COSTCENTER CCT ON CCT.C_COSTCENTER_ID = ES.C_COSTCENTER_ID
+				LEFT JOIN SSPR_CONTRACT CT ON CT.C_BPARTNER_ID = CBP.C_BPARTNER_ID AND CT.ISACTIVE = 'Y'
+				LEFT JOIN SFPR_EVOLUTION_SALARY EVS ON EVS.SSPR_CONTRACT_ID = CT.SSPR_CONTRACT_ID 
+				--WHERE CBP.C_BPARTNER_ID = ES.C_BPARTNER_ID AND (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_StartPeriod_EndDate)
+				WHERE CBP.C_BPARTNER_ID = ES.C_BPARTNER_ID AND (ES.STARTDATE BETWEEN v_StartPeriod_StartDate and v_EndPeriod_EndDate)
+				AND ES.PROCESSED = 'N'
+				 
+			)
+			LOOP
+
+        V_ISRVE_SURROGATE:=Cur_Period.ISRVE_SURROGATE;
+        V_CONCEPT_RVE_SURROGATE:= Cur_Period.CONCEPT_RVE_S;
+        V_BPARTNER_RVE_SURROGATE:= Cur_Period.C_BPARTNER_ID;
+        V_AMOUNT_RVE_SURROGATE:=0;
+        V_NEW_AMOUNT:=0;
+	V_SUPERIOR:='N';
+        V_DAYSPERIOD:=TO_NUMBER((v_StartPeriod_EndDate - v_StartPeriod_StartDate))+1;
+        
+        
+        IF (V_ISRVE_SURROGATE = 'Y') THEN
+            
+            IF (V_CONCEPT_RVE_SURROGATE IS NOT NULL) THEN
+                
+                  SELECT COALESCE(TO_NUMBER((SELECT AMOUNT FROM SSPR_CONCEPT_AMOUNT
+                  WHERE SSPR_CONCEPT_ID = V_CONCEPT_RVE_SURROGATE
+                  AND C_BPARTNER_ID = V_BPARTNER_RVE_SURROGATE
+                  AND C_PERIOD_ID = v_StartPeriod_ID)),0)
+                  INTO V_AMOUNT_RVE_SURROGATE
+                  FROM DUAL;
+                  
+                    IF UPPER(Cur_Period.V_TYPE) = 'A' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_AFRAMAX)/100) * Cur_Period.NODAYS);
+                      
+                    ELSIF UPPER(Cur_Period.V_TYPE) = 'H' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_HANDIMAX)/100) * Cur_Period.NODAYS);
+                      
+                    ELSIF UPPER(Cur_Period.V_TYPE) = 'P' THEN
+                      
+                      V_NEW_AMOUNT:= (((V_AMOUNT_RVE_SURROGATE* Cur_Period.PORC_PANAMAX)/100) * Cur_Period.NODAYS);
+                      
+                    END IF;
+                  
+                  v_grandtotal:= V_NEW_AMOUNT;
+            
+            END IF;
+          
+        END IF;      
+
+
+				SELECT count(*)
+				INTO v_count
+				FROM SFPR_RVE_DETAIL
+				WHERE CONCEPT_RVE =v_SSconcept_ID 
+				AND C_BPartner_ID = Cur_Period.C_BPARTNER_ID
+				AND SFPR_EMPLOYEE_RVE_ID = Cur_Period.SFPR_EMPLOYEE_RVE_ID
+				AND C_Period_ID = v_EndPeriod_ID;
+        
+        
+
+				IF v_count = 0 THEN
+
+					
+
+					IF  Cur_Period.GRANDTOTAL < 0 THEN
+
+						v_grandtotal:=0;
+						
+					ELSIF Cur_Period.GRANDTOTAL > 0 THEN
+
+						IF (v_grandtotal > 0 AND V_ISRVE_SURROGATE = 'Y') THEN
+						  v_grandtotal:= V_NEW_AMOUNT;
+						ELSE
+
+						  IF (Cur_Period.SUPERIOR='N') THEN
+							v_grandtotal:= Cur_Period.GRANDTOTAL;
+
+						  ELSE 
+              
+							 IF UPPER(Cur_Period.V_TYPE) = 'A' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value3/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value3=0 or Cur_Period.value3 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Aframax. Empleado-@'||v_nameempploye);
+							      end if;
+                      
+							   ELSIF UPPER(Cur_Period.V_TYPE) = 'H' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value1/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value1=0 or Cur_Period.value1 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Handimax. Empleado-@'||v_nameempploye);
+							      end if;
+							      
+							   ELSIF UPPER(Cur_Period.V_TYPE) = 'P' THEN
+							      V_NEW_AMOUNT:= ((Cur_Period.value2/V_DAYSPERIOD_INI) * Cur_Period.NODAYS);
+							      v_grandtotal:= V_NEW_AMOUNT;
+
+							      if (Cur_Period.value2=0 or Cur_Period.value2 is null ) then 
+								select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+								RAISE_APPLICATION_ERROR(-20000,'@No existe valor configurado para RVE - Panamax. Empleado-@'||v_nameempploye);
+							      end if;
+							      
+							   END IF;
+						      END IF;
+						END IF;
+
+					END IF;
+
+
+					if (Cur_Period.em_sspr_category_acct_id is null or Cur_Period.em_sspr_category_acct_id ='' ) then 
+					select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+					RAISE_APPLICATION_ERROR(-20000,'@La columna Category Accounting es obligatoria. Empleado-@'||v_nameempploye);
+					end if;
+
+					if (Cur_Period.grandtotal is null or Cur_Period.grandtotal = 0 ) then 
+					select name into v_nameempploye from c_bpartner where c_bpartner_id = Cur_Period.c_bpartner_id;
+					RAISE_APPLICATION_ERROR(-20000,'@Empleado-@'||v_nameempploye ||' no dispone de valores para el calculo del RVE');
+					end if;
+
+					INSERT INTO SFPR_RVE_DETAIL 
+						(ad_client_id,ad_org_id,created,createdby,updated,updatedby,isactive,
+						sfpr_rve_detail_id,sfpr_rve_id
+						,c_period_id,c_bpartner_id,nodays,grandtotal,--em_ssfl_vessel_type_id,
+						concept_rve,status_rve,processed,period_processed,sfpr_movement_type_id,
+						SFPR_EMPLOYEE_RVE_ID,C_COSTCENTER_ID,DESCRIPTION,
+						startdate,enddate,sspr_category_acct_id,payonboard,
+						sspr_position_id,rmu, supplementary_hours, extraordinary_hours)
+						VALUES(v_Client_ID, v_Org_ID,now(), v_User_ID, now(), v_User_ID,'Y'
+						,get_uuid(),Cur_Period.sfpr_rve_id,v_EndPeriod_ID, Cur_Period.c_bpartner_id,Cur_Period.nodays,
+						v_grandtotal--,Cur_Period.VESSEL_TYPE
+                        ,v_SSconcept_ID,'CO','N',v_EndPeriod_ID,Cur_Period.sfpr_movement_type_id
+						,Cur_Period.SFPR_EMPLOYEE_RVE_ID,Cur_Period.C_COSTCENTER_ID,Cur_Period.DETAIL,
+						Cur_Period.startdaterve, Cur_Period.enddaterve,Cur_Period.em_sspr_category_acct_id,
+						v_grandtotal * 0.20,
+						Cur_Period.sspr_position_id, Cur_Period.rmu,Cur_Period.supplementary,Cur_Period.extraordinary);             
+						v_n_insertions := v_n_insertions+1;
+					
+
+				END IF;
+
+
+				
+			END LOOP;
+
+	      
+		END IF;      
+	END IF;
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --END BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SFPR_RVE_CALCULATE
+]]></body>
+    </function>
+  </database>

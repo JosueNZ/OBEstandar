@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptC_SummaryWithholding" pageWidth="595" pageHeight="842" columnWidth="535" leftMargin="30" rightMargin="30" topMargin="20" bottomMargin="20" uuid="0f854fa3-fbd7-44c9-91f3-0e2c935411ed">
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="ireport.zoom" value="3.0"/>
+	<property name="ireport.x" value="584"/>
+	<property name="ireport.y" value="88"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="Datefrom" class="java.util.Date"/>
+	<parameter name="Dateto" class="java.util.Date"/>
+	<queryString>
+		<![CDATA[--retenciones en compras
+select 'Retencion 30%' as identificador,
+0 as base_imponible,
+0 base_imp_MNC,
+coalesce(sum(a.monto_iva),0) as valor_iva
+, coalesce(sum(a.ret_iva_30),0) as valor_ret
+from sswh_purchasedetail_nats a
+where (to_date(fecha_registro) between $P{Datefrom} and $P{Dateto})
+and a.ret_iva_30<>0
+union all
+select
+'Retencion 70%' as identificador,
+0 as base_imponible,
+0 base_imp_MNC,
+coalesce(sum(a.monto_iva),0) as valor_iva
+, coalesce(sum(a.ret_iva_70),0) as valor_ret
+from sswh_purchasedetail_nats a
+where (to_date(fecha_registro) between $P{Datefrom} and $P{Dateto})
+and a.ret_iva_70<>0
+union all
+select
+'Retencion 100%' as identificador,
+0 as base_imponible,
+0 base_imp_MNC,
+coalesce(sum(a.monto_iva),0) as valor_iva
+, coalesce(sum(a.ret_iva_100),0) as valor_ret
+from sswh_purchasedetail_nats a
+where (to_date(fecha_registro) between $P{Datefrom} and $P{Dateto})
+and a.ret_iva_100<>0
+union all
+--ventas reembolsos
+select 'Ingresos por Reembolso' as identificador,
+coalesce(sum(linenetamt),0) as base_imponible,
+coalesce(sum(linenetamt),0) base_imp_MNC,
+0 as valor_iva, 0 as valor_ret
+from ssre_refund_configuration a
+left join c_invoiceline b on a.m_product_id = b.m_product_id
+left join c_tax c on b.c_tax_id = c.c_tax_id
+left join c_invoice i on b.c_invoice_id = i.c_invoice_id
+where (to_date(dateacct) between $P{Datefrom} and $P{Dateto})
+union all
+select
+'Ventas Locales' as identificador,
+sum(base_iva_doce) as base_imponible,
+sum(base_iva_doce) base_imp_MNC,
+sum(monto_iva) as valor_iva,
+sum(monto_ret_iva) as valor_ret
+from sswh_salesinvoice_nats
+where (to_date(dateacct) between $P{Datefrom} and $P{Dateto})
+union all
+select
+'Adquisiciones y Pagos' as identificador,
+sum(base_iva_doce) as base_imponible,
+sum(0) base_imp_MNC,
+sum(monto_iva) as valor_iva,
+sum(ret_iva_30 + ret_iva_70 + ret_iva_100) as valor_ret
+from sswh_purchasedetail_nats a
+where (to_date(fecha_registro) between $P{Datefrom} and $P{Dateto})]]>
+	</queryString>
+	<field name="identificador" class="java.lang.String"/>
+	<field name="base_imponible" class="java.math.BigDecimal"/>
+	<field name="base_imp_mnc" class="java.math.BigDecimal"/>
+	<field name="valor_iva" class="java.math.BigDecimal"/>
+	<field name="valor_ret" class="java.math.BigDecimal"/>
+	<variable name="v_totalvalorret" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_ret}]]></variableExpression>
+	</variable>
+	<variable name="v_totalvaloriva" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_iva}]]></variableExpression>
+	</variable>
+	<variable name="v_totalvalorimp_nc" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_imp_mnc}]]></variableExpression>
+	</variable>
+	<variable name="v_totalvalorimp" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base_imponible}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="41" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-1" x="0" y="9" width="283" height="26" uuid="6f67129d-8f22-412e-8af0-cb78fc5407aa"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[RESUMEN FORMULARIO 104]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="19" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-2" x="0" y="1" width="199" height="18" uuid="d84eaa3b-3b18-48d6-b741-1af13425e57d"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Tipo Transaccion]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-3" x="199" y="1" width="84" height="18" uuid="8e0a1fb7-3630-468b-a2a9-9092719bc559"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Base Imponible]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-4" x="283" y="1" width="84" height="18" uuid="f5008b02-6bcb-47ee-be1d-affb3feee164"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Base Imp. - NC]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-5" x="367" y="1" width="84" height="18" uuid="287a2b6e-024e-4898-b94a-e0c3b01dd3c4"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Valor IVA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-6" x="451" y="1" width="84" height="18" uuid="2a6dc19e-984a-44f8-9bcc-b9037013ed76"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Valor Ret.]]></text>
+			</staticText>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="4" splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="18" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" x="0" y="0" width="199" height="18" uuid="76b8756c-cf75-4e7a-b974-ff657326447b"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textFieldExpression><![CDATA[$F{identificador}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="199" y="0" width="84" height="18" uuid="f0f6f495-d181-494c-9539-ecd1561af426"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{base_imponible}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="283" y="0" width="84" height="18" uuid="84e3d4d9-3dfe-4cad-b741-b5d3607f887f"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{base_imp_mnc}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="367" y="0" width="84" height="18" uuid="14a9dbf3-ee75-4805-8b95-b5d497a6088d"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{valor_iva}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement key="textField" x="451" y="0" width="84" height="18" uuid="b81ebfdb-31bc-4f32-9c36-15c4a9e4ad2c"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{valor_ret}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="10" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="8" splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="4" splitType="Stretch"/>
+	</lastPageFooter>
+	<summary>
+		<band height="30" splitType="Stretch">
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="451" y="0" width="84" height="20" uuid="2d95507f-761b-47bd-97d5-79e08ec0cd90"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{v_totalvalorret}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="367" y="0" width="84" height="20" uuid="9f56438b-3e94-4f27-88e4-507506e6396c"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{v_totalvaloriva}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="283" y="0" width="84" height="20" uuid="7e692767-49ff-4b0d-9413-8efa594b3b78"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{v_totalvalorimp_nc}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="199" y="0" width="84" height="20" uuid="3ce0f6a7-82ad-46f5-a272-4928261dfc4f"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{v_totalvalorimp}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="199" height="20" uuid="0f7ee824-7871-41ce-9b5c-52bbec882ed3"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL:   ]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

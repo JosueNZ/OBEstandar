@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_ACTIVE_VALIDATE_TRG">
+    <trigger name="SSPR_ACTIVE_VALIDATE_TRG" table="SSPR_CONCEPT_AMOUNT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_isactive VARCHAR2(1);
+
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;
+
+   IF (INSERTING OR UPDATING)  THEN
+
+	SELECT isactive INTO v_isactive 
+	FROM sspr_concept
+	WHERE sspr_concept_id = :new.sspr_concept_id;
+
+     IF (COALESCE(v_isactive,'N') = 'N') THEN
+     
+       RAISE_APPLICATION_ERROR(-20000, '@SSPR_INACTIVECONCEPT@');
+       
+     END IF;       
+	
+   END IF;   
+   
+   END SSPR_ACTIVE_VALIDATE_TRG
+]]></body>
+    </trigger>
+  </database>

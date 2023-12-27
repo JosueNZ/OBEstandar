@@ -1,0 +1,234 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_CALCULATEVACATION_INIBAL">
+    <function name="SSPR_CALCULATEVACATION_INIBAL" type="NULL">
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_now" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Partner RECORD;
+Cur_complete_vacations RECORD;
+	
+v_ResultStr VARCHAR2(2000) := '';  
+
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+v_DateIngEmpleado DATE;
+v_nodays NUMBER;
+v_error VARCHAR2(255); 
+v_enddate DATE; --fecha fin de contrato
+v_AnioEmpleado_dias NUMBER;
+v_count_concept NUMBER;
+v_sspr_concept_id VARCHAR2(32); 
+v_amount NUMBER;
+v_countregistros NUMBER;
+v_fecha_fin_validation DATE;
+v_days NUMBER;
+v_nodaysvacations NUMBER;-- := 15;
+v_vacationdays NUMBER;
+v_vacationdays_add NUMBER;
+v_dayscomplete NUMBER;
+v_get_uuid VARCHAR2(32); 
+v_now DATE;
+i NUMBER:=0; 
+v_c_bpartner_id VARCHAR2(32) ;
+v_sspr_contract_id VARCHAR2(32) ;
+v_last_vac_id VARCHAR2(32) ;
+
+BEGIN
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;  
+
+	v_c_bpartner_id := p_c_bpartner_id;
+	v_sspr_contract_id := p_sspr_contract_id;
+	v_now := p_now;
+	v_countregistros := 0;
+
+	FOR Cur_Partner IN (	
+		SELECT a.ad_client_id, a.ad_org_id, a.createdby, a.c_bpartner_id
+			,a.em_sspr_entrydate,a.name,a.em_sspr_concept_vac_id
+			,b.sspr_labor_regime_id
+			,coalesce(c.vacationdays,0) as vacationdays
+			, coalesce(c.vacationdays_add,0) as vacationdays_add
+			,b.sspr_contract_id
+			, a.em_sspr_status
+			, b.startdate
+			, b.enddate
+		FROM c_bpartner a
+			left join sspr_contract b on b.c_bpartner_id = a.c_bpartner_id
+			left join sspr_labor_regime c on c.sspr_labor_regime_id = b.sspr_labor_regime_id
+		where a.isactive ='Y' 
+			and  a.isemployee = 'Y'
+			and (a.em_sspr_status = 'A' or a.em_sspr_status = 'L')
+			and b.sspr_contract_id is not null
+			and (b.statusliquidation = 'N' or b.statusliquidation is null)
+			and a.c_bpartner_id = v_c_bpartner_id -- 
+			and b.sspr_contract_id = p_sspr_contract_id
+		order by b.startdate
+	) LOOP
+
+		v_vacationdays :=  COALESCE(Cur_Partner.VACATIONDAYS,0);
+		v_nodaysvacations := v_vacationdays;
+		v_vacationdays_add :=  COALESCE(Cur_Partner.vacationdays_add,0);
+
+	--COMPLETA AÑOS DE VACACIONES DEL EMPLEADO
+		v_dayscomplete:= 0;
+					
+	--INSERTA DIAS PARA COMPLETAR PERIODO
+		FOR Cur_complete_vacations IN(
+			SELECT a.sspr_vacations_id
+				, a.c_bpartner_id
+				, a.entrydate
+				, a.end_date 
+				,case when c.enddate is null or c.enddate > TO_DATE(v_now)  Then
+					case when a.end_date < a.entrydate + INTERVAL '1' year 
+						and  a.entrydate + INTERVAL '1' year  > TO_DATE(v_now) THEN
+							TO_DATE(TO_DATE(v_now)) 
+						ELSE (a.entrydate + INTERVAL '1' year) - 1
+					END
+				else c.enddate end as enddatecomplete
+				,case when a.end_date < (a.entrydate + INTERVAL '1' year) - 1 then 
+					'N' 
+				else 'Y'
+				end as yearcomplete
+				, a.nodays
+				,case when a.noadditionaldays > 0 then 
+					a.noadditionaldays 
+				else 0 
+				end as noadditionaldays
+				,b.em_sspr_status
+				, c.enddate
+				, c.sspr_contract_id
+				, c.startdate
+				, a.sspr_vacationsinibal_id
+			FROM SSPR_VACATIONS a
+						left join c_bpartner b on b.c_bpartner_id = a.c_bpartner_id
+						left join sspr_contract c on c.sspr_contract_id = a.sspr_contract_id
+			WHERE a.STARTINGBALANCE = 'Y'
+				and (a.uploadedscript = 'N' or a.uploadedscript is null)
+				--AND (a.completedays = 'N' or a.completedays is null)
+				AND a.C_BPARTNER_ID = Cur_Partner.C_BPARTNER_ID
+				AND (a.nodays > 0  or a.noadditionaltotal > 0 or a.nodaystotal > 0)
+				AND a.ENTRYDATE = (SELECT MAX(ENTRYDATE) 
+						   FROM SSPR_VACATIONS WHERE STARTINGBALANCE = 'Y'
+						   AND C_BPARTNER_Id = Cur_Partner.C_BPARTNER_ID 
+						   AND sspr_contract_id = Cur_Partner.sspr_contract_id 
+						   AND (nodays > 0  or noadditionaltotal > 0 or nodaystotal > 0) 
+						   --AND (completedays = 'N' or completedays is null)
+						   AND (uploadedscript = 'N' or uploadedscript is null)
+						   and a.end_date < (a.entrydate + INTERVAL '1' year) - 1 )
+				and c.sspr_contract_id = Cur_Partner.sspr_contract_id
+				and a.end_date < (a.entrydate + INTERVAL '1' year) - 1 
+				and v_now >= a.end_date + 1
+			ORDER BY a.ENTRYDATE
+		)LOOP
+					
+			v_dayscomplete:= 0;
+
+		--VALIDACION AÑO BISIESTO
+			IF(
+				(MOD(to_number(to_char(Cur_complete_vacations.enddatecomplete + 1,'YYYY')),4)=0
+					and ((MOD(to_number(to_char(Cur_complete_vacations.enddatecomplete + 1,'YYYY')),100))<>0 
+					or (MOD(to_number(to_char(Cur_complete_vacations.enddatecomplete + 1,'YYYY')),400))=0)) 
+				and Cur_complete_vacations.enddatecomplete + 1 >= TO_DATE('29-02-' || TO_CHAR(Cur_complete_vacations.enddatecomplete + 1,'YYYY'))  )
+			THEN
+				v_dayscomplete := coalesce((to_number((Cur_complete_vacations.enddatecomplete ) - (Cur_complete_vacations.end_date + 1))) * ((Cur_Partner.vacationdays)/365),0);
+			Else
+				v_dayscomplete := coalesce((to_number((Cur_complete_vacations.enddatecomplete + 1) - (Cur_complete_vacations.end_date + 1))) * ((Cur_Partner.vacationdays)/365),0);		
+			End If;
+
+			If(v_dayscomplete > 0)Then
+				v_amount := 0;
+				v_get_uuid := get_uuid();
+			--INSERTA DIAS ADICIONALES DEL AÑO SALDO INICIAL
+
+			--REVISA QUE SEA LA ÚLTIMA DE LAS VACACIONES.
+				BEGIN
+
+					SELECT vac.sspr_vacations_id
+						INTO v_last_vac_id
+					FROM sspr_vacations vac
+					WHERE vac.c_bpartner_iD = Cur_Partner.c_bpartner_id 
+						AND vac.sspr_contract_id = Cur_Partner.sspr_contract_id
+						AND vac.entrydate = (
+									SELECT max(vac.entrydate)
+									FROM sspr_vacations vac
+									WHERE vac.c_bpartner_iD = Cur_Partner.c_bpartner_id 
+										AND vac.sspr_contract_id = Cur_Partner.sspr_contract_id
+						);
+
+				EXCEPTION WHEN NO_DATA_FOUND THEN
+					v_last_vac_id := '';
+				END;
+
+				If(Cur_complete_vacations.sspr_vacationsinibal_id is null 
+					AND (v_last_vac_id = '' 
+					OR Cur_complete_vacations.sspr_vacations_id = v_last_vac_id))Then 
+
+					insert into sspr_vacations(sspr_vacations_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby,
+								c_bpartner_id, entrydate, end_date
+								,nodays,nodaystomados,nodayspending
+								,nodaystotal
+								,status
+								,totalvalue,dayvalue,vacationsvalue,startingbalance
+								,noadditionaldays
+								,nodaysvacations,noadditionaltomados
+								,noadditionaltotal
+								,completedays,sspr_contract_id
+								,earneddays
+								,earneddays_add
+								,earneddays_tot,uploadedscript)
+					values(v_get_uuid,Cur_Partner.ad_client_id,Cur_Partner.ad_org_id,'Y',now(),Cur_Partner.CreatedBy,now(),Cur_Partner.CreatedBy
+								,Cur_Partner.c_bpartner_id,Cur_complete_vacations.end_date + 1,Cur_complete_vacations.enddatecomplete 
+								,v_dayscomplete,0,v_dayscomplete
+								,v_dayscomplete + sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete ) 
+								,'VA'
+								,round(v_amount,2),round(v_amount,2) / v_dayscomplete,(round(v_amount,2) / v_dayscomplete)* v_dayscomplete,'Y'
+								,sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DAG', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete )
+								,Cur_Partner.vacationdays,0
+								,sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete ) --noadditionaltotal
+								,'Y',Cur_Partner.sspr_contract_id
+								,v_dayscomplete
+								,sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete )
+								,v_dayscomplete + sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete),'Y');
+
+					update sspr_vacations set 
+								completedays = 'Y',
+								sspr_vacationsinibal_id = v_get_uuid
+					where sspr_vacations_id = Cur_complete_vacations.sspr_vacations_id;
+
+					update sspr_vacations set 
+							completedays = 'Y',
+							sspr_vacationsinibal_id = Cur_complete_vacations.sspr_vacations_id
+					where sspr_vacations_id = v_get_uuid;
+
+				Else IF (v_last_vac_id = '' OR Cur_complete_vacations.sspr_vacations_id = v_last_vac_id) THEN
+					update sspr_vacations set 
+							nodays = v_dayscomplete - nodaystomados,
+							earneddays = v_dayscomplete,
+							noadditionaltotal = sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete + 0)- noadditionaltomados,
+							earneddays_add = sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete + 0),
+							earneddays_tot = (v_dayscomplete + sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete + 0)),
+							nodaystotal = ((v_dayscomplete - nodaystomados) + sspr_return_additional_days(Cur_complete_vacations.c_bpartner_id, Cur_Partner.sspr_contract_id, 'DA', Cur_complete_vacations.end_date + 1, Cur_complete_vacations.enddatecomplete + 0)),
+							end_date = Cur_complete_vacations.enddatecomplete 
+					where sspr_vacations_id = Cur_complete_vacations.sspr_vacationsinibal_id;
+							
+				End If;
+															   
+			End If;
+			End If;	
+		End Loop;--FIN Cur_complete_vacations
+	END LOOP;--FIN Cur_Partner
+
+RETURN;
+END SSPR_CALCULATEVACATION_INIBAL
+]]></body>
+    </function>
+  </database>
