@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SCACTU_CONFIG_TRG">
+    <function name="SCACTU_CONFIG_TRG" type="VARCHAR">
+      <body><![CDATA[vCheck NUMBER;
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF; 
+    END IF;
+    
+    IF TG_OP IN ('INSERT','UPDATE') THEN
+        SELECT COUNT(scactu_config_id) INTO vCheck FROM scactu_config WHERE isactive = 'Y' AND scactu_config_id != NEW.scactu_config_id;
+        IF NEW.isactive = 'Y' AND vCheck > 0 THEN
+            RAISE_APPLICATION_ERROR(-20000, '@Scactu_OnlyOneActiveConfig@');
+        END IF;
+    END IF; 
+
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END SCACTU_CONFIG_TRG
+]]></body>
+    </function>
+  </database>

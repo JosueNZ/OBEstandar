@@ -1,0 +1,506 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="facturas presupuesto vs real" pageWidth="880" pageHeight="700" orientation="Landscape" columnWidth="840" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="d1ff138d-947f-4d0e-a277-5dc727311a7f">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="103"/>
+	<property name="ireport.y" value="133"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("#####0.00;-#####0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATEFORMAT" class="java.text.SimpleDateFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new SimpleDateFormat("dd/MM/yyyy")]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Documentno" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_costcenter_id" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Datefrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Dateto" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_YEAR_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+b.c_year_id,cy.year,u1.name concepto_grupo, pr.name concepto_hijo, pr.value codigo_hijo,
+sum(amount) as presupuesto, sum(real_factura) as real_factura,sum(real_nc) as real_nc,
+now() as printing_date,ao.ad_org_id as org_id,
+sum(real_factura-real_nc) as real,
+CASE
+    WHEN sum(amount) = 0 THEN 0
+	WHEN sum(amount) <>0 then ((sum(real_factura-real_nc))/(sum(amount)))*100
+  END AS dif_porc_r_p
+from c_budget b
+join c_budgetline bl on b.c_budget_id = bl.c_budget_id
+join c_elementvalue ev on bl.c_elementvalue_id = ev.c_elementvalue_id
+join c_period p on bl.c_period_id = p.c_period_id
+join m_product pr on pr.m_product_id = bl.m_product_id
+join user1 u1 on u1.user1_id = bl.user1_id
+join ad_org ao on ao.ad_orgtype_id = '1'
+join c_costcenter cc on bl.c_costcenter_id = cc.c_costcenter_id
+join c_year cy on cy.c_year_id=b.c_year_id
+LEFT JOIN
+(
+	select
+		c_period.c_period_id,
+		c_invoice.user1_id,
+		c_invoice.c_costcenter_id,
+		m_product_id,
+		SUM(case when docbasetype in ('ARI') then linenetamt
+			else 0
+		end) as real_factura,
+		SUM(case when docbasetype in ('ARI') then 0
+			else abs(linenetamt)
+		end) as real_nc
+	from c_invoice, c_doctype, c_invoiceline, c_period
+	where c_invoice.c_doctype_id = c_doctype.c_doctype_id and c_invoice.c_invoice_id = c_invoiceline.c_invoice_id
+	and dateinvoiced between $P{Datefrom} AND $P{Dateto}
+	and c_invoice.issotrx = 'Y'
+	and docstatus = 'CO'
+	group by c_period.c_period_id,
+		c_invoice.user1_id,
+		c_invoice.c_costcenter_id,
+		m_product_id
+) X ON X.c_period_id = p.c_period_id
+where ev.accounttype = 'R'
+and X.user1_id = u1.user1_id
+and X.c_costcenter_id = cc.c_costcenter_id
+and X.m_product_id = pr.m_product_id
+AND x.c_period_id = p.c_period_id
+and b.c_year_id = $P{C_YEAR_ID}
+and $P{Datefrom}::date <= p.startdate::date
+and $P{Dateto}::date >= p.enddate::date
+group by b.c_year_id,cy.year,u1.name, pr.name, pr.value, ao.ad_org_id]]>
+	</queryString>
+	<field name="c_year_id" class="java.lang.String"/>
+	<field name="year" class="java.lang.String"/>
+	<field name="concepto_grupo" class="java.lang.String"/>
+	<field name="concepto_hijo" class="java.lang.String"/>
+	<field name="codigo_hijo" class="java.lang.String"/>
+	<field name="presupuesto" class="java.math.BigDecimal"/>
+	<field name="real_factura" class="java.math.BigDecimal"/>
+	<field name="real_nc" class="java.math.BigDecimal"/>
+	<field name="printing_date" class="java.sql.Timestamp"/>
+	<field name="org_id" class="java.lang.String"/>
+	<field name="real" class="java.math.BigDecimal"/>
+	<field name="dif_porc_r_p" class="java.math.BigDecimal"/>
+	<variable name="cal_importe" class="java.lang.String" calculation="Sum">
+		<variableExpression><![CDATA[]]></variableExpression>
+	</variable>
+	<variable name="total_presupuesto" class="java.math.BigDecimal" resetType="Group" resetGroup="test" calculation="Sum">
+		<variableExpression><![CDATA[$F{presupuesto}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_facturado" class="java.math.BigDecimal" resetType="Group" resetGroup="test" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_factura}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_n_c" class="java.math.BigDecimal" resetType="Group" resetGroup="test" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_nc}]]></variableExpression>
+	</variable>
+	<variable name="total_real" class="java.math.BigDecimal" resetType="Group" resetGroup="test" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_factura}.doubleValue()-$F{real_nc}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_presupuesto_TOT" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{presupuesto}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_facturado_TOT" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_factura}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_real_TOT" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_factura}.doubleValue()-$F{real_nc}.doubleValue()]]></variableExpression>
+	</variable>
+	<variable name="total_n_c_TOT" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{real_nc}]]></variableExpression>
+	</variable>
+	<variable name="total_porcentaje_TOT" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$V{total_real_TOT}.divide($V{total_presupuesto_TOT},$P{NUMBERDECIMAL},java.math.RoundingMode.HALF_DOWN)]]></variableExpression>
+	</variable>
+	<variable name="total_porcentaje_TOT_1" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$V{total_porcentaje_TOT}.multiply( new BigDecimal("100"))]]></variableExpression>
+	</variable>
+	<variable name="total_porcentaje" class="java.math.BigDecimal" resetType="Group" resetGroup="test">
+		<variableExpression><![CDATA[$V{total_real}.divide($V{total_presupuesto},$P{NUMBERDECIMAL},java.math.RoundingMode.HALF_DOWN)]]></variableExpression>
+	</variable>
+	<variable name="total_porcentaje_1" class="java.math.BigDecimal" resetType="Group" resetGroup="test">
+		<variableExpression><![CDATA[$V{total_porcentaje}.multiply( new BigDecimal("100"))]]></variableExpression>
+	</variable>
+	<group name="test">
+		<groupExpression><![CDATA[$F{concepto_grupo}]]></groupExpression>
+		<groupFooter>
+			<band height="20" splitType="Stretch">
+				<staticText>
+					<reportElement x="0" y="0" width="44" height="20" uuid="1e335b87-162d-42f5-8b56-5adb2811c573"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement verticalAlignment="Middle">
+						<font isBold="true" isItalic="false"/>
+					</textElement>
+					<text><![CDATA[TOTAL]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="44" y="0" width="167" height="20" uuid="d5643564-aaaf-412f-848a-992ca0074cf1"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Left" verticalAlignment="Middle">
+						<font size="9" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{concepto_grupo}+" :"]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+					<reportElement key="textField" x="211" y="0" width="156" height="20" uuid="2a0f4a13-ad12-4611-a748-1db462af2691"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true" isItalic="false"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{total_presupuesto}]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+				<textField>
+					<reportElement x="367" y="0" width="144" height="20" uuid="305cc32a-03cc-41ef-b5a5-f1a58152f56b"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{total_facturado}]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+				<textField>
+					<reportElement x="511" y="0" width="133" height="20" uuid="7ea9050b-990b-40e2-b6b1-a17f0fc0a446"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{total_n_c}]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+				<textField>
+					<reportElement x="644" y="0" width="136" height="20" uuid="69b3c353-6cbc-4272-926a-584edec8567f"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{total_real}]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+				<staticText>
+					<reportElement x="828" y="0" width="12" height="20" uuid="be36bd92-2813-4b67-b140-167dff1ae7cb"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<text><![CDATA[%]]></text>
+				</staticText>
+				<textField pattern="###0.00;-###0.00">
+					<reportElement x="780" y="0" width="48" height="20" uuid="4a3fe332-c3ed-4b25-9bfd-20612a4af634"/>
+					<box>
+						<topPen lineWidth="2.0"/>
+					</box>
+					<textElement textAlignment="Center" verticalAlignment="Middle"/>
+					<textFieldExpression><![CDATA[$V{total_porcentaje_1}]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="82" splitType="Stretch">
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="163" height="82" uuid="713a9c63-fcd6-43a4-b5bf-43248cadadca"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{org_id})]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="780" y="26" width="48" height="26" uuid="6d767ff5-c2f6-4727-a0cc-64eaf0773de0"/>
+				<box topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Página: " + $V{PAGE_NUMBER} + " de"]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="828" y="26" width="12" height="26" uuid="a8ee4a2a-074b-46d5-b3b4-21f4e6206016"/>
+				<box topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0"/>
+				<textElement verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[" "+$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="644" y="0" width="136" height="26" isPrintWhenDetailOverflows="true" uuid="b5c640b4-3641-4008-b1c9-ce5fbdd8ca32"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" markup="html">
+					<font size="7" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>Fecha: </b>"]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{DATEFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="211" y="0" width="433" height="26" uuid="230501e7-3966-4d3d-8494-2b035fbd3412"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[ACTUARIA CONSULTORES S.A.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="211" y="26" width="433" height="26" uuid="fa82105b-2543-41a7-bb8d-002b77b16f20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[FACTURAS PRESUPUESTO VS. REAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="211" y="52" width="60" height="30" uuid="c0bc9be1-bea6-4a91-b51d-c58a4ccc0180"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Desde:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="271" y="52" width="96" height="30" uuid="2cd37965-db34-4856-b369-ff0a2df4d7bd"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{Datefrom}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{DATEFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="511" y="52" width="133" height="30" uuid="54bd7658-7e22-4af1-b6a1-d5cdac7a3ea5"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{Dateto}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{DATEFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="367" y="52" width="144" height="30" uuid="789e2601-515c-488c-84ff-69e0216ec584"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[ Hasta:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="780" y="0" width="60" height="26" isPrintWhenDetailOverflows="true" uuid="0bece6d0-58ff-4bf0-9441-c2e4c25592be"/>
+				<textElement textAlignment="Justified" verticalAlignment="Middle" markup="html">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{printing_date}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{DATEFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="23" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="163" height="23" uuid="c59f4dc2-6e0d-4f1c-a05b-ac724ed96027"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[CONCEPTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="163" y="0" width="48" height="23" uuid="6a03e285-5705-4c7c-8d1d-8859d1e0853b"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[TIPO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="211" y="0" width="156" height="23" uuid="7e132119-4be9-418e-b7f0-0433048dbd3e"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[PRESUPUESTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="367" y="0" width="144" height="23" uuid="278d157e-deba-44b7-bf00-115ca4210f4d"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[FACTURADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="780" y="0" width="60" height="23" uuid="20f4de8b-cd75-4ebe-aad7-f49168ad8ea1"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[%]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="644" y="0" width="136" height="23" uuid="c36b4232-ece8-461c-a136-73476cc63aa1"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[REAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="511" y="0" width="133" height="23" uuid="abde9253-1ad0-4bdb-b8b2-25140e1d66be"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[N/C]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="163" height="21" uuid="7bbd40ba-ec1e-4890-9c29-31f4d9f679b6"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{concepto_hijo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="163" y="0" width="48" height="21" uuid="1b4ff586-439a-46b8-950e-87812903f17d"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{codigo_hijo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="211" y="0" width="156" height="21" uuid="7a06c9dd-1cf7-47db-995c-e71c6add1101"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{presupuesto}.doubleValue()]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="367" y="0" width="144" height="21" uuid="2a34c66e-471e-44ee-8ab5-42616b189612"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{real_factura}.doubleValue()]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="511" y="0" width="133" height="21" uuid="5438da6d-3828-4cd9-afbd-3729fdac6319"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{real_nc}.doubleValue()]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="644" y="0" width="136" height="21" uuid="97c2e8c6-6e52-467b-8ae3-bb63345e942d"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{real}.doubleValue()]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="780" y="0" width="48" height="21" uuid="c1e06e7d-77fc-4834-a0e7-904d225103f7"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{dif_porc_r_p}.doubleValue()]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="828" y="0" width="12" height="21" uuid="be7b5192-a63c-46b9-bdc5-874926fa1b57"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[%]]></text>
+			</staticText>
+		</band>
+	</detail>
+	<lastPageFooter>
+		<band height="104">
+			<textField>
+				<reportElement x="211" y="0" width="156" height="20" uuid="912da674-8453-455e-b104-4251ba88c414"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{total_presupuesto_TOT}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="367" y="0" width="144" height="20" uuid="0624b9d7-e284-4889-b0cf-bb6ef7b46f26"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{total_facturado_TOT}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="644" y="0" width="136" height="20" uuid="e7910056-d5ee-4946-8443-3456e381ffec"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{total_real_TOT}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField>
+				<reportElement x="511" y="0" width="133" height="20" uuid="884b08d2-00bd-4b19-a686-40e63aea3dd2"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{total_n_c_TOT}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="211" height="20" uuid="d86595bf-1418-4102-90d0-38c13b1f53a7"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true" isItalic="false"/>
+				</textElement>
+				<text><![CDATA[TOTAL NACIONAL:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="828" y="0" width="12" height="20" uuid="1eb9d6e1-3de7-4f5c-8f58-802ec67c7bda"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[%]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="20" width="840" height="32" uuid="c74f3cca-2bfe-468c-8e3f-f8fc5a9d6c6a"/>
+				<textElement textAlignment="Justified"/>
+				<text><![CDATA[A partir del 1 de enero de 2023, el cumplimiento presupuestario se mide en base a los  ingresos devengados mensualmente según la Política de Reconocimiento de Ingresos vigente, independientemente de si se encuentran o no facturados.  El reporte adjunto es solo referencial a los cortes de facturación.]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="780" y="0" width="48" height="20" uuid="e60ad902-4bcc-4314-b3c7-ad59a198f5ed"/>
+				<box>
+					<topPen lineWidth="2.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$V{total_porcentaje_TOT_1}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="52" width="840" height="52" uuid="74785fd2-76d1-4681-8370-dc3569e232cd"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<text><![CDATA[]]></text>
+			</staticText>
+		</band>
+	</lastPageFooter>
+</jasperReport>

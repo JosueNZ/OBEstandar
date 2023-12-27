@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+ 
+<SqlClass name="ScactuBusinessPartnerData" package="ec.com.sidesoft.actuaria.special.customization.ad_process">
+	<SqlMethod name="select" type="preparedStatement" return="multiple">
+		<Sql>
+			<![CDATA[
+                SELECT DISTINCT
+                    bp.c_bpartner_id
+                    , bp.taxid
+                    , bp.name bp_name
+                    , COALESCE(bp.em_eei_email,'') email
+                    , bp.em_scactu_intiza_last_sync intiza_last_sync
+                    , bp.updated
+                    , COALESCE(bp.em_scactu_main_account,'') main_account
+                    , COALESCE(bpl.phone,'') phone
+                    , COALESCE(bpl.phone2,'') phone2
+                    , COALESCE(ca.em_scactu_intiza,'') city
+                    , COALESCE(l.address1,'')||', '||COALESCE(l.address2,'') address
+                    , COALESCE(po.name,'') portfolio
+                FROM c_bpartner bp
+                    LEFT JOIN ad_user u ON u.c_bpartner_id = bp.c_bpartner_id
+                    LEFT JOIN c_bpartner_location bpl ON bpl.c_bpartner_id = bp.c_bpartner_id
+                        AND bpl.em_scactu_interface = 'Y'
+                    LEFT JOIN c_location l ON l.c_location_id = bpl.c_location_id
+                    LEFT JOIN secpm_canton ca ON ca.secpm_canton_id = l.em_sdincc_canton_id
+                    LEFT JOIN scactu_portfolio po ON po.scactu_portfolio_id = bp.em_scactu_portfolio
+				WHERE bp.em_scactu_intiza_last_sync IS NULL
+					OR (bp.em_scactu_intiza_last_sync < bp.updated)
+                    OR (bp.em_scactu_intiza_last_sync < u.updated)
+					OR (bp.em_scactu_intiza_last_sync < bpl.updated)
+					OR (bp.em_scactu_intiza_last_sync < l.updated)
+			]]>
+		</Sql>
+	</SqlMethod>
+	
+	<SqlMethod name="update" type="preparedStatement" return="rowCount">
+		<Sql>
+			<![CDATA[
+				UPDATE c_bpartner SET em_scactu_intiza_last_sync = ?::TIMESTAMP
+				WHERE c_bpartner_id = ?
+			]]>
+		</Sql>
+		<Parameter name="date"/>
+		<Parameter name="id"/>
+	</SqlMethod>
+</SqlClass>

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SCACTU_INVOICE_DATE_TRG">
+    <trigger name="SCACTU_INVOICE_DATE_TRG" table="C_INVOICE" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[	vOrder		RECORD;
+BEGIN
+
+	IF AD_isTriggerEnabled() = 'N' THEN RETURN;END IF;
+
+	IF INSERTING THEN
+		IF :NEW.IsSoTrx = 'Y' AND :NEW.C_Order_ID IS NOT NULL THEN
+            :NEW.DateInvoiced = now()::DATE;
+            :NEW.DateAcct = :NEW.DateInvoiced;
+			
+			SELECT em_scactu_bpartner_invoice, em_scactu_bpl_invoice INTO vOrder
+			FROM c_order
+			WHERE c_order_id = :NEW.c_order_id;
+			
+			IF vOrder.em_scactu_bpartner_invoice IS NOT NULL THEN
+				:NEW.c_bpartner_id = vOrder.em_scactu_bpartner_invoice;
+				:NEW.c_bpartner_location_id = vOrder.em_scactu_bpl_invoice;
+			END IF;
+        END IF;
+	END IF;
+
+	END SCACTU_INVOICE_DATE_TRG
+]]></body>
+    </trigger>
+  </database>

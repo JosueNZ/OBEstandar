@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="c_sales_reconcile" pageWidth="4000" pageHeight="765" orientation="Landscape" whenNoDataType="BlankPage" columnWidth="3940" leftMargin="30" rightMargin="30" topMargin="20" bottomMargin="20" uuid="8245dea8-fa8e-4c0f-b4c3-3dac26c724e3">
+	<property name="ireport.zoom" value="1.2100000000000026"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.columns" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.wrap.text" value="false"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.white.page.background" value="false"/>
+	<parameter name="C_BPartner_ID" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="DateFrom" class="java.util.Date"/>
+	<parameter name="DateTo" class="java.util.Date"/>
+	<parameter name="C_DocTypeTarget_ID" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="AD_Org_ID" class="java.lang.String"/>
+	<parameter name="Posted" class="java.lang.String"/>
+	<parameter name="ByProduct" class="java.lang.String">
+		<defaultValueExpression><![CDATA[$P{ByProduct}==null?"N":"Y"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DocBaseType" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/localization/ecuador/invoices/reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="BASE_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/localization/ecuador/invoices/reports/"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+au.name as usuario,
+po.ad_org_id as organizationid,
+to_char(now(),'dd/MM/yyyy HH24:MI:SS') as "fecha_impresion",
+a.documentno as "documentno",
+replace(c.name,',','') as "tipo_documento",
+replace(b.name,',','') as "tercero",
+b.taxid as "taxid",
+TO_CHAR(a.dateinvoiced,'dd-MM-yyyy') as "dateinvoiced",
+TO_CHAR(a.dateacct,'dd-MM-yyyy') as "dateacct",
+case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(basecero,0.00) else  coalesce(basecero,0.00) * -1 end end as "basecero",
+case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(BASE12,0.00) else  coalesce(BASE12,0.00) * -1 end end as "base12",
+case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(iva12,0.00) else  coalesce(iva12,0.00) * -1 end end as "iva",
+case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(importe_imponible,0.00) else coalesce((importe_imponible * -1),0.00) end end as "base",
+case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce((importe_imponible+iva12),0.00) else coalesce(((importe_imponible+iva12) * -1),0.00)  end end as "total",
+case when a.docstatus = 'CO' then 'COMPLETADO'
+when a.docstatus = 'VO' then 'ANULADO'
+when a.docstatus = 'DR' then 'BORRADOR' END as "status",
+case when ws.docstatus ='CO' then coalesce(ws.totalwhrentalamt,0) + coalesce(retencion_renta,0) else 0 end as "retencion_renta",
+case when ws.docstatus ='CO' then  coalesce(ws.totalwhivaamt,0) + coalesce(retencion_iva,0)  else 0 end as "retencion_iva"
+,og.name as organizacion
+/*,(select org.name from ad_org org where org.ad_org_id = a.ad_org_id) ||c.name as "organizacion_grp"*/
+, ws.documentno as  "ref_nc",
+(select coalesce(trl.name, rl.name) from ad_ref_list rl
+inner join ad_ref_list_trl trl on rl.ad_ref_list_id=trl.ad_ref_list_id where ad_reference_id = '590A02308DEC4F968E0F00D47741836C'
+and value=a.EM_Eei_Status and ad_language = 'es_ES') as "destatus"
+,TO_CHAR(fps.duedate,'dd-MM-yyyy') as duedate
+,ct.name as country
+,CASE WHEN a.posted = 'Y' THEN 'Contabilizado' ELSE 'No contabilizado' END AS posted
+,h.name as paymentterm
+,CASE WHEN coalesce(a.EM_Scnr_Isref_Inv,'N')='Y' THEN irf.documentno ELSE '' END doc_ref
+,SUM(il.pricelist * il.QtyInvoiced) net_amount
+,SUM((il.pricelist - il.PriceActual) * il.QtyInvoiced) descuento
+,CASE WHEN COALESCE($P{ByProduct},'N') = 'N' THEN NULL ELSE il.qtyinvoiced END qty
+,CASE WHEN COALESCE($P{ByProduct},'N') = 'N' THEN NULL ELSE pr.name END product
+from c_invoice a
+JOIN c_invoiceline il ON il.c_invoice_id = a.c_invoice_id
+JOIN m_product pr ON pr.m_product_id = il.m_product_id
+left join c_bpartner b on a.c_bpartner_id = b.c_bpartner_id
+left join c_doctype c on a.c_doctype_id = c.c_doctype_id
+left join c_bp_group d on b.c_bp_group_id = d.c_bp_group_id
+left join c_costcenter e on a.c_costcenter_id = e.c_costcenter_id
+left join user1 f on a.user1_id = f.user1_id
+left join user2 g on a.user2_id = g.user2_id
+LEFT JOIN ad_org og ON og.ad_org_id=a.ad_org_id
+left join c_paymentterm h on a.c_paymentterm_id = h.c_paymentterm_id
+left join ssws_withholdingsale ws on ws.c_invoice_id = a.c_invoice_id
+left join ad_user au on au.ad_user_id = a.createdby
+left join
+
+(
+
+SELECT
+i.c_invoice_id,
+     sum(coalesce((case when fpm.em_sswh_withholdingtype = 'IN' then psd.amount else  0 end),0)) as retencion_renta,
+sum(coalesce((case when fpm.em_sswh_withholdingtype = 'VA' then psd.amount else  0 end),0)) as retencion_iva
+   FROM fin_payment p
+   left join fin_paymentmethod fpm on (p.fin_paymentmethod_id = fpm.fin_paymentmethod_id)
+   LEFT JOIN fin_financial_account fa ON p.fin_financial_account_id = fa.fin_financial_account_id
+   join fin_payment_detail pd on p.fin_payment_id = pd.fin_payment_id
+   JOIN fin_payment_scheduledetail psd ON pd.fin_payment_detail_id = psd.fin_payment_detail_id
+   LEFT JOIN fin_payment_schedule psi ON psd.fin_payment_schedule_invoice = psi.fin_payment_schedule_id
+   LEFT JOIN c_invoice i ON psi.c_invoice_id = i.c_invoice_id
+   LEFT JOIN fin_payment_schedule pso ON psd.fin_payment_schedule_order = pso.fin_payment_schedule_id
+   LEFT JOIN c_order o ON pso.c_order_id = o.c_order_id
+   LEFT JOIN c_glitem gli ON pd.c_glitem_id = gli.c_glitem_id
+
+  WHERE p.fin_payment_id = pd.fin_payment_id
+  and ( fpm.em_sswh_withholdingtype = 'IN' or fpm.em_sswh_withholdingtype = 'VA')
+
+group by i.c_invoice_id
+  ) fprentas on fprentas.c_invoice_id = a.c_invoice_id
+  left join
+(
+
+		SELECT
+		c_invoice_id,
+		SUM(importe_bruto) AS importe_bruto,
+		SUM(importe_imponible) AS importe_imponible,
+		SUM(impuesto) AS impuesto,
+		sum(basecero) as basecero,
+		SUM(coalesce(BASE12,0)) AS base12,
+		sum(coalesce(iva,0)) as iva12
+		FROM
+		(select ci.c_invoice_id,
+		((sum(case when IsTaxDeductable='Y' and ct.rate = 0 then cilt.taxbaseamt when IsTaxDeductable='Y' and ct.rate <> 0 then cilt.taxbaseamt end)
+		+ sum((case when IsTaxDeductable='Y' and ct.rate <> 0 then cilt.taxamt else 0 end))))
+		as importe_bruto,
+		((sum((case when IsTaxDeductable='Y' and ct.rate = 0 then cilt.taxbaseamt else 0 end) +
+		(case when IsTaxDeductable='Y' and ct.rate <> 0 then cilt.taxbaseamt else 0 end) +
+		(case when IsTaxDeductable='Y' and ct.rate = 0 then cilt.taxamt else 0 end)))) as importe_imponible,
+		((sum((case when IsTaxDeductable='Y' and ct.rate <> 0 then cilt.taxamt else 0 end)))) as impuesto,
+
+		sum(case when IsTaxDeductable='Y' and ct.rate = 0 then cilt.taxbaseamt else 0 end) AS basecero,
+		sum(case when IsTaxDeductable='Y' and ct.rate <> 0 then cilt.taxbaseamt else 0 end) AS base12,
+		(SELECT SUM(coalesce(il.taxamt,0))
+FROM  c_invoicetax il INNER JOIN c_tax ct on ct.c_tax_id = il.c_tax_id WHERE  ct.istaxdeductable = 'Y' AND ct.rate <> 0 AND il.c_invoice_id= ci.c_invoice_id)  AS iva
+		from c_invoice ci
+		left join c_invoicelinetax cilt on cilt.c_invoice_id = ci.C_INVOICE_ID
+		left join c_tax ct on ct.c_tax_id = cilt.c_tax_id
+		group by ci.c_invoice_id
+		) impuesto
+		group by c_invoice_id
+
+) imp on imp.c_invoice_id = a.c_invoice_id
+LEFT JOIN (SELECT c_invoice_id , max(duedate) as duedate
+FROM fin_payment_schedule
+WHERE  c_invoice_id is not null
+GROUP BY 1 ) fps on fps.c_invoice_id=a.c_invoice_id
+LEFT JOIN (SELECT c_bpartner_location_id,ct.name
+FROM c_bpartner_location  bl
+LEFT join c_location l on bl.c_location_id=l.c_location_id
+LEFT JOIN c_country ct on l.c_country_id=ct.c_country_id) ct on a.c_bpartner_location_id=ct.c_bpartner_location_id
+LEFT JOIN c_invoice irf on a.EM_Scnr_Invoice_ID = irf.c_invoice_id
+LEFT JOIN ad_org po ON po.issummary = 'Y' AND po.ad_orgtype_id = '1'
+where a.issotrx = 'Y' and (a.docstatus = 'CO' or a.docstatus = 'VO')
+
+and (a.posted=$P{Posted} or $P{Posted} is null)
+and (a.c_bpartner_id = $P{C_BPartner_ID} or $P{C_BPartner_ID} is null)
+and (to_date(to_char(a.dateacct,'dd/MM/yyyy')) between  $P{DateFrom} and $P{DateTo}
+)
+and (a.C_doctypetarget_id = $P{C_DocTypeTarget_ID} or $P{C_DocTypeTarget_ID} is null)
+AND ad_isorgincluded(og.ad_org_id, $P{AD_Org_ID}, og.ad_client_id) > 0
+AND (CASE WHEN $P{DocBaseType}='ARC' THEN  c.DocBaseType IN ('ARC','ARI_RM')
+	  WHEN $P{DocBaseType}='ARI' THEN  c.DocBaseType IN ('ARI')
+	  else c.DocBaseType IN ('ARC','ARI_RM','ARI') END
+	)
+and em_sswh_implementautoriza ='Y'
+GROUP BY a.c_invoice_id, c.c_doctype_id, b.c_bpartner_id, imp.basecero, imp.base12, imp.iva12, imp.importe_imponible,
+ ws.docstatus, ws.totalwhrentalamt, fprentas.retencion_renta, ws.totalwhivaamt,fprentas.retencion_iva, ws.documentno, fps.duedate,
+ ct.name, h.name, irf.documentno, qty, product,usuario,og.name, po.ad_org_id
+order by tipo_documento,c.docbasetype,dateinvoiced asc
+limit 1]]>
+	</queryString>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="tipo_documento" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="taxid" class="java.lang.String"/>
+	<field name="dateinvoiced" class="java.lang.String"/>
+	<field name="dateacct" class="java.lang.String"/>
+	<field name="basecero" class="java.math.BigDecimal"/>
+	<field name="base12" class="java.math.BigDecimal"/>
+	<field name="iva" class="java.math.BigDecimal"/>
+	<field name="base" class="java.math.BigDecimal"/>
+	<field name="total" class="java.math.BigDecimal"/>
+	<field name="status" class="java.lang.String"/>
+	<field name="retencion_renta" class="java.math.BigDecimal"/>
+	<field name="retencion_iva" class="java.math.BigDecimal"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="ref_nc" class="java.lang.String"/>
+	<field name="destatus" class="java.lang.String"/>
+	<field name="duedate" class="java.lang.String"/>
+	<field name="country" class="java.lang.String"/>
+	<field name="posted" class="java.lang.String"/>
+	<field name="paymentterm" class="java.lang.String"/>
+	<field name="doc_ref" class="java.lang.String"/>
+	<field name="net_amount" class="java.math.BigDecimal"/>
+	<field name="descuento" class="java.math.BigDecimal"/>
+	<field name="qty" class="java.math.BigDecimal"/>
+	<field name="product" class="java.lang.String"/>
+	<variable name="sumbase" class="java.math.BigDecimal" resetType="None" calculation="Sum">
+		<variableExpression><![CDATA[$F{base}]]></variableExpression>
+	</variable>
+	<variable name="neto" class="java.math.BigDecimal" resetType="None">
+		<variableExpression><![CDATA[$F{net_amount}]]></variableExpression>
+	</variable>
+	<variable name="sumiva" class="java.math.BigDecimal" resetType="None" calculation="Sum">
+		<variableExpression><![CDATA[$F{iva}]]></variableExpression>
+	</variable>
+	<variable name="sumtotal" class="java.math.BigDecimal" resetType="None" calculation="Sum">
+		<variableExpression><![CDATA[$F{total}]]></variableExpression>
+	</variable>
+	<variable name="org_subbase" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base}]]></variableExpression>
+	</variable>
+	<variable name="org_sumiva" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{iva}]]></variableExpression>
+	</variable>
+	<variable name="org_sumtotal" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{total}]]></variableExpression>
+	</variable>
+	<variable name="V_SumRetRenta" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{retencion_renta}]]></variableExpression>
+	</variable>
+	<variable name="V_SumRetIVA" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{retencion_iva}]]></variableExpression>
+	</variable>
+	<variable name="org_sumbaseiva" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{base12}]]></variableExpression>
+	</variable>
+	<variable name="org_sumbasecero" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{basecero}]]></variableExpression>
+	</variable>
+	<variable name="discount" class="java.math.BigDecimal" resetType="Column">
+		<variableExpression><![CDATA[$F{net_amount}.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO : $F{net_amount}.subtract($F{base})]]></variableExpression>
+	</variable>
+	<variable name="sum_des" class="java.math.BigDecimal" resetType="Column" calculation="Sum">
+		<variableExpression><![CDATA[$F{descuento}]]></variableExpression>
+	</variable>
+	<variable name="sum_imp_neto" class="java.math.BigDecimal" resetType="Column" calculation="Sum">
+		<variableExpression><![CDATA[$F{net_amount}]]></variableExpression>
+	</variable>
+	<pageHeader>
+		<band height="76" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-1" x="831" y="0" width="534" height="30" uuid="445b9c19-f098-4c24-940a-3ff5ace945ae"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[REPORTE DE VENTAS POR PERIODO]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="false">
+				<reportElement key="textField" x="941" y="56" width="124" height="20" uuid="a9fd6d42-1bb5-4606-8d14-a0d4dd95d608"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{DateFrom}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="false">
+				<reportElement key="textField" x="1265" y="56" width="100" height="20" uuid="40dda5ff-27fd-46ee-93f1-64a02275a3e7"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{DateTo}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement key="staticText-6" x="1165" y="56" width="100" height="20" uuid="269466d9-47f7-4080-8bac-e0655445e282"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha Hasta:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-6" x="831" y="56" width="110" height="20" uuid="fd96f849-a166-49ee-bade-941681537190"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha Desde:]]></text>
+			</staticText>
+			<image>
+				<reportElement x="0" y="0" width="139" height="76" uuid="7ed3d956-7950-485f-aa8a-a567ee6bdae6"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="3721" y="30" width="219" height="12" uuid="45082317-37b8-4483-ad31-83207b95e8fb"/>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="121" splitType="Stretch">
+			<subreport>
+				<reportElement x="0" y="0" width="139" height="62" uuid="cf7676d1-bcff-4480-8263-80c318bc6f77">
+					<printWhenExpression><![CDATA[$P{ByProduct}.toString().equals("N")]]></printWhenExpression>
+				</reportElement>
+				<subreportParameter name="C_BPartner_ID">
+					<subreportParameterExpression><![CDATA[$P{C_BPartner_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DateFrom">
+					<subreportParameterExpression><![CDATA[$P{DateFrom}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DateTo">
+					<subreportParameterExpression><![CDATA[$P{DateTo}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="C_DocTypeTarget_ID">
+					<subreportParameterExpression><![CDATA[$P{C_DocTypeTarget_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="AD_Org_ID">
+					<subreportParameterExpression><![CDATA[$P{AD_Org_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="Posted">
+					<subreportParameterExpression><![CDATA[$P{Posted}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="ByProduct">
+					<subreportParameterExpression><![CDATA[$P{ByProduct}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DocBaseType">
+					<subreportParameterExpression><![CDATA[$P{DocBaseType}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{BASE_DESIGN} + "/ec/com/sidesoft/actuaria/reports/reports/c_sales_reconcile_general.jasper"]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="0" y="62" width="139" height="59" uuid="78b9bb82-1b29-4186-a89b-8bcf6af12b0b">
+					<printWhenExpression><![CDATA[$P{ByProduct}.toString().equals("Y")]]></printWhenExpression>
+				</reportElement>
+				<subreportParameter name="C_BPartner_ID">
+					<subreportParameterExpression><![CDATA[$P{C_BPartner_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DateFrom">
+					<subreportParameterExpression><![CDATA[$P{DateFrom}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DateTo">
+					<subreportParameterExpression><![CDATA[$P{DateTo}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="C_DocTypeTarget_ID">
+					<subreportParameterExpression><![CDATA[$P{C_DocTypeTarget_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="AD_Org_ID">
+					<subreportParameterExpression><![CDATA[$P{AD_Org_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="Posted">
+					<subreportParameterExpression><![CDATA[$P{Posted}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="ByProduct">
+					<subreportParameterExpression><![CDATA[$P{ByProduct}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="DocBaseType">
+					<subreportParameterExpression><![CDATA[$P{DocBaseType}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{BASE_DESIGN} + "/ec/com/sidesoft/actuaria/reports/reports/c_sales_reconcile_detailed.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<summary>
+		<band height="19"/>
+	</summary>
+</jasperReport>

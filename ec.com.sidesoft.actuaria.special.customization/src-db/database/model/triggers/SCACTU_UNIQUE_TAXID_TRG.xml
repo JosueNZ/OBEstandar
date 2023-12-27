@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SCACTU_UNIQUE_TAXID_TRG">
+    <trigger name="SCACTU_UNIQUE_TAXID_TRG" table="C_BPARTNER" fires="after" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[    vCount NUMBER;
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+    
+    IF TG_OP IN ('INSERT','UPDATE') AND :NEW.value = :NEW.taxid THEN
+        SELECT COUNT(c_bpartner_id) INTO vCount FROM c_bpartner WHERE taxid = :NEW.taxid AND value = :NEW.taxid;
+        IF vCount > 1 THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SCACTU_DuplicateTaxID@');
+        END IF;
+    END IF;
+
+    END SCACTU_UNIQUE_TAXID_TRG
+]]></body>
+    </trigger>
+  </database>
