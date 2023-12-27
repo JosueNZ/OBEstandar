@@ -1,0 +1,769 @@
+<?xml version="1.0" encoding="UTF-8"?><ob:Openbravo xmlns:ob="http://www.openbravo.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <sscflw_setup_report_cash id="058216B3E7F04A418BFDC5F4CC6BD335" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>058216B3E7F04A418BFDC5F4CC6BD335</id>
+    <active>true</active>
+    <rEPSequence>60</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>Impuesto a la renta</rEPGroup>
+    <rEPSql>SELECT
+'1' as typeheader
+,name
+,(saldo_final) as monto 
+from 
+(select
+'1' as typeheader
+,name 
+,round(sum(saldo_final),2) as  saldo_final 
+,round(sum(SALDO_INICIAL),2) as  saldo_inicial
+from ( select a.id, ev.value as account_id, 'Impuesto a la renta' as name,
+	       a.initialamt as SALDO_INICIAL, a.amtacctcr, a.amtacctdr, A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL,
+	       a.groupbyid
+		 from(
+		     SELECT
+		     sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'S')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,
+		     sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'S') then F.AMTACCTDR else 0 end) as AMTACCTDR,
+		     sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'S') then F.AMTACCTCR else 0 end) as AMTACCTCR,
+		     F.ACCOUNT_ID AS ID, f.m_product_id AS groupbyid
+		     FROM FACT_ACCT F
+		     WHERE
+		     DATEACCT &lt; to_date(':p_dt')
+		     AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+		     group by F.ACCOUNT_ID, f.m_product_id
+		) a, c_elementvalue ev
+		  where a.id = ev.c_elementvalue_id
+		  and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)
+and ev.value  in (:p_account)
+		  order by  ev.value, ev.name, id
+) rep 
+group by name
+) imp_renta</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2010702001001'
+</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="07F301C504A54098AEA32D2DE0064D8E" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>07F301C504A54098AEA32D2DE0064D8E</id>
+    <active>true</active>
+    <rEPSequence>10</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>COBRO CLIENTES</rEPGroup>
+    <rEPSql>select
+'1' as typeheader,
+ name, round(sum(debe),2) as  monto from (
+select a.id, ev.value as account_id, 'COBROS CLIENTES' as  name,  
+a.initialamt as SALDO_INICIAL, a.amtacctdr as debe , a.amtacctcr as haber, 
+A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL     
+from(            
+SELECT sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             
+FROM FACT_ACCT F             
+WHERE date(DATEACCT) &lt;= TO_DATE(':p_dt')        
+AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')              
+group by F.ACCOUNT_ID          
+) a, c_elementvalue ev          
+where a.id = ev.c_elementvalue_id          
+and ev.elementlevel = 'S'          
+and  EV.VALUE in (:p_account)
+and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+order by  ev.value, ev.name, id
+) rep 
+group by name</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010102001004','1010102001007','1010102001008','1010102001009','1010102001014','1010102001015',
+'1010102001017','1010102001024','1010102002001','1010102002002','1010102003001','1010102004001',
+'1010102005001','1010102006001','1010102006002'</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="15D5DA3F1C21412B975F67710172AA03" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>15D5DA3F1C21412B975F67710172AA03</id>
+    <active>true</active>
+    <rEPSequence>50</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>PAGO EMPLEADOS</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(monto)*-1 as monto
+from 
+(select 
+'2' as typeheader
+, cv.name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where
+fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta , cv.name
+) rep </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2010301001003','1010208001001','2010301002003','2010301002005','2010703001007','2010704001001',
+'2010704001002','2010704001003','2010704001005','2010705001001','5020103011','5020220001','5020103003'</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="17241DC8C0FA47578BB4C840F4E063A9" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE FINANCIAMIENTO">
+    <id>17241DC8C0FA47578BB4C840F4E063A9</id>
+    <active>true</active>
+    <rEPSequence>140</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE FINANCIAMIENTO</name>
+    <rEPGroup>PRESTAMOS A TERCEROS</rEPGroup>
+    <rEPSql>select
+typeheader
+, name
+,(monto)*-1 as monto
+
+from
+(select
+typeheader
+, name
+,sum(monto) as monto
+from
+(select 
+'2' as typeheader
+,'Prestamos a Terceros' as name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader,name
+) rep </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010207001007','1010102005001','1010207001010','1010208001010',
+'1010207001006','20110001004',
+'20110001005',
+'20110001006',
+'20110001007',
+'20110001008',
+'20110001010',
+'20110001011',
+'20110001013',
+'2010401001008',
+'1010207001008'</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="1BEE2AF6E9AE4FE88034DDE3EA309B31" identifier="Espacio en blanco">
+    <id>1BEE2AF6E9AE4FE88034DDE3EA309B31</id>
+    <active>true</active>
+    <rEPSequence>125</rEPSequence>
+    <name>Espacio en blanco</name>
+    <rEPGroup>Espacio en blanco</rEPGroup>
+    <rEPSql>select
+'ES' as typeheader,
+' ' as name,
+null as monto 
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="3022E365F10C4E16A69B5D701BA73670" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>3022E365F10C4E16A69B5D701BA73670</id>
+    <active>true</active>
+    <rEPSequence>30</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>PAGO PROVEEDORES</rEPGroup>
+    <rEPSql>select 
+typeheader
+, name
+,  monto *-1 as  monto 
+from 
+(select 
+'2' as typeheader
+,v.cuenta as name
+, round(sum(amount_pay),2) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt') 
+and cv.value IN (:p_account ) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010306001001','1010306001002','1010306001004','1010306001005','1010306001007','1010307001001','1010403001001','1010403001002',
+'5020108003',
+'5020108004',
+'5020127001',
+'5020108007',
+'5020103007',
+'5020128007',
+'5020108005',
+'5020103006',
+'5020120011',
+'5020108002',
+'5020103008',
+'5020111002',
+'5020111012',
+'5020127006',
+'5020109001',
+'5020117001',
+'5020120006',
+'5020127002',
+'5020115001',
+'5020111001',
+'5020103005',
+'5020111004',
+'5020103010',
+'5020114008',
+'5020105001',
+'5020119001',
+'5020102002',
+'5020103013',
+'5020118007',
+'5020112001',
+'5020120001',
+'5020111005',
+'5020117002' ,'4020201001',
+'4020101012',
+'1010404001004',
+'1010404001005',
+'1010404001001',
+'1010404001003',
+'1010404001002',
+'1010404001009',
+'1010501001001',
+'4020101001',
+'4020101004'
+</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="3CCEC8E6EB774C659F178D13D11353C6" identifier="Espacio en blanco">
+    <id>3CCEC8E6EB774C659F178D13D11353C6</id>
+    <active>true</active>
+    <rEPSequence>175</rEPSequence>
+    <name>Espacio en blanco</name>
+    <rEPGroup>Espacio en blanco</rEPGroup>
+    <rEPSql>select
+'ES' as typeheader,
+' ' as name,
+null as monto 
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="53D9C72273344A9F85683AA7E05DC8D0" identifier="Efectivo y Equivalente al inicio periodo">
+    <id>53D9C72273344A9F85683AA7E05DC8D0</id>
+    <active>true</active>
+    <rEPSequence>170</rEPSequence>
+    <name>Efectivo y Equivalente al inicio periodo</name>
+    <rEPGroup>Efectivo y Equivalente al inicio periodo</rEPGroup>
+    <rEPSql>select
+'2' as typeheader,
+ name, 
+ round(sum(SALDO_final),2) as  monto 
+ from (
+         select a.id, ev.value as account_id, 'Efectivo y Equivalente al inicio ' as name,       
+         a.initialamt as SALDO_INICIAL, a.amtacctcr, a.amtacctdr,
+          A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL,        a.groupbyid,
+           CASE ad_column_identifier ('',groupbyid,TO_CHAR('es_ES'))         
+           WHEN '**' THEN ''         ELSE ad_column_identifier ('',groupbyid,TO_CHAR('es_ES'))       
+           END AS groupbyname         from
+           (             
+SELECT sum(case when (DATEACCT &lt; TO_DATE('01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'MM/YYYY')) ) or (DATEACCT = TO_DATE('01/01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'YYYY') ) ) and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE('01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'MM/YYYY') ) ) AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE('01/01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'YYYY') ) ) and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE('01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'MM/YYYY') ) ) AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE('01/01/' || TO_CHAR( TO_CHAR(add_months(TO_DATE(':p_df'),-1),'YYYY') ) ) and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+             F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             FROM FACT_ACCT F 
+         WHERE
+         DATEACCT &lt; TO_DATE(':p_df')           
+         AND F.ISACTIVE='Y'  and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')            
+         group by F.ACCOUNT_ID          
+         ) a, c_elementvalue ev          
+         where a.id = ev.c_elementvalue_id         
+          and ev.elementlevel = 'S'        
+           AND 2=2 AND EV.VALUE  in (:p_account)        
+              and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+         order by  ev.value, ev.name, id, groupbyname 
+) rep 
+group by name
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010101001050','1010101002003','1010101002004','1010101002006','1010101002009',
+'1010101002010','1010101002011','1010101002014','1010101002015','1010101001001',
+'1010101002016','1010101002017','1010101002019','1010101002027','1010101001002',
+'1010101002036','1010101002037','1010101002040','1010101002047','1010101001003',
+'1010101002052','1010101002060','1010101002061','1010101002063','1010101001004',
+'1010101002065','1010101002067','1010101002068','1010101002069','1010101001005',
+'1010101002072','1010101002076','1010101002077','1010101002079','1010101001006',
+'1010101002080','1010102001004','1010102001007','1010102001002','1010101001007',
+'1010102001009','1010102001014','1010102001015','1010102001024','1010101001008',
+'1010102002001','1010102002002','1010102003001','1010102004001','1010101001009',
+'1010102005001','1010102006001','1010102006002','1010102001001','1010101001010',
+'1010101001011','1010101001012','1010101001013','1010101001014','1010101001015',
+'1010101001016','1010101001017','1010101001018','1010101001019','1010101001020',
+'1010101001021','1010101001022','1010101001023','1010101001024','1010101001025',
+'1010101001026','1010101001027','1010101001028','1010101001029','1010101001030',
+'1010101001031','1010101001032','1010101001033','1010101001034','1010101001035',
+'1010101001036','1010101001037','1010101001038','1010101001039','1010101001040',
+'1010101002002','1010101002005','1010101002007','1010101002008','1010101002012',
+'1010101002013','1010101002018','1010101002020','1010101002021','1010101002022',
+'1010101002023','1010101002024','1010101002025','1010101002026','1010101002028',
+'1010101002029','1010101002030','1010101002031','1010101002032','1010101002033',
+'1010101002034','1010101002035','1010101002038','1010101002039','1010101002041',
+'1010101002042','1010101002043','1010101002044','1010101002045','1010101002046',
+'1010101002048','1010101002062','1010101002064','1010101002066','1010101002070',
+'1010101002071','1010101002073','1010101002074','1010101002075','1010101002078',
+'1010102001008','1010102001010','1010102001011','1010102001012','1010102001013',
+'1010102001016','1010102001017','1010102001018','1010102001019','1010102001020',
+'1010102001021','1010102001022','1010102001023','1010102007001','1010102007002'</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="5661FDECAA244066A617DF39FECA8937" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>5661FDECAA244066A617DF39FECA8937</id>
+    <active>true</active>
+    <rEPSequence>40</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>PAGO EMPLEADOS</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(monto)*-1 as monto
+from
+(select
+typeheader
+,name
+,sum(monto) as monto
+from
+(select 
+'1' as typeheader
+,'PAGO EMPLEADOS' as name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader,name
+) rep</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2010301001003','1010208001001','2010301002003','2010301002005','2010703001007','2010704001001',
+'2010704001002','2010704001003','2010704001005','2010705001001','5020103011','5020220001','5020103003'</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="5778486AC43448BF92F84402332D7CFC" identifier="Aumento (Disminucion) de efectivo y equivalentes">
+    <id>5778486AC43448BF92F84402332D7CFC</id>
+    <active>true</active>
+    <rEPSequence>160</rEPSequence>
+    <name>Aumento (Disminucion) de efectivo y equivalentes</name>
+    <rEPGroup>SUMA3</rEPGroup>
+    <rEPSql>SELECT
+'1' as TYPEHEADER
+,'Aumento (Disminucion) de efectivo y equivalentes' as NAME
+,SUM(MONTO) AS MONTO
+from 
+(
+:p_group1
+) REP
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;10&gt;&lt;20&gt;&lt;40&gt;&lt;60&gt;&lt;70&gt;&lt;83&gt;&lt;100&gt;&lt;140&gt;</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="58E1CD422C054E1DBCE7E6AD6946455E" identifier="Linea">
+    <id>58E1CD422C054E1DBCE7E6AD6946455E</id>
+    <active>true</active>
+    <rEPSequence>155</rEPSequence>
+    <name>Linea</name>
+    <rEPGroup>Linea</rEPGroup>
+    <rEPSql>select
+'L' as typeheader,
+' ' as name,
+null as monto 
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="733B8020A5614F3796E75D0477AA43FE" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>733B8020A5614F3796E75D0477AA43FE</id>
+    <active>true</active>
+    <rEPSequence>80</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>INTERESES PAGADOS NETO</rEPGroup>
+    <rEPSql>select 
+ typeheader
+, name
+,(monto)*-1 as monto
+from
+(select 
+'2' as typeheader
+, cv.name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta,cv.name
+) rep</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'4010201003','4010204001','5020301007'</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="875824437EF54A2C923F15D3A4990811" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>875824437EF54A2C923F15D3A4990811</id>
+    <active>true</active>
+    <rEPSequence>85</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>OTRAS PAGOS</rEPGroup>
+    <rEPSql>select
+typeheader
+, name
+,round(monto,2)*-1 as monto
+from 
+(select 
+'2' as typeheader
+, cv.name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where
+fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta , cv.name 
+) REP </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2010701001007','5020118001','5020118002','5020118003','5020120001',
+'5020120003','5020120009','502012005','5020220005','5020220008','5020501005',
+'5020501006','4020101013','1010208001004','1010208001008','1010208003016','5020220001'</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="898656E693744298A6C8EF9FBF877CF0" identifier="Espacio en blanco">
+    <id>898656E693744298A6C8EF9FBF877CF0</id>
+    <active>true</active>
+    <rEPSequence>165</rEPSequence>
+    <name>Espacio en blanco</name>
+    <rEPGroup>Espacio en blanco</rEPGroup>
+    <rEPSql>select
+'ES' as typeheader,
+' ' as name,
+null as monto 
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="8A0770A05B524B9A9826F391EE4A4749" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>8A0770A05B524B9A9826F391EE4A4749</id>
+    <active>true</active>
+    <rEPSequence>70</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>INTERESES PAGADOS NETO</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(monto)*-1 as monto
+from
+(select
+typeheader
+,name
+,sum(monto) as monto
+from
+(select 
+'1' as typeheader
+,'INTERESES PAGADOS NETO' as name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader,name
+) rep</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'4010201003','4010204001','5020301007'</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="A5A2578E10E240B4B847ADACC8BCBE4A" identifier="Efectivo neto proveniente de (usado en) actividades de opera">
+    <id>A5A2578E10E240B4B847ADACC8BCBE4A</id>
+    <active>true</active>
+    <rEPSequence>90</rEPSequence>
+    <name>Efectivo neto proveniente de (usado en) actividades de opera</name>
+    <rEPGroup>SUMA1</rEPGroup>
+    <rEPSql>SELECT
+'1' as TYPEHEADER
+,'Efectivo neto proveniente de (usado en) actividades de operacion' as NAME
+,SUM(MONTO) AS MONTO
+from 
+(
+:p_group1
+) REP
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;10&gt;&lt;20&gt;&lt;40&gt;&lt;60&gt;&lt;70&gt;&lt;83&gt;</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="B698C32F982145278F184AA8E1815690" identifier="Efectivo y Equivalente al final">
+    <id>B698C32F982145278F184AA8E1815690</id>
+    <active>true</active>
+    <rEPSequence>180</rEPSequence>
+    <name>Efectivo y Equivalente al final</name>
+    <rEPGroup>SUMA4</rEPGroup>
+    <rEPSql>SELECT
+'1' as TYPEHEADER
+,'Efectivo y Equivalente al final' as NAME
+,coalesce(SUM(MONTO),0) AS MONTO
+from 
+(
+:p_group1
+) REP
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;10&gt;&lt;20&gt;&lt;40&gt;&lt;60&gt;&lt;70&gt;&lt;83&gt;&lt;100&gt;&lt;140&gt;&lt;170&gt;</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="BBA8E22D0FE04A3D9F17C4833FF61488" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>BBA8E22D0FE04A3D9F17C4833FF61488</id>
+    <active>true</active>
+    <rEPSequence>20</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>PAGO PROVEEDORES</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(round(monto,2)*-1) as monto
+from
+(select
+typeheader
+,'PAGO PROVEEDORES' as name
+,sum(monto) as monto
+from
+(select 
+'1' as typeheader
+,v.cuenta as name
+, round(sum(amount_pay),2) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value IN 
+( :p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader
+) rep2</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010306001001','1010306001002','1010306001004','1010306001005','1010306001007','1010307001001','1010403001001','1010403001002',
+'5020108003',
+'5020108004',
+'5020127001',
+'5020108007',
+'5020103007',
+'5020128007',
+'5020108005',
+'5020103006',
+'5020120011',
+'5020108002',
+'5020103008',
+'5020111002',
+'5020111012',
+'5020127006',
+'5020109001',
+'5020117001',
+'5020120006',
+'5020127002',
+'5020115001',
+'5020111001',
+'5020103005',
+'5020111004',
+'5020103010',
+'5020114008',
+'5020105001',
+'5020119001',
+'5020102002',
+'5020103013',
+'5020118007',
+'5020112001',
+'5020120001',
+'5020111005',
+'5020117002' ,'4020201001',
+'4020101012',
+'1010404001004',
+'1010404001005',
+'1010404001001',
+'1010404001003',
+'1010404001002',
+'1010404001009',
+'1010501001001',
+'4020101001',
+'4020101004'
+</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="C39824EEA6784F608CE6DF9E2B630BA1" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>C39824EEA6784F608CE6DF9E2B630BA1</id>
+    <active>true</active>
+    <rEPSequence>15</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>COBRO CLIENTES</rEPGroup>
+    <rEPSql>select
+'2' as typeheader,
+name as name ,
+debe as  monto from (
+select a.id, ev.value as account_id, ev.name,  
+a.initialamt as SALDO_INICIAL, a.amtacctdr as debe , a.amtacctcr as haber, 
+A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL     
+from(            
+SELECT sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             
+FROM FACT_ACCT F             
+WHERE date(DATEACCT) &lt;= TO_DATE(':p_dt')        
+AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')              
+group by F.ACCOUNT_ID          
+) a, c_elementvalue ev          
+where a.id = ev.c_elementvalue_id          
+and ev.elementlevel = 'S'          
+and  EV.VALUE in (:p_account)
+and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+order by  ev.value, ev.name, id
+) rep where debe  &gt; 0 </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1010102001004','1010102001007','1010102001008','1010102001009','1010102001014','1010102001015',
+'1010102001017','1010102001024','1010102002001','1010102002002','1010102003001','1010102004001',
+'1010102005001','1010102006001','1010102006002'</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="D2F0EB378C754DB2BBBA54B5FF578777" identifier="Efectivo neto proveniente de (usado en) actividades de finan">
+    <id>D2F0EB378C754DB2BBBA54B5FF578777</id>
+    <active>true</active>
+    <rEPSequence>150</rEPSequence>
+    <name>Efectivo neto proveniente de (usado en) actividades de finan</name>
+    <rEPGroup>SUMA2</rEPGroup>
+    <rEPSql>SELECT
+'1' as TYPEHEADER
+,'Efectivo neto proveniente de (usado en) actividades de financiamiento' as NAME
+,coalesce(SUM(MONTO),0) AS MONTO
+from 
+(
+:p_group1
+) REP
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;140&gt;</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="D406BB1307524ACFA2D28865FF4D872A" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE INVERSION">
+    <id>D406BB1307524ACFA2D28865FF4D872A</id>
+    <active>true</active>
+    <rEPSequence>120</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE INVERSION</name>
+    <rEPGroup>SUMA5</rEPGroup>
+    <rEPSql>SELECT
+'1' as TYPEHEADER
+,'Efectivo neto proveniente de (usado en) actividades de inversion' as NAME
+,SUM(MONTO) AS MONTO
+from 
+(
+:p_group1
+) REP
+</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;100&gt;</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="D91C1E86D23F42BCA3F03462C59C1BE5" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE INVERSION">
+    <id>D91C1E86D23F42BCA3F03462C59C1BE5</id>
+    <active>true</active>
+    <rEPSequence>100</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE INVERSION</name>
+    <rEPGroup>Adquisicion de propiedad planta y equipo</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(monto)*-1 as monto
+from
+(select
+'2' as typeheader
+,name
+,round(sum(monto),2) as monto
+from
+(select 
+'1' as typeheader
+,'Adquisicion de propiedad planta y equipo' as name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value in 
+(:p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader,name
+) rep2</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1020101004001','5020108002' ,'1020101005001','1020101008001','1020101009001'</sQLAccount>
+    <typeheader>1</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="F1524236318D40EF94D3C51168E723ED" identifier="FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION">
+    <id>F1524236318D40EF94D3C51168E723ED</id>
+    <active>true</active>
+    <rEPSequence>83</rEPSequence>
+    <name>FLUJO DE EFECTIVO POR ACTIVIDADES DE OPERACION</name>
+    <rEPGroup>OTRAS PAGOS</rEPGroup>
+    <rEPSql>select
+typeheader
+,name
+,(round(monto,2)*-1) as monto
+from
+(select
+typeheader
+,name
+,sum(monto) as monto
+from
+(select 
+'1' as typeheader
+,'OTROS PAGOS POR ACTIVIDADES DE OPERACION' as name
+,sum(amount_pay) as monto
+from sscflw_expensive_payout_v v
+join c_elementvalue cv on cv.c_elementvalue_id = v.c_elementvalue_id
+where fecha between to_date(':p_df')  and to_date(':p_dt')
+and cv.value IN 
+( :p_account) 
+and (v.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND') 
+group by v.cuenta 
+) rep
+group by typeheader,name
+) rep2</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2010701001007','5020118001','5020118002','5020118003','5020120001',
+'5020120003','5020120009','502012005','5020220005','5020220008','5020501005',
+'5020501006','4020101013','1010208001004','1010208001008','1010208003016','5020220001'</sQLAccount>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+  <sscflw_setup_report_cash id="F53750F96E3D46878FB58B4273738F11" identifier="Espacio en blanco">
+    <id>F53750F96E3D46878FB58B4273738F11</id>
+    <active>true</active>
+    <rEPSequence>95</rEPSequence>
+    <name>Espacio en blanco</name>
+    <rEPGroup>Espacio en blanco</rEPGroup>
+    <rEPSql>select
+'ES' as typeheader,
+' ' as name,
+null as monto 
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sscflw_setup_report_cash>
+</ob:Openbravo>

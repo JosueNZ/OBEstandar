@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSCFLW_GET_SQLGROUP">
+    <function name="SSCFLW_GET_SQLGROUP" type="VARCHAR">
+      <parameter name="p_group" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Sql RECORD;
+
+  v_Totalgroup NUMBER:=0;
+  v_StringReplace TEXT;
+  v_StrUnionAll CHARACTER VARYING; 
+  v_StrUnionAllDelete CHARACTER VARYING; 
+  v_Count NUMBER:=0;
+BEGIN
+
+	v_StringReplace:= p_group;
+	FOR Cur_Sql IN (
+
+		select
+		name
+		,'<'|| to_char(rep_sequence) || '>' as rep_sequence
+		,
+		replace(replace(
+		replace(replace(
+		REPLACE(rep_sql,':p_account',coalesce(sql_account,'')) 
+		,':p_excl1',split_part(split_part(description,',**,',1),',EXCLUDE,',1))
+		,':p_excl2', split_part(split_part(description,',**,',1),',EXCLUDE,',2))
+		,':p_incl1', split_part(split_part(description,',**,',2),',INCLUDE,',1))
+		,':p_incl2', split_part(split_part(description,',**,',2),',INCLUDE,',2))
+		as  rep_sql
+		, ad_org_id
+		, to_char(NOW(),'dd/MM/yyyy') as fecha
+		,sql_account
+		from sscflw_setup_report_cash
+		where  isactive= 'Y'
+		and rep_group<>'SUMA1'
+		and rep_group<>'SUMA2'
+		and rep_group<>'SUMA3'
+		and rep_group<>'SUMA4'
+		and rep_group<>'SUMA5'
+		and rep_group<>'SUMA6'
+		and rep_group<>'SUMA7'
+		and rep_group<>'SUMA8'
+		and rep_group<>'SUMA9'
+		and rep_group<>'SUMA10'
+	)LOOP 
+		v_StrUnionAll:= ' union all ';
+		v_StringReplace:= REPLACE(v_StringReplace,Cur_Sql.rep_sequence  , Cur_Sql.rep_sql || v_StrUnionAll );
+
+	END LOOP;
+
+	v_StringReplace:= substr(v_StringReplace,0,  (length(v_StringReplace)-10));
+	raise notice '%', v_StringReplace;
+		
+  RETURN v_StringReplace;
+END SSCFLW_GET_SQLGROUP
+]]></body>
+    </function>
+  </database>
