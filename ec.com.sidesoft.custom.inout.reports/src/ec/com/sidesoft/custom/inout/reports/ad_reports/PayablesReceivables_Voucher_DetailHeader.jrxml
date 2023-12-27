@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="PayablesReceivables_Voucher_Detail" pageWidth="226" pageHeight="226" orientation="Landscape" columnWidth="226" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="7d4026a9-7d85-479d-82f8-39fd35e1c0d6">
+	<property name="ireport.zoom" value="3.4522712143931042"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="fin_payment_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_doctype_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="payment_type" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT
+CENTROCOSTO AS "CENTROCOSTO",
+ sum(VALOR) AS "VALOR"
+FROM
+(
+SELECT PD.Invoice_Reference AS FACTURA , DT.NAME AS TIPODOCUMENTO,
+pd.paidamt AS VALOR
+,cc.c_costcenter_id
+,cc.name AS CENTROCOSTO
+FROM ssfi_fin_payment_detail_v PD
+LEFT JOIN C_INVOICE CI ON PD.C_INVOICE_ID = CI.C_INVOICE_ID
+join c_invoiceline cil on ci.c_invoice_id = cil.c_invoice_id
+left join c_costcenter cc on cc.c_costcenter_id  = coalesce(to_char(cil.c_costcenter_id),to_char(ci.c_costcenter_id))
+LEFT JOIN C_DOCTYPE DT ON CI.C_DOCTYPE_ID = DT.C_DOCTYPE_ID
+ WHERE PD.FIN_PAYMENT_ID = (
+select fp.fin_payment_id from fin_payment fp where documentno = $P{fin_payment_id}
+and fp.c_doctype_id = $P{c_doctype_id}
+)
+group by PD.Invoice_Reference , DT.NAME ,
+pd.paidamt
+,cc.c_costcenter_id
+,cc.name
+) REP
+GROUP BY CENTROCOSTO
+ORDER BY CENTROCOSTO]]>
+	</queryString>
+	<field name="CENTROCOSTO" class="java.lang.String"/>
+	<field name="VALOR" class="java.math.BigDecimal"/>
+	<variable name="TOTAL" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{VALOR}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="12" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="226" height="12" uuid="4a98694f-cd59-44ef-beba-de655b2d45a9"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[PEDIDOS:]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="84" height="12" uuid="dca0780d-be40-48eb-a56f-223bf8cfbca4"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{CENTROCOSTO}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement x="94" y="0" width="132" height="12" uuid="2506752a-8773-4171-b11d-c2bdfa5356a3"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{VALOR}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="84" y="0" width="10" height="12" uuid="e2f9bb8d-5176-4553-b257-c857127d3a6f">
+					<printWhenExpression><![CDATA[$F{VALOR}!=null]]></printWhenExpression>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[$]]></text>
+			</staticText>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+</jasperReport>

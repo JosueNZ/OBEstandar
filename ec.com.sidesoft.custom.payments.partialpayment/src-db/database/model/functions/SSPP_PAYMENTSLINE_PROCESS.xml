@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPP_PAYMENTSLINE_PROCESS">
+    <function name="SSPP_PAYMENTSLINE_PROCESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;  
+  Cur_Payments RECORD;
+  
+  --value value of the head
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32);
+  v_C_Bpartner_ID VARCHAR2(32);
+  v_Fin_Financial_Account_ID VARCHAR2(32);
+  v_Fin_Paymentmethod_ID VARCHAR2(32);
+  v_Sspp_Payments_ID VARCHAR2(32);
+  v_C_Doctype_ID VARCHAR2(32);
+  v_DateFrom DATE;
+  v_DateTo DATE;
+  v_DocumentNoFrom VARCHAR2(30); 
+  v_DocumentNoto VARCHAR2(30);
+  
+  --value of payments
+   v_get_uuid VARCHAR2(32);
+ 
+   
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_n_insertions NUMBER;
+  v_n_line NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+
+ 
+ 
+  
+ 
+BEGIN
+
+ --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    v_n_line :=10;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+      v_Sspp_Payments_ID := Cur_Parameter.Record_ID;      
+    END LOOP;
+    
+     --ELIMINAR LINEAS 
+    DELETE FROM SSPP_PAYMENTSLINE where SSPP_PAYMENTS_ID=v_Sspp_Payments_ID;
+    
+    --OBTENGO DATOS GENERALES
+    select AD_CLIENT_ID,AD_ORG_ID,CREATEDBY,C_BPARTNER_ID,FIN_FINANCIAL_ACCOUNT_ID,FIN_PAYMENTMETHOD_ID,C_DOCTYPE_PAYMENT_ID,DOCUMENTNOFROM,DOCUMENTNOTO,DATEFROM,DATETO 
+    into v_Client_ID,v_Org_ID,v_User_ID,v_C_Bpartner_ID,v_Fin_Financial_Account_ID,v_Fin_Paymentmethod_ID,v_C_Doctype_ID,v_DocumentNoFrom,v_DocumentNoto,v_DateFrom,v_DateTo
+    from SSPP_PAYMENTS
+    where SSPP_PAYMENTS_ID=v_Sspp_Payments_ID;
+    
+     --*** PROCESO CARGAR LINEAS 
+    FOR Cur_Payments IN
+	(
+	 select FIN_PAYMENT_ID,DOCUMENTNO,C_BPARTNER_ID,AMOUNT,REFERENCENO,DESCRIPTION from FIN_PAYMENT
+    where
+    (v_C_Bpartner_ID is null or C_BPARTNER_ID = v_C_Bpartner_ID)
+    and FIN_FINANCIAL_ACCOUNT_ID = v_Fin_Financial_Account_ID 
+    and FIN_PAYMENTMETHOD_ID = v_Fin_Paymentmethod_ID
+    and (v_C_Doctype_ID is null or C_DOCTYPE_ID = v_C_Doctype_ID)
+    and PAYMENTDATE BETWEEN v_DateFrom and v_DateTo
+    and (v_DocumentNoFrom is null or v_DocumentNoto is null or DOCUMENTNO BETWEEN v_DocumentNoFrom and v_DocumentNoto)
+    and ISRECEIPT='N'
+    and DOCUMENTNO not in (select documentno from sspp_paymentsline where c_bpartner_id = FIN_PAYMENT.c_bpartner_id and paid_out = 'Y')
+    and AMOUNT>0
+	)
+    LOOP
+    
+    DBMS_OUTPUT.PUT_LINE( 'Pago: ' || Cur_Payments.FIN_PAYMENT_ID);
+    v_get_uuid := get_uuid();
+     Insert into SSPP_PAYMENTSLINE (SSPP_PAYMENTSLINE_ID,SSPP_PAYMENTS_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY,LINE,DOCUMENTNO,C_BPARTNER_ID,AMOUNT,REFERENCENO,DESCRIPTION,FIN_PAYMENT_ID)
+     values (v_get_uuid,v_Sspp_Payments_ID,v_Client_ID,v_Org_ID,'Y',now(),v_User_ID,now(),v_User_ID,v_n_line,Cur_Payments.DOCUMENTNO,Cur_Payments.C_BPARTNER_ID,Cur_Payments.AMOUNT,Cur_Payments.REFERENCENO,Cur_Payments.DESCRIPTION,Cur_Payments.FIN_PAYMENT_ID);
+        
+      v_n_insertions:=v_n_insertions+1;
+      v_n_line:=v_n_line+10;
+    END LOOP;
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPP_PAYMENTSLINE_PROCESS
+]]></body>
+    </function>
+  </database>

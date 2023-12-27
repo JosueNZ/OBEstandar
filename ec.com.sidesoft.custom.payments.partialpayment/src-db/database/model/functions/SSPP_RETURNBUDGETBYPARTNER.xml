@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPP_RETURNBUDGETBYPARTNER">
+    <function name="SSPP_RETURNBUDGETBYPARTNER" type="VARCHAR">
+      <parameter name="p_taxid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_payment_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_column" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_paymentviatical" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_Partner_ID VARCHAR2(32);
+V_Payment_ID VARCHAR2(32);
+V_Budget_ID  VARCHAR2(32);
+V_ViaticalSettlement  VARCHAR2(32);
+V_ViaticalSettlementBudgetID  VARCHAR2(32);
+V_ViaticalApplication  VARCHAR2(32);
+V_ViaticalAplicationBudgetID  VARCHAR2(32);
+V_PaymentViatical   VARCHAR2(32);
+
+V_value VARCHAR2(40);
+V_name VARCHAR2(40);
+V_ColumnNumber VARCHAR2(2);
+v_result VARCHAR2(40);
+
+BEGIN
+
+SELECT
+COALESCE((SELECT C_BPARTNER_ID FROM C_BPARTNER WHERE taxid = p_taxid),'')
+INTO V_Partner_ID
+FROM DUAL;
+
+V_Payment_ID:=p_payment_id;
+V_ColumnNumber:= p_column;
+V_PaymentViatical:= p_paymentviatical;
+select
+coalesce((
+select max(sbi.sfb_budget_item_id)
+from sspp_payments sp          
+  left join sspp_paymentsline spl on sp.sspp_payments_id = spl.sspp_payments_id 
+  left join c_bpartner cbp on cbp.c_bpartner_id = spl.c_bpartner_id  
+  left join c_bp_bankaccount cbpb on cbpb.c_bpartner_id =cbp.c_bpartner_id and cbpb.isactive ='Y'  
+  left join ssfi_banktransfer sb on sb.ssfi_banktransfer_id = em_ssfi_banktransfer_id  
+  left join (
+ SELECT distinct I.C_INVOICE_ID,P.FIN_PAYMENT_ID  
+   FROM fin_payment p 
+   LEFT JOIN fin_financial_account fa ON p.fin_financial_account_id = fa.fin_financial_account_id, fin_payment_detail pd  
+   JOIN fin_payment_scheduledetail psd ON pd.fin_payment_detail_id = psd.fin_payment_detail_id  
+   LEFT JOIN fin_payment_schedule psi ON psd.fin_payment_schedule_invoice = psi.fin_payment_schedule_id  
+   LEFT JOIN c_invoice i ON psi.c_invoice_id = i.c_invoice_id  
+   LEFT JOIN fin_payment_schedule pso ON psd.fin_payment_schedule_order = pso.fin_payment_schedule_id  
+   LEFT JOIN c_order o ON pso.c_order_id = o.c_order_id  
+   LEFT JOIN c_glitem gli ON pd.c_glitem_id = gli.c_glitem_id  
+  WHERE p.fin_payment_id = pd.fin_payment_id 
+
+) sspp_payment on sspp_payment.fin_payment_id = spl.fin_payment_id    
+  left join c_invoiceline cil on cil.c_invoice_id = sspp_payment.c_invoice_id and cil.line = 10    
+  left join sfb_budget_cert_line sbcl on sbcl.sfb_budget_cert_line_id  = cil.em_sfb_budget_cert_line_id    
+  left join sfb_budget_item sbi on sbi.sfb_budget_item_id = sbcl.sfb_budget_item_id  
+   where sp.sspp_payments_id =  V_Payment_ID
+   and cbp.c_bpartner_id = V_Partner_ID
+),null) 
+into V_Budget_ID
+from dual   ;
+
+/*
+Recupero el valor de Viatico Settlement
+*/
+
+
+SELECT 
+COALESCE((SELECT EM_SSVE_VIAT_SETTLEMENT_ID  FROM FIN_PAYMENT WHERE FIN_PAYMENT_ID = V_PaymentViatical ),NULL)
+INTO V_ViaticalSettlement
+FROM DUAL;
+
+SELECT
+COALESCE((SELECT max(sbi.sfb_budget_item_id) 
+FROM ssve_viatical_settlement svs 
+left join ssve_viatsettlementline svsl on svs.ssve_viatical_settlement_id = svsl.ssve_viatical_settlement_id
+left join sfb_budget_cert_line sbcl on sbcl.sfb_budget_cert_line_id  = svsl.sfb_budget_cert_line_id  --and svsl.line = 10  
+left join sfb_budget_item sbi on sbi.sfb_budget_item_id = sbcl.sfb_budget_item_id
+where svs.ssve_viatical_settlement_Id = V_ViaticalSettlement),null)
+INTO V_ViaticalSettlementBudgetID
+FROM DUAL;
+
+/*Recupera el varlo del viatico*/
+SELECT 
+COALESCE((SELECT EM_SSVE_VIATICAL_ID  FROM FIN_PAYMENT WHERE FIN_PAYMENT_ID = V_PaymentViatical ),NULL)
+INTO V_ViaticalApplication
+FROM DUAL;
+
+
+SELECT
+COALESCE((SELECT max(sbi.sfb_budget_item_id) 
+FROM ssve_viatical sv
+left join ssve_viaticalline svl on sv.ssve_viatical_id = svl.ssve_viatical_id 
+left join sfb_budget_cert_line sbcl on sbcl.sfb_budget_cert_line_id  = svl.sfb_budget_cert_line_id  --and svsl.line = 10  
+left join sfb_budget_item sbi on sbi.sfb_budget_item_id = sbcl.sfb_budget_item_id
+where sv.ssve_viatical_id  = V_ViaticalApplication),null)
+INTO V_ViaticalAplicationBudgetID
+FROM DUAL;
+
+
+
+IF (V_ViaticalSettlementBudgetID is not null) THEN
+
+		SELECT  coalesce(sbi.value,'0') as concepto,coalesce(trim(substr(sbi.name,(length(sbi.value)+1),6)),'-') as detalle 
+		into v_value,v_name
+		FROM sfb_budget_item sbi
+		where  sfb_budget_item_id = V_ViaticalSettlementBudgetID;
+		IF (TRIM(V_ColumnNumber) = '1' ) THEN
+			v_result:= v_value;
+		ELSIF (TRIM(V_ColumnNumber) = '2' ) THEN
+			v_result:= v_name;
+		END IF;
+END IF;
+
+	
+IF (V_ViaticalAplicationBudgetID is not null) THEN
+
+		SELECT  coalesce(sbi.value,'0') as concepto,coalesce(trim(substr(sbi.name,(length(sbi.value)+1),6)),'-') as detalle 
+		into v_value,v_name
+		FROM sfb_budget_item sbi
+		where  sfb_budget_item_id = V_ViaticalAplicationBudgetID;
+		IF (TRIM(V_ColumnNumber) = '1' ) THEN
+			v_result:= v_value;
+		ELSIF (TRIM(V_ColumnNumber) = '2' ) THEN
+			v_result:= v_name;
+		END IF;
+END IF;		
+
+
+
+IF ((V_Budget_ID is not null) and ((V_ViaticalApplication is null) ) and (V_ViaticalAplicationBudgetID is null ) ) THEN
+
+		SELECT  coalesce(sbi.value,'0') as concepto,coalesce(trim(substr(sbi.name,(length(sbi.value)+1),6)),'-') as detalle 
+		into v_value,v_name
+		FROM sfb_budget_item sbi
+		where  sfb_budget_item_id = V_Budget_ID;
+		IF (TRIM(V_ColumnNumber) = '1' ) THEN
+			v_result:= v_value;
+		ELSIF (TRIM(V_ColumnNumber) = '2' ) THEN
+			v_result:= v_name;
+		END IF;
+
+END IF;
+
+return coalesce(v_result,'0');
+END SSPP_RETURNBUDGETBYPARTNER
+]]></body>
+    </function>
+  </database>

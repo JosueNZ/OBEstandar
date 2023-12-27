@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="GeneralPayroll_2" printOrder="Horizontal" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<subDataset name="crosstab">
+		<parameter name="documentno" class="java.lang.String">
+			<defaultValueExpression><![CDATA[$P{documentno}]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select d.name as departamento,c_bpartner.taxid as codigo,c_bpartner.name  as nombre,(coalesce(pos.name,'NO DEFINIDO')) as cargo,
+
+	sspr_concept.orderprint || '. '|| sspr_concept.name as concepto,
+	case when sspr_concept.conceptsubtype='In' then sspr_payroll_ticket_concept.amount
+	     when sspr_concept.conceptsubtype='Out' then sspr_payroll_ticket_concept.amount  * -1 end as amount,
+	c_period.startdate,
+	c_period.enddate,
+	case when sspr_concept.conceptsubtype='In' then ' INGRESOS'
+	when sspr_concept.conceptsubtype='Out' then 'EGRESOS' end as conceptsubtype,
+	'ROL DE INGRESOS Y EGRESOS' as titulos,
+	'PERIODO ' || to_char(c_period.startdate) || ' AL ' || to_char(c_period.enddate) as periodo
+,sspr_payroll_ticket.workeddays as diaslaborados
+from sspr_payroll
+left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+left join sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+left join c_bpartner  on c_bpartner.c_bpartner_id = sspr_payroll_ticket.c_bpartner_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+left join sshr_department d on c_bpartner.em_sshr_department_id=d.sshr_department_id
+left join sspr_contract con on (c_bpartner.c_bpartner_id=con.c_bpartner_id and con.sspr_contract_id=(SELECT MAX(con.sspr_contract_id)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id =c_bpartner.c_bpartner_id
+  AND con.startdate =(
+SELECT MAX(con.startdate)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id = c_bpartner.c_bpartner_id)))
+left join sspr_contract_position cpos on (con.sspr_contract_id=cpos.sspr_contract_id and cpos.sspr_contract_position_id=(select sspr_contract_position_id from sspr_contract_position cpos
+where cpos.sspr_contract_id=con.sspr_contract_id
+and cpos.startdate=(select max(cpost.startdate) from sspr_contract_position cpost
+where cpost.sspr_contract_id=con.sspr_contract_id)
+group by sspr_contract_position_id))
+left join sspr_position pos on cpos.sspr_position_id=pos.sspr_position_id
+where sspr_payroll.documentno = $P{documentno}
+order by d.name,sspr_concept.orderprint,c_bpartner.name]]>
+		</queryString>
+		<field name="departamento" class="java.lang.String"/>
+		<field name="codigo" class="java.lang.String"/>
+		<field name="nombre" class="java.lang.String"/>
+		<field name="cargo" class="java.lang.String"/>
+		<field name="concepto" class="java.lang.String"/>
+		<field name="amount" class="java.math.BigDecimal"/>
+		<field name="startdate" class="java.sql.Timestamp"/>
+		<field name="enddate" class="java.sql.Timestamp"/>
+		<field name="conceptsubtype" class="java.lang.String"/>
+		<field name="titulos" class="java.lang.String"/>
+		<field name="periodo" class="java.lang.String"/>
+		<field name="diaslaborados" class="java.math.BigDecimal"/>
+	</subDataset>
+	<parameter name="documentno" class="java.lang.String"/>
+	<parameter name="AD_User_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select d.name as departamento,c_bpartner.taxid as codigo,c_bpartner.name  as nombre,(coalesce(pos.name,'NO DEFINIDO')) as cargo,
+
+	sspr_concept.orderprint || '. '|| sspr_concept.name as concepto,
+	case when sspr_concept.conceptsubtype='In' then sspr_payroll_ticket_concept.amount
+	     when sspr_concept.conceptsubtype='Out' then sspr_payroll_ticket_concept.amount  * -1 end as amount,
+	c_period.startdate,
+	c_period.enddate,
+	case when sspr_concept.conceptsubtype='In' then ' INGRESOS'
+	when sspr_concept.conceptsubtype='Out' then 'EGRESOS' end as conceptsubtype,
+	'ROL DE INGRESOS Y EGRESOS' as titulos,
+	'PERIODO ' || to_char(c_period.startdate) || ' AL ' || to_char(c_period.enddate) as periodo,
+to_char('Usuario: ') || (select coalesce(to_char(cbp.name), to_char(au.name)) from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = $P{AD_User_ID}) AS "usuario",
+'Fecha de Impresión:  ' || TO_CHAR(NOW(),'dd/MM/yyyy HH24:MI:SS') as fecha_impresion,sspr_payroll.ad_org_id
+,sspr_payroll_ticket.workeddays as diaslaborados
+from sspr_payroll
+left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+left join sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+left join c_bpartner  on c_bpartner.c_bpartner_id = sspr_payroll_ticket.c_bpartner_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+left join sshr_department d on c_bpartner.em_sshr_department_id=d.sshr_department_id
+left join sspr_contract con on (c_bpartner.c_bpartner_id=con.c_bpartner_id and con.sspr_contract_id=(SELECT MAX(con.sspr_contract_id)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id =c_bpartner.c_bpartner_id
+  AND con.startdate =(
+SELECT MAX(con.startdate)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id = c_bpartner.c_bpartner_id)))
+left join sspr_contract_position cpos on (con.sspr_contract_id=cpos.sspr_contract_id and cpos.sspr_contract_position_id=(select sspr_contract_position_id from sspr_contract_position cpos
+where cpos.sspr_contract_id=con.sspr_contract_id
+and cpos.startdate=(select max(cpost.startdate) from sspr_contract_position cpost
+where cpost.sspr_contract_id=con.sspr_contract_id)
+group by sspr_contract_position_id))
+left join sspr_position pos on cpos.sspr_position_id=pos.sspr_position_id
+where
+ c_period.startdate>=(select startdate from c_period where c_period_id='C72C8CA440954CD1A667D3A6F9F68749') AND
+ c_period.startdate<=(select startdate from c_period where c_period_id='E7025825473243D2AE33DD0683A615CA') AND
+sspr_payroll.Ispayroll='Y' AND sspr_payroll.Isliquidation='Y'
+order by d.name,sspr_concept.orderprint,c_bpartner.name]]>
+	</queryString>
+	<field name="departamento" class="java.lang.String"/>
+	<field name="codigo" class="java.lang.String"/>
+	<field name="nombre" class="java.lang.String"/>
+	<field name="concepto" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<field name="conceptsubtype" class="java.lang.String"/>
+	<field name="titulos" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="diaslaborados" class="java.math.BigDecimal"/>
+	<group name="departamento">
+		<groupExpression><![CDATA[$F{departamento}]]></groupExpression>
+	</group>
+	<group name="partner">
+		<groupExpression><![CDATA[]]></groupExpression>
+	</group>
+	<pageHeader>
+		<band height="64">
+			<image>
+				<reportElement x="3" y="4" width="100" height="50"/>
+			</image>
+		</band>
+	</pageHeader>
+	<summary>
+		<band height="120" splitType="Stretch">
+			<crosstab ignoreWidth="true">
+				<reportElement x="0" y="65" width="802" height="52"/>
+				<crosstabParameter name="documentno">
+					<parameterValueExpression><![CDATA[$P{documentno}]]></parameterValueExpression>
+				</crosstabParameter>
+				<crosstabDataset>
+					<dataset>
+						<datasetRun subDataset="crosstab">
+							<datasetParameter name="documentno">
+								<datasetParameterExpression><![CDATA[$P{documentno}]]></datasetParameterExpression>
+							</datasetParameter>
+							<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+						</datasetRun>
+					</dataset>
+				</crosstabDataset>
+				<crosstabHeaderCell>
+					<cellContents>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="0" y="45" width="137" height="15"/>
+							<box>
+								<pen lineWidth="0.0" lineStyle="Solid"/>
+								<topPen lineWidth="0.0" lineStyle="Solid"/>
+								<leftPen lineWidth="0.0" lineStyle="Solid"/>
+								<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+								<rightPen lineWidth="0.0" lineStyle="Solid"/>
+							</box>
+							<textElement>
+								<font fontName="DejaVu Sans" isBold="true"/>
+							</textElement>
+							<text><![CDATA[DEPARTAMENTO]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="137" y="45" width="71" height="15"/>
+							<box>
+								<pen lineWidth="0.0" lineStyle="Solid"/>
+								<topPen lineWidth="0.0" lineStyle="Solid"/>
+								<leftPen lineWidth="0.0" lineStyle="Solid"/>
+								<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+								<rightPen lineWidth="0.0" lineStyle="Solid"/>
+							</box>
+							<textElement>
+								<font fontName="DejaVu Sans" isBold="true"/>
+							</textElement>
+							<text><![CDATA[CÓDIGO]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="208" y="45" width="184" height="15"/>
+							<box>
+								<pen lineWidth="0.0" lineStyle="Solid"/>
+								<topPen lineWidth="0.0" lineStyle="Solid"/>
+								<leftPen lineWidth="0.0" lineStyle="Solid"/>
+								<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+								<rightPen lineWidth="0.0" lineStyle="Solid"/>
+							</box>
+							<textElement>
+								<font fontName="DejaVu Sans" isBold="true"/>
+							</textElement>
+							<text><![CDATA[NOMBRE]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="392" y="45" width="151" height="15"/>
+							<box>
+								<pen lineWidth="0.0" lineStyle="Solid"/>
+								<topPen lineWidth="0.0" lineStyle="Solid"/>
+								<leftPen lineWidth="0.0" lineStyle="Solid"/>
+								<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+								<rightPen lineWidth="0.0" lineStyle="Solid"/>
+							</box>
+							<textElement>
+								<font fontName="DejaVu Sans" isBold="true"/>
+							</textElement>
+							<text><![CDATA[CARGO]]></text>
+						</staticText>
+					</cellContents>
+				</crosstabHeaderCell>
+				<rowGroup name="departamento" width="137" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{departamento}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<textField isStretchWithOverflow="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="137" height="15"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Left">
+									<font fontName="DejaVu Sans" size="8"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{departamento}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="137" height="15" forecolor="#000000"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font fontName="DejaVu Sans" isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL GENERAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="codigo" width="70" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{codigo}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="70" height="15"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Left">
+									<font fontName="DejaVu Sans" size="8"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{codigo}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<staticText>
+								<reportElement x="3" y="0" width="400" height="15"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font fontName="DejaVu Sans" isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL DEPARTAMENTO]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="nombre" width="185">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{nombre}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="185" height="15"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Left">
+									<font fontName="DejaVu Sans" size="8"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{nombre}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="cargo" width="151">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{cargo}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="151" height="15"/>
+								<box>
+									<pen lineWidth="0.0" lineStyle="Solid"/>
+									<topPen lineWidth="0.0" lineStyle="Solid"/>
+									<leftPen lineWidth="0.0" lineStyle="Solid"/>
+									<bottomPen lineWidth="0.0" lineStyle="Solid"/>
+									<rightPen lineWidth="0.0" lineStyle="Solid"/>
+								</box>
+								<textElement textAlignment="Left">
+									<font fontName="DejaVu Sans" size="8"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{cargo}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="group1" width="100">
+					<bucket>
+						<bucketExpression class="java.math.BigDecimal"><![CDATA[$F{diaslaborados}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="100" height="15"/>
+								<textElement>
+									<font fontName="DejaVu Sans"/>
+								</textElement>
+								<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{group1}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<columnGroup name="conceptsubtype" height="30" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{conceptsubtype}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="145" height="30"/>
+								<textElement>
+									<font fontName="DejaVu Sans" size="8"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{conceptsubtype}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="69" height="60" forecolor="#000000"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font fontName="DejaVu Sans" isBold="true"/>
+								</textElement>
+								<text><![CDATA[LIQUIDO A RECIBIR]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<columnGroup name="concepto" height="30" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{concepto}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="30"/>
+								<textElement>
+									<font fontName="DejaVu Sans" size="8" isBold="true"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{concepto}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="72" height="30"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font fontName="DejaVu Sans" isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<measure name="amountMeasure" class="java.math.BigDecimal" calculation="Sum">
+					<measureExpression><![CDATA[$F{amount}]]></measureExpression>
+				</measure>
+				<crosstabCell width="73" height="15">
+					<cellContents>
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="15"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="73" height="15" rowTotalGroup="departamento">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="15" forecolor="#000000"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="69" height="15" columnTotalGroup="conceptsubtype">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="69" height="15" forecolor="#000000"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="69" height="15" rowTotalGroup="departamento" columnTotalGroup="conceptsubtype">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="69" height="15" forecolor="#000000"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="72" height="15" columnTotalGroup="concepto">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="72" height="15"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="72" height="15" rowTotalGroup="departamento" columnTotalGroup="concepto">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="72" height="15" forecolor="#000000"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="73" height="18" rowTotalGroup="codigo">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="15"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="69" height="18" rowTotalGroup="codigo" columnTotalGroup="conceptsubtype">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="69" height="15" forecolor="#000000"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="72" height="18" rowTotalGroup="codigo" columnTotalGroup="concepto">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#FFFFFF"/>
+						</box>
+						<textField pattern="###0.00;(###0.00)">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="72" height="15"/>
+							<textElement>
+								<font fontName="DejaVu Sans" size="8" isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amountMeasure}.abs()]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="group1">
+					<cellContents/>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="group1" columnTotalGroup="conceptsubtype">
+					<cellContents/>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="group1" columnTotalGroup="concepto">
+					<cellContents/>
+				</crosstabCell>
+			</crosstab>
+			<textField>
+				<reportElement x="565" y="18" width="276" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{titulos}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="565" y="45" width="276" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="4" y="4" width="210" height="12"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="3" y="17" width="210" height="13"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

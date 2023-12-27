@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s): 
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="SsppDownloadPaymentFileData" package="ec.com.sidesoft.custom.payments.partialpayment.ad_process">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+    SELECT 
+to_char('PA') as cod_orientacion
+,BPAR.value as contrapartida
+,CURR.ISO_Code as moneda
+,SUM(PAYL.Amount) as valor
+,to_char('CTA') as forma_pago
+,CASE WHEN BANK.BankAccountType = 'C' THEN to_char('CTE') 
+    WHEN BANK.BankAccountType = 'S' THEN to_char('AHO') 
+    ELSE to_char('---') 
+END as tipo_cuenta 
+,coalesce(BANK.AccountNo,' ') as num_cuenta     
+,to_char(coalesce(PAY.description,' '))  as  pago 
+,CASE WHEN BANK.em_sswh_taxidType = 'D' THEN to_char('C') 
+     ELSE BANK.em_sswh_taxidType 
+END as tipo_id_cliente  
+,BANK.em_sswh_taxidno as num_id_cliente 
+,BPAR.name as nombre_cliente 
+,TRAS.code as codigo_banco 
+FROM  sspp_payments PAY   
+    inner join ad_client ENTI on PAY.ad_client_id = ENTI.ad_client_id  
+    INNER JOIN C_Currency CURR on CURR.C_Currency_ID =ENTI.C_Currency_ID  
+    inner join SSPP_PAYMENTSLINE PAYL on PAYL.sspp_payments_id = PAY.sspp_payments_id  
+    LEFT JOIN c_bpartner BPAR on  BPAR.c_bpartner_id = PAYL.c_bpartner_id  
+    LEFT JOIN C_BP_BankAccount BANK on BANK.c_bpartner_id=BPAR.c_bpartner_id and BANK.isactive='Y'  
+    LEFT JOIN ssfi_banktransfer TRAS on TRAS.ssfi_banktransfer_id = BANK.em_ssfi_banktransfer_id  
+WHERE PAY.sspp_payments_id = ?  
+GROUP BY cod_orientacion,contrapartida,moneda,forma_pago,tipo_cuenta,num_cuenta,tipo_id_cliente,num_id_cliente,nombre_cliente,Codigo_banco,pago   
+      ]]>
+    </Sql>
+    <Parameter name="ssppp_payment_id"/>
+  </SqlMethod>
+
+</SqlClass>

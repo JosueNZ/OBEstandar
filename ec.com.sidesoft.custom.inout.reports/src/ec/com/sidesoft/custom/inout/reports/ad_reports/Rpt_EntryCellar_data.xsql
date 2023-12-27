@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="RptEntryCellarData" package="ec.com.sidesoft.custom.inout.reports.ad_reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+         SELECT sq.organizationid,sq.documentno,sq.partner,sq.address,sq.phone,sq.taxid, sq.movementdate, 
+         sq.formpay,sq.conditionpay,sq.referenceinvoice,sq.product,sq.productcod,sq.movementqty, sq.document,
+            coalesce(sq.pricelist,sq.pricelist2, 0) as unitprice, 
+               round((coalesce(sq.movementqty,0) * coalesce(sq.pricelist,sq.pricelist2, 0)),2) as amountline, 
+               round((round((coalesce(sq.movementqty,0)*  coalesce(sq.pricelist,sq.pricelist2, 0)),2)  * coalesce(sq.rate,sq.rate2,0))/100,2) as tax, 
+               round((round((coalesce(sq.movementqty,0)*  coalesce(sq.pricelist,sq.pricelist2, 0)),2)  * coalesce(sq.rate,sq.rate2,0))/100,2) + 
+               round((coalesce(sq.movementqty,0) * coalesce(sq.pricelist,sq.pricelist2, 0)),2) as total,sq.order_document 
+         FROM 
+         ( 
+         select io.ad_org_id as organizationid, 'INGRESO A BODEGA No. ' || io.documentno as documentno, cb.name as partner, cbl.name as address, cbl.phone as phone, cb.taxid, to_char(io.movementdate) as movementdate, 
+            fp.name as formpay, cp.name as conditionpay, io.poreference as referenceinvoice, 
+            p.name as product, p.value as productcod, 
+         coalesce(iol.movementqty,0) as movementqty, 
+         co.pricelist, 
+         t.rate,
+        dt.name AS document,
+         (select coo.pricelist from c_orderline coo where coo.c_orderline_id = 
+         (select min(co.c_orderline_id) from c_orderline co where co.m_product_id = p.m_product_id and co.c_order_id=io.c_order_id ) 
+         ) as pricelist2, 
+         (select ct.rate from c_orderline coo 
+         left join c_tax ct on coo.c_tax_id = ct.c_tax_id 
+         where coo.c_orderline_id =  
+         (select min(co.c_orderline_id) from c_orderline co where co.m_product_id = p.m_product_id and co.c_order_id=io.c_order_id ) 
+         ) as rate2
+	,(select o.documentno from m_inout io
+	left join c_order o on o.c_order_id=io.c_order_id
+	where io.m_inout_id = iol.m_inout_id) as order_document 
+         from m_inout io 
+         left join m_inoutline iol on iol.m_inout_id = io.m_inout_id 
+         left join c_bpartner cb on cb.c_bpartner_id = io.c_bpartner_id 
+         left join c_bpartner_location cbl on cbl.c_bpartner_location_id = io.c_bpartner_location_id 
+         left join c_location cl on cl.c_location_id = cbl.c_location_id 
+         left join fin_paymentmethod fp on fp.fin_paymentmethod_id = cb.po_paymentmethod_id 
+         left join C_PaymentTerm cp on cp.C_PaymentTerm_ID = cb.PO_PaymentTerm_ID 
+         left join m_product p on p.m_product_id = iol.m_product_id 
+         left join c_orderline co on co.c_orderline_id = iol.c_orderline_id 
+         left join c_tax t on t.c_tax_id = co.c_tax_id 
+        LEFT JOIN c_doctype AS dt ON dt.c_doctype_id=io.c_doctype_id
+         where io.m_inout_id = ?
+         order by iol.line asc 
+         )sq]]>
+        </Sql>
+        <Parameter name="m_inout"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

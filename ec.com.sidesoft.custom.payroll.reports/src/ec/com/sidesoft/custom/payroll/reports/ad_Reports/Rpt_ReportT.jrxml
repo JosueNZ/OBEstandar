@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_ReportT" printOrder="Horizontal" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<subDataset name="crosstab">
+		<parameter name="documentno" class="java.lang.String">
+			<defaultValueExpression><![CDATA[$P{documentno}]]></defaultValueExpression>
+		</parameter>
+		<queryString>
+			<![CDATA[select d.name as departamento,c_bpartner.taxid as codigo,c_bpartner.name  as nombre,(coalesce(pos.name,'NO DEFINIDO')) as cargo,
+
+	sspr_concept.orderprint || '. '|| sspr_concept.name as concepto,
+	case when sspr_concept.conceptsubtype='In' then sspr_payroll_ticket_concept.amount
+	     when sspr_concept.conceptsubtype='Out' then sspr_payroll_ticket_concept.amount  * -1 end as amount,
+	c_period.startdate,
+	c_period.enddate,
+	case when sspr_concept.conceptsubtype='In' then ' INGRESOS'
+	when sspr_concept.conceptsubtype='Out' then 'EGRESOS' end as conceptsubtype,
+	'ROL DE INGRESOS Y EGRESOS' as titulos,
+	'PERIODO ' || to_char(c_period.startdate) || ' AL ' || to_char(c_period.enddate) as periodo
+from sspr_payroll
+left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+left join sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+left join c_bpartner  on c_bpartner.c_bpartner_id = sspr_payroll_ticket.c_bpartner_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+left join c_period on c_period.c_period_id = sspr_payroll.c_period_id
+left join sshr_department d on c_bpartner.em_sshr_department_id=d.sshr_department_id
+left join sspr_contract con on (c_bpartner.c_bpartner_id=con.c_bpartner_id and con.sspr_contract_id=(SELECT MAX(con.sspr_contract_id)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id =c_bpartner.c_bpartner_id
+  AND con.startdate =(
+SELECT MAX(con.startdate)
+  FROM sspr_contract con
+  WHERE con.isactive = 'Y'
+  AND con.c_bpartner_id = c_bpartner.c_bpartner_id)))
+left join sspr_contract_position cpos on (con.sspr_contract_id=cpos.sspr_contract_id and cpos.sspr_contract_position_id=(select sspr_contract_position_id from sspr_contract_position cpos
+where cpos.sspr_contract_id=con.sspr_contract_id
+and cpos.startdate=(select max(cpost.startdate) from sspr_contract_position cpost
+where cpost.sspr_contract_id=con.sspr_contract_id)
+group by sspr_contract_position_id))
+left join sspr_position pos on cpos.sspr_position_id=pos.sspr_position_id
+where sspr_payroll.documentno = $P{documentno}
+order by d.name,sspr_concept.orderprint,c_bpartner.name]]>
+		</queryString>
+	</subDataset>
+	<parameter name="documentno" class="java.lang.String"/>
+	<parameter name="AD_User_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/opt/innovativaerp/modules/ec.com.sidesoft.custom.payroll.reports/src/ec/com/sidesoft/custom/payroll/reports/ad_Reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String">
+		<defaultValueExpression><![CDATA["src"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select documentno from SSPR_Payroll p
+left join c_period c on c.c_period_id=p.c_period_id
+where c.startdate>=(select startdate from c_period where c_period_id='C72C8CA440954CD1A667D3A6F9F68749') AND
+c.startdate<=(select startdate from c_period where c_period_id='E7025825473243D2AE33DD0683A615CA') AND
+p.Ispayroll='Y' AND p.Isliquidation='Y']]>
+	</queryString>
+	<field name="documentno" class="java.lang.String"/>
+	<group name="departamento">
+		<groupExpression><![CDATA[]]></groupExpression>
+	</group>
+	<group name="partner">
+		<groupExpression><![CDATA[]]></groupExpression>
+	</group>
+	<pageHeader>
+		<band height="64"/>
+	</pageHeader>
+	<detail>
+		<band height="50">
+			<subreport>
+				<reportElement x="0" y="0" width="802" height="50"/>
+				<subreportParameter name="documentno">
+					<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="AD_User_ID">
+					<subreportParameterExpression><![CDATA[$P{AD_User_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="BASE_DESIGN">
+					<subreportParameterExpression><![CDATA[$P{BASE_DESIGN}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA["/opt/innovativaerp/modules/ec.com.sidesoft.custom.payroll.reports/src/ec/com/sidesoft/custom/payroll/reports/ad_Reports/GeneralPayroll_2.jasper"
+]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<summary>
+		<band height="120" splitType="Stretch">
+			<textField>
+				<reportElement x="100" y="50" width="100" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

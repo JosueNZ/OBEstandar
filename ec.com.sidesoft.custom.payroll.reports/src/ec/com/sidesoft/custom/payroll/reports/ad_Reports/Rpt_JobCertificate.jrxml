@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_JobCertificate" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="C_BPartner_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_BPARTNER_CERT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_DocType_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select a.ad_org_id as organization_id,oi.taxid as taxid_org,org.name as orgname,a.name,format,
+c.name as empleado,c.taxid as taxid_empleado,f.name as cargo_empleado,to_char(d.startdate,'dd-MM-yyyy') as fechainicio_contrato,
+to_char(d.enddate,'dd-MM-yyyy') as fechafin_contrato,
+jefe,taxid_jefe,cargo_jefe,g.name as ciudad,to_char(now(),'dd-MM-yyyy') as fechaimpresion,
+a.footer
+from sscpr_reportcertificate a
+left join ad_org org on a.ad_org_id = org.ad_org_id
+left join ad_orginfo oi on org.ad_org_id = oi.ad_org_id
+left join c_location k on oi.c_location_id = k.c_location_id
+left join c_country  l on k.c_country_id = l.c_country_id
+left join c_doctype b on a.c_doctype_id = b.c_doctype_id ,
+c_bpartner c, SSPR_Contract d,SSPR_Contract_Position e,Sspr_Position f,c_city g,
+(select g.name as jefe,g.taxid as taxid_jefe,j.name as cargo_jefe from
+c_bpartner g
+left join SSPR_Contract h on g.c_bpartner_id = h.c_bpartner_id
+left join SSPR_Contract_Position i on h.SSPR_Contract_id = i.SSPR_Contract_id
+left join Sspr_Position j on i.Sspr_Position_ID = j.Sspr_Position_ID
+where g.c_bpartner_id = $P{C_BPARTNER_CERT_ID}
+) x
+where a.c_doctype_id = $P{C_DocType_ID}
+and c.c_bpartner_id = $P{C_BPartner_ID}
+and c.c_bpartner_id = d.c_bpartner_id
+and d.SSPR_Contract_id = e.SSPR_Contract_id
+and e.Sspr_Position_ID = f.Sspr_Position_ID
+and c.em_sspr_city = g.c_city_id
+AND d.SSPR_CONTRACT_ID IN  (SELECT SSPR_CONTRACT_ID
+  FROM SSPR_CONTRACT
+  WHERE STARTDATE =
+  (
+  select max(startdate)
+  from sspr_contract
+  where c_bpartner_id = $P{C_BPartner_ID}
+  ))]]>
+	</queryString>
+	<field name="organization_id" class="java.lang.String"/>
+	<field name="taxid_org" class="java.lang.String"/>
+	<field name="orgname" class="java.lang.String"/>
+	<field name="name" class="java.lang.String"/>
+	<field name="format" class="java.lang.String"/>
+	<field name="empleado" class="java.lang.String"/>
+	<field name="taxid_empleado" class="java.lang.String"/>
+	<field name="cargo_empleado" class="java.lang.String"/>
+	<field name="fechainicio_contrato" class="java.lang.String"/>
+	<field name="fechafin_contrato" class="java.lang.String"/>
+	<field name="jefe" class="java.lang.String"/>
+	<field name="taxid_jefe" class="java.lang.String"/>
+	<field name="cargo_jefe" class="java.lang.String"/>
+	<field name="ciudad" class="java.lang.String"/>
+	<field name="fechaimpresion" class="java.lang.String"/>
+	<field name="footer" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="71" splitType="Stretch">
+			<image scaleImage="RetainShape" hAlign="Center" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="30" y="7" width="187" height="61"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organization_id})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="35" splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="111" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="30" y="0" width="499" height="111"/>
+				<textElement textAlignment="Justified"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{format}.replace("(CARGO-JEFE)",($F{cargo_jefe}==null ? "(CARGO-JEFE)":$F{cargo_jefe})).replace("(EMPLEADO)",$F{empleado}==null ? "(EMPLEADO)":$F{empleado}).replace("(C-IDENTIDAD)",$F{taxid_empleado}==null ? "(C-IDENTIDAD)":$F{taxid_empleado}).replace("(CARGO-EMPLEADO)",$F{cargo_empleado}==null ? "(CARGO-EMPLEADO)":$F{cargo_empleado}).replace("(FECHA-INICIO-CONTRATO)",$F{fechainicio_contrato}==null ? "(FECHA-INICIO-CONTRATO)":$F{fechainicio_contrato}).replace("(FECHA-FIN-CONTRATO)", $F{fechafin_contrato}==null ? "(FECHA-FIN-CONTRATO)":$F{fechafin_contrato}).replace("(CIUDAD)", $F{ciudad}==null ? "(CIUDAD)":$F{ciudad}).replace("(FECHA IMPRESION)", $F{fechaimpresion}==null ? "(FECHA IMPRESION)":$F{fechaimpresion}).replace("(ORGANIZACION)", $F{orgname}==null ? "(ORGANIZACION)":$F{orgname}).replace("(JEFE)", $F{jefe}==null ? "(JEFE)":$F{jefe})]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<lastPageFooter>
+		<band height="50">
+			<textField>
+				<reportElement x="0" y="14" width="555" height="36"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{footer}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band/>
+	</summary>
+</jasperReport>

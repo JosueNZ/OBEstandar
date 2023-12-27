@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPP_PAYMENTSLINE_DELETE_TRG">
+    <trigger name="SSPP_PAYMENTSLINE_DELETE_TRG" table="SSPP_PAYMENTSLINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+
+
+/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.0  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SL
+* All portions are Copyright (C) 2001-2006 Openbravo SL
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+
+v_payment_id varchar(32); --OBTG:VARCHAR2--
+v_processed char(2);	--OBTG:VARCHAR2--	
+ 
+ 
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF DELETING THEN
+
+	v_payment_id := :OLD.sspp_payments_id;
+    
+    select STATUS
+    INTO v_processed
+    from SSPP_PAYMENTS 
+    where SSPP_PAYMENTS_ID=v_payment_id;
+   
+    IF(v_processed = 'AP' or v_processed = 'SE' ) THEN
+      RAISE_APPLICATION_ERROR(-20000, '@20501@');
+    END IF;
+	 
+  END IF;
+
+
+END SSPP_PAYMENTSLINE_DELETE_TRG
+]]></body>
+    </trigger>
+  </database>
