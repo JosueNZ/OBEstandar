@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_ASSIGN_TSHEET">
+    <function name="OPCRM_ASSIGN_TSHEET" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_user_ID VARCHAR2(32);
+v_client_ID VARCHAR2(32);
+v_org_ID VARCHAR2(32);
+v_sheet_ID VARCHAR2(32);
+
+p_user_ID VARCHAR2(32);
+
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+-- Get record ID
+  SELECT i.Record_ID, i.Ad_Client_ID, i.Ad_User_ID, i.Ad_Org_ID, pa.p_string
+  INTO v_sheet_ID, v_client_ID, v_user_ID, v_org_ID, p_user_ID 
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'user'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+
+  UPDATE opcrm_timesheet
+   SET assigned_to=p_user_ID
+  WHERE opcrm_timesheet_id = v_sheet_ID;
+
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_SHEETASSIGNED@');
+END OPCRM_ASSIGN_TSHEET
+]]></body>
+    </function>
+  </database>

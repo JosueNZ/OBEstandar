@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION EEI_DOCNO_REMISSIONGUIDE">
+    <function name="EEI_DOCNO_REMISSIONGUIDE" type="VARCHAR">
+      <parameter name="p_c_invoice_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[Var_Result  VARCHAR2(32);
+
+Cur_invoice RECORD;
+BEGIN
+
+	FOR Cur_invoice IN (
+	 SELECT IL.C_INVOICELINE_ID,IL.M_INOUTLINE_ID  FROM C_INVOICELINE IL WHERE IL.C_INVOICE_ID =p_c_invoice_id 
+	 AND IL.LINE=(SELECT MIN(IL2.LINE) FROM C_INVOICELINE IL2 WHERE IL2.C_INVOICE_ID =p_c_invoice_id) 
+        ORDER BY IL.CREATED ASC)
+         LOOP
+		SELECT  
+			MI.DOCUMENTNO INTO Var_Result
+		FROM
+		C_INVOICELINE ILF
+		LEFT JOIN M_INOUTLINE IO ON ILF.M_INOUTLINE_ID = IO.M_INOUTLINE_ID
+		LEFT JOIN M_INOUT MI ON IO.M_INOUT_ID = MI.M_INOUT_ID
+		WHERE ILF.C_INVOICELINE_ID= Cur_invoice.C_INVOICELINE_ID;
+		
+		RETURN Var_Result;
+
+         END LOOP;
+
+         RETURN  NULL;
+END EEI_DOCNO_REMISSIONGUIDE
+]]></body>
+    </function>
+  </database>

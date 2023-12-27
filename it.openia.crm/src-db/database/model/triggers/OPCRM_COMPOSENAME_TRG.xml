@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_COMPOSENAME_TRG">
+    <trigger name="OPCRM_COMPOSENAME_TRG" table="AD_USER" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[  /* *********************************************************************************
+  * Copyright (C) 2012 Openia Srl                                                    *
+  *                                                                                  *
+  * Licensed under the Openbravo Public License version 1.0                          *
+  * You may obtain a copy of the License at http://www.openbravo.com/legal/obpl.html *
+  ********************************************************************************* */
+BEGIN
+ 
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+ 
+  IF INSERTING THEN
+      :NEW.em_opcrm_computednames := CASE WHEN :NEW.em_opcrm_commercialname IS NULL 
+                                       THEN ((COALESCE(:NEW.firstname, '') || ' ') || COALESCE(:NEW.lastname, ''))
+                                       ELSE ((((COALESCE(:NEW.firstname, '') || ' ') || (COALESCE(:NEW.lastname, '') || ' ')) || '- ') || COALESCE(:NEW.em_opcrm_commercialname,''))
+                                  END;
+    IF :NEW.em_opcrm_islead = 'Y' THEN                              
+        IF :NEW.username IS NULL THEN    	
+            :NEW.username := substring(:NEW.em_opcrm_computednames from 1 for 60);
+        END IF;
+    END IF;
+  
+  ELSIF UPDATING THEN
+    
+    :NEW.em_opcrm_computednames := CASE WHEN :NEW.em_opcrm_commercialname IS NULL 
+                                       THEN ((COALESCE(:NEW.firstname, '') || ' ') || COALESCE(:NEW.lastname, ''))
+                                       ELSE ((((COALESCE(:NEW.firstname, '') || ' ') || (COALESCE(:NEW.lastname, '') || ' ')) || '- ') || COALESCE(:NEW.em_opcrm_commercialname,''))
+                                  END;
+    
+  ELSIF DELETING THEN
+  END IF;
+  
+  END OPCRM_COMPOSENAME_TRG
+]]></body>
+    </trigger>
+  </database>

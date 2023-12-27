@@ -1,0 +1,150 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION EEI_EXCLUDE_WITHHOLDING">
+    <function name="EEI_EXCLUDE_WITHHOLDING" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_processed          C_INVOICE.PROCESSED%TYPE;
+ v_issotrx            CHARACTER(1);
+ v_count NUMBER:=0;
+ v_tax	       	      VARCHAR2(32);
+ v_maxline NUMBER:=0;
+ v_invoicetax	      VARCHAR2(32);
+ v_taxbaseamt NUMBER:=0;
+ v_updatedby          VARCHAR2(32);	
+ v_isedoc             VARCHAR2(32);
+ v_edoc_type          VARCHAR2(32);
+ v_excludeold	      VARCHAR2(32);
+ v_taxbaseold NUMBER:=0;
+ v_adclient 	      VARCHAR2(32);	
+ v_adorg 	      VARCHAR2(32);	
+ v_counter NUMBER:=0;
+ 
+p_message           VARCHAR2(2000);    
+p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+p_user              VARCHAR2(60);      
+p_result            NUMBER;
+p_docstatus         VARCHAR2(60);
+p_issotrx           VARCHAR2(60);
+v_ResultStr         VARCHAR2(2000):='';
+
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'User') THEN
+      p_user := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Message') THEN
+      p_message := cur_params.p_text;
+    ELSIF (cur_params.parametername LIKE 'Result') THEN
+      p_result := cur_params.p_number;
+    END IF;
+  END LOOP;
+
+  --OBTENGO DATOS DE FACTURA DE COMPRA
+  
+    SELECT ci.processed, ci.issotrx, cd.em_eei_is_edoc, cd.em_eei_edoc_type
+    INTO   v_processed, v_issotrx, v_isedoc, v_edoc_type
+    FROM C_INVOICE ci
+    LEFT JOIN c_doctype cd ON ci.em_sswh_c_doctype_id = cd.c_doctype_id
+    WHERE ci.c_invoice_id = p_record_id;
+
+    IF (v_issotrx = 'N' AND v_isedoc='Y' AND p_docaction='CO'  AND v_edoc_type ='07') THEN
+ 
+ 
+	SELECT count(*) INTO v_counter FROM c_invoiceline WHERE c_invoice_id=p_record_id and excludeforwithholding='Y';
+ 
+	IF(v_counter <>0) THEN
+		UPDATE C_INVOICE SET DOCSTATUS='DR' , DOCACTION='CO', PROCESSED='N' WHERE c_invoice_id = p_record_id;
+		
+		--BORRRAR LÍNEA ANTERIOR SI EXISTE
+		select coalesce((
+			SELECT c_invoicetax_id
+			
+			FROM c_invoicetax WHERE c_invoice_id=p_record_id and em_eei_excluded_withholding='Y'),'nd') INTO v_invoicetax
+		from dual ;
+	
+		IF(v_invoicetax <> 'nd') THEN 	        
+		
+			DELETE FROM c_invoicetax WHERE c_invoicetax_id=v_invoicetax;
+			
+		END IF;
+
+
+	
+  	    SELECT coalesce(count(*),0)
+	    INTO v_count
+	    FROM c_tax WHERE em_eei_sri_taxcat_code='332' ;
+
+	    IF(v_count =0) THEN
+		 RAISE_APPLICATION_ERROR(-20000, '@Eei_Tax_Not_Found@') ;
+	    ELSIF(v_count>1) THEN
+		 RAISE_APPLICATION_ERROR(-20000, '@Eei_More_Than_One_Tax@') ;
+	    END IF;
+
+	    SELECT c_tax_id
+	    INTO v_tax
+	    FROM c_tax WHERE em_eei_sri_taxcat_code='332' ;
+	    
+	    SELECT max(line) INTO v_maxline FROM c_invoicetax 
+	    WHERE c_invoice_id=p_record_id;
+
+	    SELECT COALESCE(sum(taxbaseamt),0)  INTO v_taxbaseamt FROM c_invoiceline WHERE c_invoice_id=p_record_id and excludeforwithholding='Y';
+	    SELECT ad_client_id,ad_org_id  INTO v_adclient,v_adorg  FROM c_invoiceline WHERE c_invoice_id=p_record_id and excludeforwithholding='Y';
+	    
+
+	    IF(v_taxbaseamt<>0) THEN	
+
+	        
+		    INSERT INTO c_invoicetax(
+		    c_tax_id, c_invoice_id, ad_client_id, ad_org_id, isactive, created, 
+		    createdby, updated, updatedby, taxbaseamt, taxamt, line, c_invoicetax_id, 
+		    recalculate, em_sswh_iswithholding, em_sswh_isprocesswithholding,em_eei_excluded_withholding)
+		    VALUES (v_tax, p_record_id, v_adclient,v_adorg , 'Y',now(), 
+			    p_user, now(), p_user, v_taxbaseamt ,0,coalesce(v_maxline,0)+10 , get_uuid(), 
+			    'N', 'Y', 'N','Y');	
+
+	    END IF;
+	    
+	ELSE
+   --BORRRAR LÍNEA ANTERIOR SI EXISTE
+    select coalesce((
+		SELECT c_invoicetax_id
+		
+		FROM c_invoicetax WHERE c_invoice_id=p_record_id and em_eei_excluded_withholding='Y'),'nd') INTO v_invoicetax
+    from dual ;
+
+		IF(v_invoicetax <> 'nd') THEN 	        
+		   
+		    DELETE FROM c_invoicetax WHERE c_invoicetax_id=v_invoicetax;
+		    
+		END IF;
+	END IF;
+	
+    UPDATE C_INVOICE SET DOCSTATUS='CO' ,DOCACTION='RE', PROCESSED='Y' WHERE c_invoice_id = p_record_id;
+    
+	ELSE
+		IF (v_issotrx = 'N' AND p_docaction='RE') THEN
+			DELETE FROM c_invoicetax WHERE c_invoice_id = p_record_id AND em_eei_excluded_withholding='Y';
+		END IF;	
+    END IF;
+  
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+  RAISE;
+END EEI_EXCLUDE_WITHHOLDING
+]]></body>
+    </function>
+  </database>

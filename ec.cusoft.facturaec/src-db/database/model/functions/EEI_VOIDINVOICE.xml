@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION EEI_VOIDINVOICE">
+    <function name="EEI_VOIDINVOICE" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Record_ID VARCHAR2(32);
+  v_Result NUMBER:=0; -- OBTG:NUMBER
+  v_AD_User_ID VARCHAR2(32);
+  v_AD_Org_ID VARCHAR2(32);
+  v_AD_Client_ID VARCHAR2(32);
+  v_EvolutionSalaryID  VARCHAR2(32);
+
+TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  
+   v_Line NUMBER:=0; -- OBTG:NUMBER
+  
+   v_C_BpartnerID VARCHAR(32); -- OBTG:VARCHAR2
+   v_MSG VARCHAR(60); -- OBTG:VARCHAR2
+   v_DateContract DATE;
+   v_DateEvolutionSalary DATE;
+   v_EvolutionSalaryImport NUMBER(12,5):=0; -- OBTG:NUMBER
+   v_Count NUMBER:=0; -- OBTG:NUMBER
+
+   v_doctype VARCHAR(60); -- OBTG:VARCHAR2
+   v_codigo VARCHAR(60); -- OBTG:VARCHAR2
+   v_sswh_withholdingref VARCHAR(20); -- OBTG:VARCHAR2
+   v_void_doctype_id VARCHAR(32); -- OBTG:VARCHAR2
+   v_void_docnosequence_id VARCHAR(32); -- OBTG:VARCHAR2
+   v_DocumentNo VARCHAR(20); -- OBTG:VARCHAR2
+   v_EM_Sswh_Datewithhold DATE;
+   v_stablishment VARCHAR(5); -- OBTG:VARCHAR2
+   v_cash VARCHAR(5); -- OBTG:VARCHAR2
+   v_serie VARCHAR(10); -- OBTG:VARCHAR2
+   v_serie_to VARCHAR(10); -- OBTG:VARCHAR2
+   v_REFERENCE_TYPE_DOC_VOIDED VARCHAR(32); -- OBTG:VARCHAR2
+   v_kEY_ACCESS_AUTH VARCHAR(200); -- OBTG:VARCHAR2
+   v_amt_income  NUMBER(20,5):=0; -- OBTG:NUMBER
+   v_amt_vat  NUMBER(20,5):=0; -- OBTG:NUMBER
+    
+  BEGIN
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+   BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_USER_ID,
+        i.AD_ORG_ID,
+        i.AD_CLIENT_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_AD_User_ID:=Cur_Parameter.AD_User_ID;
+      v_AD_Org_ID:=Cur_Parameter.AD_Org_ID;
+      v_AD_Client_ID:=Cur_Parameter.AD_Client_ID;
+     END LOOP; -- Get Parameter
+    DBMS_OUTPUT.PUT_LINE('  Record_ID=' || v_Record_ID) ;
+    v_ResultStr:='CheckRestriction';
+
+    SELECT ci.em_eei_codigo,ci.em_sswh_withholdingref,dt.em_eei_edoc_type
+    , ci.EM_Sswh_Datewithhold 
+    , substr(TRIM(ci.EM_Sswh_Withholdingref), 1, 3) as ESTABLECIMIENTO 
+    , substr(TRIM(ci.EM_Sswh_Withholdingref), position('-' in TRIM(ci.EM_Sswh_Withholdingref))+1, 3) as CAJA     
+    , substr(TRIM(ci.EM_Sswh_Withholdingref), position('-' in TRIM(ci.EM_Sswh_Withholdingref))+5, 9) as SERIE
+    , substr(TRIM(ci.EM_Sswh_Withholdingref), position('-' in TRIM(ci.EM_Sswh_Withholdingref))+5, 9) as SERIE_HASTA
+    , ci.EM_Sswh_C_Doctype_ID as REFERENCE_TYPE_DOC_VOIDED , ci.EM_Eei_Numauto as kEY_ACCESS_AUTH
+    , ci.EM_Sswh_Totalwithholdingincome , ci.EM_Sswh_Totalwithholdingvat
+    INTO v_codigo,v_sswh_withholdingref,v_doctype
+    , v_EM_Sswh_Datewithhold , v_stablishment , v_cash , v_serie , v_serie_to
+    , v_REFERENCE_TYPE_DOC_VOIDED, v_kEY_ACCESS_AUTH, v_amt_income, v_amt_vat
+    FROM c_invoice ci
+    LEFT JOIN c_doctype dt ON ci.EM_Sswh_C_Doctype_ID = dt.c_doctype_id
+    WHERE c_invoice_id = v_Record_ID;
+
+    -- Inicio: Almacenar en ventana Retenciones anuladas
+        select dt.c_doctype_id , dt.docnosequence_id
+        into v_void_doctype_id , v_void_docnosequence_id
+        from c_doctype dt
+        inner join ad_table t on t.ad_table_id = dt.ad_table_id
+        where t.name = 'sswh_withholdings_voided'; 
+        
+        IF(v_void_doctype_id is not null AND v_void_docnosequence_id is not null) THEN
+            -- Consultar la secuencia del docuemnto.
+            select * INTO  v_DocumentNo 
+            FROM Ad_Sequence_Doctype(v_void_doctype_id, v_AD_Client_ID, 'Y') ;
+            IF(v_DocumentNo is not null) THEN 
+                INSERT INTO sswh_withholdings_voided(
+                sswh_withholdings_voided_id, ad_client_id, ad_org_id, created,
+                createdby, updated, updatedby,
+                isactive, c_doctype_id, documentno, 
+                withholdingdate, stablishment, shell,
+                referenceno_from, referenceno_to, 
+                description, c_doctype2_id, doc_voided, 
+                processed, authorizationno,
+                date_voided, amt_source_wh_rent, amt_source_wh_iva)
+                VALUES (get_uuid(), v_AD_Client_ID, v_AD_Org_ID, now(), 
+                v_AD_User_ID, now(), v_AD_User_ID,
+                'Y', v_void_doctype_id, v_DocumentNo, 
+                v_EM_Sswh_Datewithhold, v_stablishment, v_cash, 
+                v_serie, v_serie_to,
+                '', v_REFERENCE_TYPE_DOC_VOIDED, 'W',
+                'Y', COALESCE(v_kEY_ACCESS_AUTH, ''), now(), 
+                COALESCE(v_amt_income , 0), COALESCE(v_amt_vat, 0) );
+            END IF;
+        END IF;
+                       
+    -- Fin : Almacenar en ventana Retenciones anuladas
+
+--ACTUALIZAR FACTURA
+update c_invoice set EM_EEI_CODIGO = null,
+ EM_EEI_NUMAUTO = null, 
+ EM_EEI_FECHAAUTO = null,
+ EM_EEI_FECHAAUTOTEXT = null,
+EM_EEI_URLXML = null, 
+ EM_EEI_URLRIDE = null, 
+  EM_EEI_STATUS = null,
+  EM_EEI_TEMPORALSEND='N' WHERE  c_invoice_id = v_Record_ID;
+--ELIMINAR LOGS DE FACTURA
+DELETE FROM eei_invoicelog where c_invoice_id = v_Record_ID AND edoc_type = v_doctype;
+
+    SELECT COALESCE(max(line),0)+10 INTO v_Line FROM eei_invoicelog  WHERE c_invoice_id = v_Record_ID;
+
+INSERT INTO eei_invoicelog(
+            eei_invoicelog_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, line, c_invoice_id, logtype, description,edoc_type)
+    VALUES (get_uuid(), v_AD_Client_ID, v_AD_Org_ID, 'Y', now(), 
+            v_AD_User_ID, now(), v_AD_User_ID, v_Line, v_Record_ID , 'S', 'ANULACIÓN DE DOCUMENTO ELECTRÓNICO: -NÚMERO: '|| COALESCE(v_sswh_withholdingref,' ')|| ' -CLAVE DE ACCESO: '|| COALESCE(v_codigo,' '),v_doctype);
+
+   
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    v_Message:='@Eei_Void_SRI@'||' -NÚMERO: '|| COALESCE(v_sswh_withholdingref,' ')|| ' -CLAVE DE ACCESO: '|| COALESCE(v_codigo,' ');
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 2, v_Message) ;
+    RETURN;
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+   ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END EEI_VOIDINVOICE
+]]></body>
+    </function>
+  </database>

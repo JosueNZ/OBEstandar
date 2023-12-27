@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_ACT_FROM_PARTNER">
+    <function name="OPCRM_ACT_FROM_PARTNER" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+  v_ResultStr VARCHAR2(2000) := '';
+  v_record_id VARCHAR2(32);
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_user_id VARCHAR2(32);
+  v_record RECORD;
+  p_subject VARCHAR2(60);
+  p_act_type VARCHAR2(60);
+  p_description VARCHAR2(255);
+  p_startdate DATE WITHOUT TIME ZONE;
+  p_start_h NUMBER;
+  p_start_m NUMBER;
+  p_duration_h NUMBER;
+  p_duration_m NUMBER;
+  v_iscrm_user CHARACTER(1); 
+  v_activity_id VARCHAR2(32);
+  v_lead_record RECORD;
+BEGIN
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'Y', NULL, NULL );
+
+  -- Get record ID and parameters
+  SELECT i.Record_ID, i.ad_client_id, i.ad_org_id, i.ad_user_id, pa.p_string, pb.p_date, pc.p_number , pd.p_number, pe.p_number, pf.p_number, pg.p_string, ph.p_string
+  INTO v_record_id, v_client_id, v_org_id,v_user_id, p_subject, p_startdate, p_start_h, p_start_m , p_duration_h, p_duration_m, p_act_type, p_description  
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'subject'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'startdate'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'start_h'
+  LEFT JOIN ad_pinstance_para pd ON pd.ad_pinstance_id = i.ad_pinstance_id AND pd.parametername = 'start_m'
+  LEFT JOIN ad_pinstance_para pe ON pe.ad_pinstance_id = i.ad_pinstance_id AND pe.parametername = 'duration_h'
+  LEFT JOIN ad_pinstance_para pf ON pf.ad_pinstance_id = i.ad_pinstance_id AND pf.parametername = 'duration_m'
+  LEFT JOIN ad_pinstance_para pg ON pg.ad_pinstance_id = i.ad_pinstance_id AND pg.parametername = 'Activity_Type'
+  LEFT JOIN ad_pinstance_para ph ON ph.ad_pinstance_id = i.ad_pinstance_id AND ph.parametername = 'description'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+
+  SELECT u.em_opcrm_is_crm_user INTO v_iscrm_user FROM ad_user u WHERE u.ad_user_id = v_user_ID;
+ 
+  IF(v_iscrm_user IS NULL OR v_iscrm_user ='N') THEN
+      RAISE NO_DATA_FOUND;
+  END IF;
+
+  SELECT * INTO v_lead_record FROM ad_user u WHERE u.c_bpartner_id = v_record_id AND u.EM_Opcrm_Islead='Y' LIMIT 1;
+
+  IF (v_lead_record IS NULL) THEN
+    SELECT * INTO v_lead_record FROM ad_user u WHERE u.c_bpartner_id = v_record_id LIMIT 1;
+  END IF;
+  
+  v_activity_id := get_uuid();
+
+  INSERT INTO opcrm_activity(
+            opcrm_activity_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, activity_subject, activity_startdate, 
+            start_hour, start_minute, duration_hours, duration_minutes, 
+            related_to, assigned_to, 
+            c_bpartner_id, related_lead, activity_type, description)
+    VALUES (v_activity_id, v_client_id, v_org_id, 'Y', current_timestamp, 
+            v_user_ID, current_timestamp, v_user_ID, p_subject, p_startdate, 
+            p_start_h, p_start_m, p_duration_h, p_duration_m, 
+            'opcrmToLead', v_user_ID, 
+            v_record_id, 
+            v_lead_record.ad_user_id, p_act_type, p_description);   
+ 
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, v_user_id, 'N', 1, '@OPCRM_ACTIVITYOK@' );
+ 
+EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr := '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    IF(p_PInstance_ID IS NOT NULL) THEN
+      AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'N', 0, v_ResultStr ) ;
+    END IF;
+    RETURN;
+END OPCRM_ACT_FROM_PARTNER
+]]></body>
+    </function>
+  </database>

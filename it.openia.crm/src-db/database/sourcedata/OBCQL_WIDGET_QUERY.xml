@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+<!--05F3958FD25A4008A38084FECA662D8A--><OBCQL_WIDGET_QUERY>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <OBCQL_WIDGET_QUERY_ID><![CDATA[05F3958FD25A4008A38084FECA662D8A]]></OBCQL_WIDGET_QUERY_ID>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <AD_CLIENT_ID><![CDATA[0]]></AD_CLIENT_ID>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <AD_ORG_ID><![CDATA[0]]></AD_ORG_ID>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <ISACTIVE><![CDATA[Y]]></ISACTIVE>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <OBKMO_WIDGET_CLASS_ID><![CDATA[185BDA06757546129442012168E120B8]]></OBKMO_WIDGET_CLASS_ID>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <HQL><![CDATA[select
+e.statusupdated as leadupdated,
+e.commercialName as leadName,
+e.userContact.id as leadId, 
+e.leadStatus as leadstatus, 
+e.probability as opp_prob,
+e.assignedTo as assignedToId,
+(select concat(firstName,' ',lastName) from ADUser where id = e.assignedTo) as agentname,
+e.assignedTo as agentid,
+e.comments as leadcomments,
+e.opportunityName as oppname,
+e.opportunityAmount as oppamount,
+e.opportunityStatus as oppstatus,
+stage.commercialName as leadstage,
+stage.id as stagename
+from opcrm_recentlyupdated_v as e
+left join e.leadStage as stage
+where 
+e.client.id = :client and 
+@optional_filters@ and
+(
+( e.assignedTo.id = :user) or
+( :user in (select la.cRMUser.id from opcrm_lead_access la where e.userContact.id = la.userContact.id) ) or
+( :user = '100') or 
+( :user in (select su.userContact.id from opcrm_superusers su where su.client.id = :client)) 
+)
+order by e.lastupdated desc]]></HQL>
+<!--05F3958FD25A4008A38084FECA662D8A-->  <TYPE><![CDATA[HQL]]></TYPE>
+<!--05F3958FD25A4008A38084FECA662D8A--></OBCQL_WIDGET_QUERY>
+
+<!--203AB7349ED241D0BE5DACF9729276D1--><OBCQL_WIDGET_QUERY>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <OBCQL_WIDGET_QUERY_ID><![CDATA[203AB7349ED241D0BE5DACF9729276D1]]></OBCQL_WIDGET_QUERY_ID>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <AD_CLIENT_ID><![CDATA[0]]></AD_CLIENT_ID>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <AD_ORG_ID><![CDATA[0]]></AD_ORG_ID>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <ISACTIVE><![CDATA[Y]]></ISACTIVE>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <OBKMO_WIDGET_CLASS_ID><![CDATA[78A7389ED7A24EC99A19D7376C01446F]]></OBKMO_WIDGET_CLASS_ID>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <HQL><![CDATA[select c.id as caseId, c.caseSubject as subject, c.caseType as type, c.casePriority as priority, c.caseStatus as status, b.name as bpName, l.name as lead, to_date(c.caseCreated) as caseCreated
+from opcrm_cases as c
+left join c.businessPartner  as b
+left join c.relatedLead as l
+where
+c.client.id = :client
+and @optional_filters@
+and (
+( c.assignedTo.id = :user) or ( :user in (select la.userContact.id from opcrm_cases_access la where c = la.opcrmCases) ) or (:user in (select u.id from ADUser u where u.id = '100')) or (:user in (select su.userContact.id from opcrm_supercase as su where su.client.id = :client))
+)
+order by c.caseCreated, c.caseStatus ]]></HQL>
+<!--203AB7349ED241D0BE5DACF9729276D1-->  <TYPE><![CDATA[HQL]]></TYPE>
+<!--203AB7349ED241D0BE5DACF9729276D1--></OBCQL_WIDGET_QUERY>
+
+<!--FC2C9BE2B55140EBA22E0341670322F1--><OBCQL_WIDGET_QUERY>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <OBCQL_WIDGET_QUERY_ID><![CDATA[FC2C9BE2B55140EBA22E0341670322F1]]></OBCQL_WIDGET_QUERY_ID>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <AD_CLIENT_ID><![CDATA[0]]></AD_CLIENT_ID>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <AD_ORG_ID><![CDATA[0]]></AD_ORG_ID>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <ISACTIVE><![CDATA[Y]]></ISACTIVE>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <OBKMO_WIDGET_CLASS_ID><![CDATA[88A127C46A1B4172ABC3268943276108]]></OBKMO_WIDGET_CLASS_ID>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <HQL><![CDATA[select o.id as opportunityId, o.opportunityName as name, o.opportunityAmount as amount, o.leadSource as source, o.opportunityType as opType, to_date(o.expectedCloseDate) as closeDate, o.salesStage as stage, o.probability as probability, a.name as assignedTo, coalesce(b.name, '') as bpname,  l.name as lead
+from opcrm_opportunities as o
+left join o.businessPartner as b
+left join o.relatedLead as l
+left join o.assignedTo as a
+where
+a.client.id = :client
+and @optional_filters@
+and (
+( o.assignedTo.id = :user) or (:user in (select la.userContact from opcrm_opp_access la where o = la.opcrmOpportunities) ) or (:user in (select u.id from ADUser u where u.id = '100')) or (:user in (select su.userContact.id from opcrm_superopp as su where su.client.id = :client))
+)
+order by o.expectedCloseDate]]></HQL>
+<!--FC2C9BE2B55140EBA22E0341670322F1-->  <TYPE><![CDATA[HQL]]></TYPE>
+<!--FC2C9BE2B55140EBA22E0341670322F1--></OBCQL_WIDGET_QUERY>
+
+<!--FDE5FE4103154833A1889FF3697B7BEA--><OBCQL_WIDGET_QUERY>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <OBCQL_WIDGET_QUERY_ID><![CDATA[FDE5FE4103154833A1889FF3697B7BEA]]></OBCQL_WIDGET_QUERY_ID>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <AD_CLIENT_ID><![CDATA[0]]></AD_CLIENT_ID>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <AD_ORG_ID><![CDATA[0]]></AD_ORG_ID>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <ISACTIVE><![CDATA[Y]]></ISACTIVE>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <OBKMO_WIDGET_CLASS_ID><![CDATA[90A666623EAB4336968113B74E19AADC]]></OBKMO_WIDGET_CLASS_ID>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <HQL><![CDATA[select a.id as activityId, a.activitySubject as subject, to_date(a.activityStartdate) as startDate, a.startHour as hour, a.startMinute as minute, a.activityType as type, coalesce(s.name, '') as status from opcrm_activity as a
+left join a.activityStatus as s
+where
+a.client.id = :client
+and @optional_filters@
+and (( a.assignedTo.id = :user ) or ( :user in (select la.userContact.id from opcrm_lead_activity la where a = la.opcrmActivity ) ) or 
+(:user in (select u.id from ADUser u where u.id = '100')) or (:user in (select su.userContact.id from opcrm_superact as su where su.client.id = :client)))
+and a.activityStartdate>(current_date-15)
+order by  to_date(a.activityStartdate) desc, a.startHour, a.startMinute]]></HQL>
+<!--FDE5FE4103154833A1889FF3697B7BEA-->  <TYPE><![CDATA[HQL]]></TYPE>
+<!--FDE5FE4103154833A1889FF3697B7BEA--></OBCQL_WIDGET_QUERY>
+
+</data>

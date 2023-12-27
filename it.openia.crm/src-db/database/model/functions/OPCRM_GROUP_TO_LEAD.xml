@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_GROUP_TO_LEAD">
+    <function name="OPCRM_GROUP_TO_LEAD" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+  v_ResultStr VARCHAR2(2000) := '';
+  v_record_id VARCHAR2(32);
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_user_id VARCHAR2(32);
+  v_user_role_id VARCHAR2(32);
+  count_user NUMBER;
+  v_record RECORD;
+  p_group_id VARCHAR2(60);
+  v_activity_id VARCHAR2(32);
+BEGIN
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'Y', NULL, NULL );
+
+  -- Get record ID and parameters
+  SELECT i.Record_ID, i.ad_client_id, i.ad_org_id, i.ad_user_id, pa.p_string
+  INTO v_record_id, v_client_id, v_org_id,v_user_id, p_group_id
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'ad_role_id'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+
+  FOR v_user_role_id IN (SELECT r.ad_user_id FROM ad_user_roles r INNER JOIN ad_user u ON u.ad_user_id = r.ad_user_id WHERE r.ad_role_id = p_group_id AND u.em_opcrm_is_crm_user = 'Y') LOOP
+
+      SELECT COUNT(*) INTO count_user FROM opcrm_lead_access la WHERE la.ad_user_id = v_record_id AND la.crm_user_id = v_user_role_id;
+
+      IF (count_user = 0) THEN
+          
+          INSERT INTO opcrm_lead_access(
+            opcrm_lead_access_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, crm_user_id, ad_user_id)
+           VALUES (get_uuid(), v_client_id, v_org_id, 'Y', current_timestamp, 
+                   v_user_id, current_timestamp, v_user_id, v_user_role_id, v_record_id);
+      END IF;
+      
+  END LOOP; 
+ 
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, v_user_id, 'N', 1, '@OPCRM_ROLESOK@' );
+ 
+EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr := '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    IF(p_PInstance_ID IS NOT NULL) THEN
+      AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'N', 0, v_ResultStr ) ;
+    END IF;
+    RETURN;
+END OPCRM_GROUP_TO_LEAD
+]]></body>
+    </function>
+  </database>

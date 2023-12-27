@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_CASE_SEQ">
+    <trigger name="OPCRM_CASE_SEQ" table="OPCRM_CASES" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+case_sequence NUMBER;
+
+/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+      IF TG_OP='INSERT' THEN
+          :NEW.case_createdby := :NEW.createdby;
+          SELECT casenumtrack INTO case_sequence FROM opcrm_case_num WHERE ad_client_id = :NEW.ad_client_id LIMIT 1;
+            
+	  IF case_sequence IS NULL THEN
+              INSERT INTO opcrm_case_num(
+                  opcrm_case_num_id, ad_client_id, ad_org_id, isactive, created, 
+                  createdby, updated, updatedby, casenumtrack)
+              VALUES (get_uuid(), :NEW.ad_client_id, :NEW.ad_org_id, :NEW.isactive, current_timestamp, :NEW.createdby, current_timestamp, :NEW.updatedby, 0);
+              case_sequence := 0; 
+	  ELSE
+              case_sequence := case_sequence + 1;
+
+              UPDATE opcrm_case_num
+              SET casenumtrack=case_sequence
+              WHERE ad_client_id = :NEW.ad_client_id;
+
+          END IF;
+
+          :NEW.ticketnumber = case_sequence;
+
+    END IF;
+   
+  END OPCRM_CASE_SEQ
+]]></body>
+    </trigger>
+  </database>

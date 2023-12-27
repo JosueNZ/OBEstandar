@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_CASES_ACCESS_TRG">
+    <trigger name="OPCRM_CASES_ACCESS_TRG" table="OPCRM_CASES" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+      IF TG_OP='INSERT' THEN
+
+		INSERT INTO opcrm_cases_access(
+            opcrm_cases_access_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, ad_user_id, opcrm_cases_id)
+    		VALUES (get_uuid(), :new.ad_client_id, :new.ad_org_id, 'Y', current_timestamp, 
+            		:new.createdby, current_timestamp, :new.createdby, :new.createdby, :new.opcrm_cases_id);
+
+    END IF;
+   
+  END OPCRM_CASES_ACCESS_TRG
+]]></body>
+    </trigger>
+  </database>

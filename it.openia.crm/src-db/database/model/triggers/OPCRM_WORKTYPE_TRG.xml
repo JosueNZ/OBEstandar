@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_WORKTYPE_TRG">
+    <trigger name="OPCRM_WORKTYPE_TRG" table="OPCRM_WORKTYPE" fires="after" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+BEGIN
+ 
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+ 
+  IF INSERTING THEN
+  
+     --  Create Translation Row
+     INSERT INTO opcrm_worktype_Trl
+         (opcrm_worktype_Trl_ID, opcrm_worktype_ID, AD_Language, AD_Client_ID, AD_Org_ID,
+         IsActive, Created, CreatedBy, Updated, UpdatedBy,
+         Name, IsTranslated)
+     SELECT get_uuid(), :new.opcrm_worktype_ID, AD_Language, :new.AD_Client_ID, :new.AD_Org_ID,
+         :new.IsActive, :new.Created, :new.CreatedBy, :new.Updated, :new.UpdatedBy,
+         :new.name, 'N' FROM  AD_Language
+     WHERE IsActive = 'Y' AND IsSystemLanguage = 'Y'
+    AND EXISTS (SELECT * FROM AD_Client
+     WHERE AD_Client_ID=:new.AD_Client_ID 
+     --AND IsMultiLingualDocument='Y'
+     );
+           
+  ELSIF UPDATING THEN
+  ELSIF DELETING THEN
+  END IF;
+ 
+ 
+  END OPCRM_WORKTYPE_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION EEI_GET_REMISSIONGUIDEFIELDS">
+    <function name="EEI_GET_REMISSIONGUIDEFIELDS" type="VARCHAR">
+      <parameter name="p_identifier" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_code_table" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_code_to_return" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Module NUMBER:=0;  --OBTG:NUMBER--
+v_Table   VARCHAR(32767):=NULL;
+    v_Sql VARCHAR2(32767):=NULL; --OBTG:VARCHAR2--
+    v_Result VARCHAR2(32767):=NULL;
+
+  BEGIN
+	SELECT 
+	COALESCE((SELECT COUNT(*) AS CONTAR FROM AD_MODULE WHERE JAVAPACKAGE = 'ec.com.sidesoft.movement.addinformation'),0)
+	INTO v_Module
+	FROM DUAL;
+	
+	IF (v_Module>0) THEN
+
+	IF(p_code_table ='I') THEN
+	v_Table:='M_INOUT';
+	ELSE IF (p_code_table ='M') THEN
+v_Table:= 'M_MOVEMENT';
+	END IF;
+END IF;
+IF (v_Table IS NOT NULL)THEN
+  IF (p_code_to_return ='1') THEN
+		v_Sql:='SELECT TO_CHAR(EM_SMVAI_ENDDATEOFTRANSPORT,''DD/MM/YYYY'') FROM ' ||v_Table|| '  WHERE ' ||v_Table|| '_ID=''' || p_identifier || '''' ;
+		EXECUTE IMMEDIATE v_Sql INTO v_Result;    
+	END IF;
+  
+  IF (p_code_to_return ='2') THEN
+		v_Sql:='SELECT TO_CHAR(EM_SMVAI_CUSTOMCODE) FROM ' ||v_Table|| '  WHERE ' ||v_Table|| '_ID=''' || p_identifier || '''' ;
+		EXECUTE IMMEDIATE v_Sql INTO v_Result;    
+	END IF;
+    IF (p_code_to_return ='3') THEN
+		v_Sql:='SELECT TO_CHAR(EM_SMVAI_ROUTE) FROM ' ||v_Table|| ' WHERE ' ||v_Table|| '_ID=''' || p_identifier || '''' ;
+		EXECUTE IMMEDIATE v_Sql INTO v_Result;    
+	END IF;
+
+ELSE 
+
+	v_Result:=NULL;
+  END IF;
+ELSE 
+v_Result:=NULL;
+    END IF;
+    RETURN(v_Result) ;
+END EEI_GET_REMISSIONGUIDEFIELDS
+]]></body>
+    </function>
+  </database>

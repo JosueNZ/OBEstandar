@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_OPPORT_FROM_PARTNER">
+    <function name="OPCRM_OPPORT_FROM_PARTNER" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_partner_ID VARCHAR(32);
+v_user_ID VARCHAR(32);
+v_client_ID VARCHAR(32);
+v_currency_id VARCHAR(32);
+v_lead_record RECORD;
+v_partner_record RECORD;
+v_opportunity_id VARCHAR(32);
+v_nomepartner VARCHAR(60);
+v_nomecount NUMBER;
+p_opportpercent NUMBER;
+v_iscrm_user CHARACTER(1);
+p_subject VARCHAR(60);
+p_closedate DATE WITHOUT TIME ZONE;
+p_amount NUMBER;
+
+BEGIN AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+-- Get record ID
+  SELECT i.Record_ID, i.Ad_Client_ID, i.Ad_User_ID, pa.p_string, pb.p_date, pc.p_number,pd.p_number
+  INTO v_partner_ID, v_client_ID, v_user_ID, p_subject, p_closedate, p_amount, p_opportpercent
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'subject'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'closedate'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'opp_amount'
+  LEFT JOIN ad_pinstance_para pd ON pd.ad_pinstance_id = i.ad_pinstance_id AND pd.parametername = 'probability'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+  
+  SELECT * INTO v_partner_record FROM c_bpartner bp WHERE bp.c_bpartner_id = v_partner_ID;
+
+  v_opportunity_id = get_uuid();
+
+  SELECT c_currency_id INTO v_currency_id FROM ad_client WHERE ad_client_id = v_client_ID;
+
+  SELECT u.em_opcrm_is_crm_user INTO v_iscrm_user FROM ad_user u WHERE u.ad_user_id = v_user_ID;
+
+  IF(v_iscrm_user IS NULL OR v_iscrm_user ='N') THEN
+      RAISE NO_DATA_FOUND;
+  END IF;
+  
+  INSERT INTO opcrm_opportunities(
+            opcrm_opportunities_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, opportunity_name, opportunity_amount, 
+            expected_close_date, c_currency_id, 
+            assigned_to, c_bpartner_id, probability)
+    VALUES (v_opportunity_id, v_partner_record.ad_client_id, v_partner_record.ad_org_id, 'Y', current_timestamp, 
+            v_user_ID, current_timestamp, v_user_ID, p_subject, p_amount, 
+            p_closedate, v_currency_id,
+            v_user_id, v_partner_ID, p_opportpercent);
+  
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_OPPORTUNITYOK@');
+END OPCRM_OPPORT_FROM_PARTNER
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER EEI_UNIQUE_EXCLUDEWTH_TRG">
+    <trigger name="EEI_UNIQUE_EXCLUDEWTH_TRG" table="C_INVOICETAX" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_count NUMBER:=0;
+
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING OR UPDATING) THEN
+
+	IF(:new.em_eei_excluded_withholding='Y') THEN
+		select count(*) into v_count from c_invoicetax ci where ci.c_invoice_id= :new.c_invoice_id AND ci.em_eei_excluded_withholding='Y';
+		IF(v_count>0) THEN
+			RAISE_APPLICATION_ERROR('%', '@Eei_Only_One_Line_Excluded@') ;
+		END IF;
+	END IF;
+
+  END IF;
+
+
+  END EEI_UNIQUE_EXCLUDEWTH_TRG
+]]></body>
+    </trigger>
+  </database>

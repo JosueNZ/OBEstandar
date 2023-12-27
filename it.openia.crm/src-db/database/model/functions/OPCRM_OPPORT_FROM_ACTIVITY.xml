@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_OPPORT_FROM_ACTIVITY">
+    <function name="OPCRM_OPPORT_FROM_ACTIVITY" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_user_ID VARCHAR2(32);
+v_client_ID VARCHAR2(32);
+v_org_ID VARCHAR2(32);
+p_subject VARCHAR2(60);
+p_closedate DATE WITHOUT TIME ZONE;
+p_amount NUMBER;
+p_percent NUMBER;
+v_opportunity_id VARCHAR2(32);
+v_iscrm_user CHARACTER (1);
+v_activity_ID VARCHAR2(32);
+v_activityrecord RECORD;
+v_activity_users RECORD;
+v_opp_access_id VARCHAR2(32);
+
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+-- Get record ID
+  SELECT i.Record_ID, i.Ad_Client_ID, i.Ad_User_ID, i.Ad_Org_ID, pa.p_string, pb.p_date, pc.p_number, pd.p_number
+  INTO v_activity_ID, v_client_ID, v_user_ID, v_org_ID, p_subject, p_closedate, p_amount, p_percent
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'subject'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'closedate'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'opp_amount'
+  LEFT JOIN ad_pinstance_para pd ON pd.ad_pinstance_id = i.ad_pinstance_id AND pd.parametername = 'probability'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+  
+  v_opportunity_id = get_uuid();
+
+  SELECT u.em_opcrm_is_crm_user INTO v_iscrm_user FROM ad_user u WHERE u.ad_user_id = v_user_ID;
+
+  IF(v_iscrm_user IS NULL OR v_iscrm_user ='N') THEN
+      RAISE NO_DATA_FOUND;
+  END IF;
+
+  SELECT * INTO v_activityrecord FROM opcrm_activity WHERE opcrm_activity_id = v_activity_ID;
+
+  -- INSERT OPP...
+  INSERT INTO opcrm_opportunities(
+            opcrm_opportunities_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+            updated, updatedby, opportunity_name, opportunity_amount,expected_close_date,
+            probability, assigned_to, c_bpartner_id, 
+            related_lead)
+    VALUES (v_opportunity_id, v_activityrecord.ad_client_id, v_org_ID, 'Y', current_timestamp, v_user_ID,
+            current_timestamp, v_user_ID, p_subject, p_amount, p_closedate, 
+            p_percent, v_activityrecord.assigned_to, v_activityrecord.c_bpartner_id, 
+            v_activityrecord.related_lead);
+    
+
+   -- import users access records  
+   FOR v_activity_users IN ( SELECT * FROM opcrm_lead_activity WHERE opcrm_activity_id = v_activity_ID ) LOOP
+       v_opp_access_id = get_uuid();
+       
+       IF(v_activity_users.ad_user_id != v_user_ID) THEN
+
+           INSERT INTO opcrm_opp_access(
+            opcrm_opp_access_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, ad_user_id, opcrm_opportunities_id)
+           VALUES (v_opp_access_id, v_activityrecord.ad_client_id, v_org_ID, 'Y', current_timestamp, 
+                  v_user_ID, current_timestamp, v_user_ID, v_activity_users.AD_User_ID, v_opportunity_id); 
+       END IF; 
+
+   END LOOP;
+  
+   
+   AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_OPPORTUNITYOK@');
+END OPCRM_OPPORT_FROM_ACTIVITY
+]]></body>
+    </function>
+  </database>
