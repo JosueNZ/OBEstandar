@@ -1,0 +1,198 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAC_CREATEASSET">
+    <function name="SSAC_CREATEASSET" type="NULL">
+      <parameter name="vinstance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vRecord RECORD;
+vRecordID VARCHAR2(32);
+vMessage VARCHAR2(2000);
+vDocAction VARCHAR2(60);
+vUserID VARCHAR2(32);
+vResult NUMBER;
+vDocTypeID VARCHAR2(32);
+vLoop RECORD;
+vTmp RECORD;
+vAdPInstanceID VARCHAR2(32);
+vIDpInstanceAsset VARCHAR2(32);
+vAssetPost VARCHAR2(32);
+vAassetID VARCHAR2(32);
+vLoopAdpInstanceAsset RECORD;
+vadPinstanceIdF VARCHAR2(32);
+vRecordIdF VARCHAR2(32);
+	
+BEGIN
+	FOR vRecord IN (
+		SELECT *
+		FROM ad_ep_instance_para
+		WHERE ad_ep_instance_id = vInstance
+	) LOOP
+		IF (vRecord.parametername LIKE 'DocAction') THEN
+			vDocAction := vRecord.p_string;
+		ELSIF (vRecord.parametername LIKE 'Record_ID') THEN
+			vRecordID := vRecord.p_string;
+		ELSIF (vRecord.parametername LIKE 'User') THEN
+			vUserID := vRecord.p_string;
+		ELSIF (vRecord.parametername LIKE 'Message') THEN
+			vMessage := vRecord.p_text;
+		ELSIF (vRecord.parametername LIKE 'Result') THEN
+			vResult := vRecord.p_number;
+		END IF;
+	END LOOP;
+	
+	SELECT COALESCE(dt.em_ssac_isassetpurchase,'N') IsAssetPurchase INTO vRecord
+	FROM c_invoice i
+		JOIN c_doctype dt ON dt.c_doctype_id=i.c_doctypetarget_id
+	WHERE i.c_invoice_id=vRecordID;
+	
+	IF vRecord.IsAssetPurchase='Y' AND vDocAction='CO' THEN
+		SELECT COALESCE(dt.c_doctype_id,'0') INTO vDocTypeID
+		FROM c_doctype dt
+			JOIN ad_table tb ON tb.ad_table_id=dt.ad_table_id
+		WHERE tb.name='FinancialMgmtAsset' AND dt.IsDefault='Y' LIMIT 1;
+		
+		IF vDocTypeID = '0' THEN
+			RAISE_APPLICATION_ERROR(-20000, 'No se encontro tipo de documento por defecto para la tabla A_Asset');
+		END IF;
+		
+		FOR vLoop IN (
+			SELECT il.c_invoiceline_id
+				,il.ad_client_id
+				,il.ad_org_id
+				,il.em_ssac_asset_group_id
+				,il.em_ssac_assettype
+				,il.description invoiceline_description
+				,il.priceactual
+				,pr.m_product_id
+				,pr.value
+				,pr.name
+				,pr.description product_description
+				, asg.Amortizationtype 
+				, asg.Amortizationcalctype 
+				, asg.Assetschedule 
+				, asg.UseLifeMonths
+				, il.priceactual as value_to_amortizaton 
+				, ci.DateInvoiced
+				, (select C_Currency_ID from C_Currency where iso_code = 'USD') as currency
+				, ci.c_bpartner_id
+				, ci.POReference
+			FROM c_invoiceline il  
+				JOIN m_product pr ON pr.m_product_id=il.m_product_id
+				LEFT JOIN c_invoice ci ON ci.c_invoice_id = il.c_invoice_id
+				LEFT JOIN  a_asset_group asg ON asg.a_asset_group_id = il.em_ssac_asset_group_id
+			WHERE il.c_invoice_id=vRecordID AND pr.producttype='I'
+		) LOOP
+			SELECT em_ssac_invoice_id c_invoice_id INTO vTmp
+			FROM a_asset ass
+				JOIN m_product pr ON pr.value=ass.value
+			WHERE pr.m_product_id=vLoop.m_product_id LIMIT 1;
+			
+			IF vTmp.c_invoice_id IS NOT NULL AND vTmp.c_invoice_id!=vRecordID THEN
+				RAISE_APPLICATION_ERROR(-20000, 'Activo con identificador '||vLoop.value||' ya existe');
+			END IF;
+			
+			IF vTmp.c_invoice_id IS NULL THEN
+			vAassetID := vLoop.m_product_id;	
+				INSERT INTO a_asset (
+					a_asset_id
+					,ad_client_id
+					,ad_org_id
+					,created
+					,createdby
+					,updated
+					,updatedby
+					,value
+					,name
+					,a_asset_group_id
+					,em_ssal_c_doctype_id
+					,em_ssam_assettype
+					,description
+					,em_ssam_add_description
+					,em_ssal_bar_code
+					,isdepreciated
+					,assetvalueamt
+					,em_ssam_value_in_books
+					,em_ssac_invoice_id
+					,Amortizationtype
+					,Amortizationcalctype
+					,Assetschedule 
+					,UseLifeMonths 
+					,Amortizationvalueamt
+					,Datepurchased
+					,Amortizationstartdate
+					,C_Currency_ID
+					,EM_Ssapi_Invoice_ID
+					,EM_Ssapi_Bpartner_ID
+					,EM_Ssam_Reference
+
+				) VALUES (
+					vAassetID
+					,vLoop.ad_client_id
+					,vLoop.ad_org_id
+					,now()
+					,vUserID
+					,now()
+					,vUserID
+					,vLoop.value
+					,vLoop.name
+					,vLoop.em_ssac_asset_group_id
+					,vDocTypeID
+					,vLoop.em_ssac_assettype
+					,vLoop.invoiceline_description
+					,vLoop.product_description
+					,vLoop.value
+					,'Y'
+					,vLoop.priceactual
+					,vLoop.priceactual
+					,vRecordID
+					,vLoop.Amortizationtype 
+					,vLoop.Amortizationcalctype 
+					,vLoop.Assetschedule 
+					,vLoop.UseLifeMonths
+					,vLoop.value_to_amortizaton
+					,vLoop.DateInvoiced
+					,vLoop.DateInvoiced
+					,vLoop.currency
+					,vRecordID
+					,vLoop.c_bpartner_id
+					,vLoop.POReference
+
+				);
+				
+				vIDpInstanceAsset := get_uuid();
+				
+				INSERT INTO ad_pinstance(
+				ad_pinstance_id, ad_process_id, 
+				record_id, isprocessing, 
+				created, ad_user_id, 
+				updated, 
+				errormsg, ad_client_id, 
+				ad_org_id, createdby, 
+				updatedby, isactive)
+				VALUES (vIDpInstanceAsset, (select ad_process_id from ad_process where value = 'A_Asset_Post'), 
+				vAassetID, 'N', 
+				now(), vUserID ,
+				now(), 
+				'', vLoop.ad_client_id ,
+				vLoop.ad_org_id, vUserID ,
+				vUserID, 'Y');
+
+				FOR vLoopAdpInstanceAsset IN (
+					select  ad_pinstance_id, record_id 
+					from ad_pinstance 
+					where ad_pinstance_id = vIDpInstanceAsset 
+				)LOOP
+
+				 A_ASSET_POST0(vLoopAdpInstanceAsset.ad_pinstance_id );
+				END LOOP;
+
+				UPDATE a_asset SET em_ssam_statusdep = 'UP', process_asset = 'Y' 
+				WHERE a_asset_id=vAassetID;
+			
+			END IF;
+		END LOOP;
+	END IF;
+END SSAC_CREATEASSET
+]]></body>
+    </function>
+  </database>

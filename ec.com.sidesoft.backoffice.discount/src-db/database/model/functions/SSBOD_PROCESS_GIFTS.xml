@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSBOD_PROCESS_GIFTS">
+    <function name="SSBOD_PROCESS_GIFTS" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[p_record_id VARCHAR(60);
+p_docAction VARCHAR(60);
+p_user VARCHAR(60);
+
+v_ResultStr VARCHAR2(2000):='';
+v_order_id VARCHAR2(32);
+v_exist NUMBER;
+
+TYPE RECORD IS REF CURSOR;
+Cur_Params RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'User') THEN
+      p_user := cur_params.p_string;
+    END IF;
+  END LOOP;
+  v_ResultStr := 'Inicio del proceso';
+  v_order_id := get_uuid();
+  select count(*) into v_exist from ssbod_gift_order where c_orderline_id in (select c_orderline_id from c_orderline where c_order_id = p_record_id);
+  IF v_exist > 0 THEN
+  
+  INSERT INTO public.c_order(c_order_id, 
+    ad_client_id, ad_org_id, isactive, created, createdby, 
+    updated, updatedby, issotrx, documentno, docstatus, docaction, 
+    processing, processed, c_doctype_id, c_doctypetarget_id, description, 
+    /*isdelivered, isinvoiced, isprinted, isselected, */salesrep_id, dateordered, 
+    datepromised, dateprinted, dateacct, c_bpartner_id, billto_id, 
+    c_bpartner_location_id, poreference, isdiscountprinted, c_currency_id, 
+    paymentrule, c_paymentterm_id, invoicerule, deliveryrule, freightcostrule, 
+    freightamt, deliveryviarule, m_shipper_id, c_charge_id, chargeamt, 
+    priorityrule, totallines, grandtotal, m_warehouse_id, m_pricelist_id, 
+    istaxincluded, c_campaign_id, c_project_id, c_activity_id, posted, 
+    ad_user_id, copyfrom, dropship_bpartner_id, dropship_location_id, 
+    dropship_user_id, isselfservice, ad_orgtrx_id, user1_id, user2_id, 
+    deliverynotes, c_incoterms_id, incotermsdescription, generatetemplate, 
+    delivery_location_id, copyfrompo, fin_paymentmethod_id, 
+    fin_payment_priority_id, rm_receivematerials, c_return_reason_id, 
+    a_asset_id, calculate_promotions, c_costcenter_id, convertquotation, 
+    c_reject_reason_id, validuntil, quotation_id, so_res_status, create_polines, 
+    iscashvat, cancelandreplace, confirmcancelandreplace, cancelledorder_id, 
+    replacedorder_id, iscancelled, replacementorder_id, em_aprm_addpayment, 
+    em_ssip_isimports, em_ssip_importstatus, em_ssip_liquidar, em_ssip_preliquidar, 
+    em_ssip_loadcosts, em_ssip_c_tax_id, em_ssip_action_tax, em_ssip_emptyfields
+    ) SELECT v_order_id, 
+    ad_client_id, ad_org_id, isactive, created, createdby, 
+    updated, updatedby, issotrx, ad_sequence_doctype(c_doctype_id, null, 'Y'), 'DR', 'CO', 
+    'N', 'N', c_doctype_id, c_doctypetarget_id, description, 
+    /*isdelivered, isinvoiced, isprinted, isselected, */salesrep_id, now(), 
+    datepromised, dateprinted, now(), c_bpartner_id, c_bpartner_location_id, 
+    c_bpartner_location_id, poreference, isdiscountprinted, c_currency_id, 
+    paymentrule, c_paymentterm_id, invoicerule, deliveryrule, freightcostrule, 
+    freightamt, deliveryviarule, m_shipper_id, c_charge_id, chargeamt, 
+    priorityrule, 0, 0, m_warehouse_id, m_pricelist_id, 
+    istaxincluded, c_campaign_id, c_project_id, c_activity_id, posted, 
+    ad_user_id, copyfrom, dropship_bpartner_id, dropship_location_id, 
+    dropship_user_id, isselfservice, ad_orgtrx_id, null, user2_id, 
+    deliverynotes, c_incoterms_id, incotermsdescription, generatetemplate, 
+    delivery_location_id, copyfrompo, fin_paymentmethod_id, 
+    fin_payment_priority_id, rm_receivematerials, c_return_reason_id, 
+    a_asset_id, calculate_promotions, null, convertquotation, 
+    c_reject_reason_id, validuntil, quotation_id, so_res_status, create_polines, 
+    iscashvat, cancelandreplace, confirmcancelandreplace, cancelledorder_id, 
+    replacedorder_id, iscancelled, replacementorder_id, em_aprm_addpayment, 
+    em_ssip_isimports, em_ssip_importstatus, em_ssip_liquidar, em_ssip_preliquidar, 
+    em_ssip_loadcosts, em_ssip_c_tax_id, em_ssip_action_tax, em_ssip_emptyfields
+	FROM public.c_order where c_order_id = p_record_id;
+    
+    INSERT INTO public.c_orderline(
+	c_orderline_id, ad_client_id, ad_org_id, isactive, created, --1
+    createdby, updated, updatedby, c_order_id, line, --2
+	c_bpartner_id, c_bpartner_location_id, dateordered, datepromised, datedelivered, --3
+    dateinvoiced, description, m_product_id, m_warehouse_id, directship, --4
+    c_uom_id, qtyordered, qtyreserved, qtydelivered, qtyinvoiced, --5
+	m_shipper_id, c_currency_id, pricelist, priceactual, pricelimit, --6
+	linenetamt, discount, freightamt, c_charge_id, chargeamt, --7
+	c_tax_id, s_resourceassignment_id, m_attributesetinstance_id, isdescription, quantityorder, --8
+    m_product_uom_id, m_offer_id, pricestd, cancelpricead, c_order_discount_id, --9
+    iseditlinenetamt, taxbaseamt, m_inoutline_id, c_return_reason_id, gross_unit_price, --10
+	line_gross_amount, grosspricelist, c_costcenter_id, grosspricestd, a_asset_id, --11
+	m_warehouse_rule_id, user1_id, user2_id, create_reservation, c_project_id, --12
+	so_res_status, manage_reservation, manage_prereservation, explode, print_description, --13
+	overdue_return_days, relate_orderline, c_aum, aumqty, em_ssip_costorigin, --14
+	em_ssip_realcost, em_ssip_customer_id, em_ssip_seller_id, em_ssip_identifier, em_ssip_preliquidated, --15
+	em_ssbod_add_gifts --16
+    ) select get_uuid(), o.ad_client_id, o.ad_org_id, ol.isactive, now(), --1
+    ol.createdby, now(), ol.updatedby, v_order_id, row_number() over (partition by ssbod_gift_order_id), --2
+	ol.c_bpartner_id, 
+    coalesce(o.c_bpartner_location_id, (select c_bpartner_location_id from c_bpartner_location where c_bpartner_id = o.c_bpartner_id and created = (select max(created) from c_bpartner_location where c_bpartner_id = o.c_bpartner_id))),
+	now(), ol.datepromised, ol.datedelivered, --3
+	ol.dateinvoiced, ol.description, g.m_product_id, g.m_warehouse_id, ol.directship, --4
+    mp.c_uom_id, 1, 0, 0, 0, --5
+	ol.m_shipper_id, coalesce(ol.c_currency_id, o.c_currency_id), 0, 0, 0, --6
+	0, 0, 0, ol.c_charge_id, 0, --7
+	t.c_tax_id, ol.s_resourceassignment_id, g.m_attributesetinstance_id, '', null, --8
+    null, null, 0, null, null, --9
+    null, 0, null, null, 0, --10
+	0, 0, ol.c_costcenter_id, 0, ol.a_asset_id, --11
+	ol.m_warehouse_rule_id, ol.user1_id, ol.user2_id, ol.create_reservation, ol.c_project_id, --12
+	ol.so_res_status, ol.manage_reservation, ol.manage_prereservation, ol.explode, ol.print_description, --13
+	ol.overdue_return_days, ol.relate_orderline, ol.c_aum, 0, ol.em_ssip_costorigin, --14
+	ol.em_ssip_realcost, ol.em_ssip_customer_id, ol.em_ssip_seller_id, ol.em_ssip_identifier, ol.em_ssip_preliquidated, --15
+	ol.em_ssbod_add_gifts --16
+	from ssbod_gift_order g
+        join c_orderline ol on g.c_orderline_id = ol.c_orderline_id
+        join c_order o on ol.c_order_id = o.c_order_id
+        join m_product mp on mp.m_product_id = g.m_product_id
+        join c_taxcategory tc on tc.c_taxcategory_id = mp.c_taxcategory_id and isdefault='Y'
+        join c_tax t on t.c_taxcategory_id = tc.c_taxcategory_id
+    where ol.c_order_id = p_record_id;
+    
+    C_ORDER_POST1(null, v_order_id, 'N');
+    
+    --update ssbod_gift_order set c_order_id = v_order_id where c_orderline_id IN (select );
+  END IF;
+  v_ResultStr := 'Completado exitosamente';
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('ssbod_process_gifts exception: '|| v_ResultStr);
+  RAISE;
+END SSBOD_PROCESS_GIFTS
+]]></body>
+    </function>
+  </database>

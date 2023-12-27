@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSBOD_INVOICE_OFFER">
+    <trigger name="SSBOD_INVOICE_OFFER" table="C_INVOICELINE" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[  v_costcenter_co          varchar2(32);
+  v_costcenter_mi          varchar2(32);
+  v_costcenter_comi        VARCHAR2(32);
+  v_IsSOTrx 		   CHAR(1);
+  v_isreturn		   CHAR(1);
+  v_C_DocType_ID	   VARCHAR2(32);
+  v_name_costcenter	   VARCHAR2(60);
+  v_docstatus    	   VARCHAR2(60);
+  v_docaction		   VARCHAR2(60);
+  v_discount_rate	NUMBER:=0;
+  
+     
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;  
+    
+    IF (INSERTING) THEN
+      IF (:new.c_orderline_id is not null) THEN
+        ---OBTENGO EL PORCETAJE DE DESCUENTO DE LA LINEA DEL PEDIDO
+        SELECT coalesce(em_ssbod_discount_rate,0) into v_discount_rate 
+        FROM c_orderline WHERE c_orderline_id=:new.c_orderline_id;
+        :new.em_ssbod_discount_rate:=v_discount_rate;
+      END IF;
+    END IF;
+ 
+END SSBOD_INVOICE_OFFER
+]]></body>
+    </trigger>
+  </database>

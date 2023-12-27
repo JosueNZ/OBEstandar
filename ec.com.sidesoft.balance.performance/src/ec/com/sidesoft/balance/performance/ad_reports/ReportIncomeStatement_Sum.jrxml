@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ReportIncomeStatement" pageWidth="595" pageHeight="842" columnWidth="545" leftMargin="30" rightMargin="20" topMargin="20" bottomMargin="20" uuid="620931cb-a647-4f22-a1f1-718219e25771">
+	<property name="ireport.zoom" value="1.2100000000000006"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.columns" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.wrap.text" value="false"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<parameter name="datefrom" class="java.util.Date"/>
+	<parameter name="dateto" class="java.util.Date"/>
+	<parameter name="ad_org_id" class="java.lang.String"/>
+	<parameter name="nivel" class="java.lang.String"/>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<parameter name="C_Costcenter_ID" class="java.lang.String"/>
+	<parameter name="User1_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select nombre as name,p6,p6name,p5,p5name,p4,p4name,p3,p3name,p2,p2name,p1,p1name,accounttype,((COALESCE((COALESCE(sum(SALDO_INICIAL), 0)+COALESCE(sum(DEBITO), 0)-COALESCE(sum(CREDITO), 0)), 0))*-1) SALDO_FINAL
+,nombrefirma1,cargofirma1,nombrefirma2,cargofirma2,usuario,to_char(current_timestamp, 'yyyy-mm-dd HH12:MI:SS') as fecha
+
+from (
+
+SELECT
+(case when $P{ad_org_id} is null then to_char('Todas las Organizaciones') when $P{ad_org_id} = '0' then to_Char((select name from ad_client where ad_client_id <> '0'
+)) else COALESCE(to_char(o.name),to_Char((select name from ad_client where ad_client_id <> '0'
+))) end) as nombre,p6,coalesce(p6,'') || ' ' || p6name as p6name,p5,coalesce(p5,'') || ' ' || p5name as p5name ,p4,coalesce(p4,'') || ' ' ||  p4name as p4name ,p3,coalesce(p3,'') || ' ' || p3name as p3name,p2,coalesce(p2,'') || ' ' || p2name as p2name,p1,coalesce(p1,'') || ' ' || p1name as p1name,accounttype,BALANCE.ACCOUNT_ID, BALANCE.NAME,
+COALESCE(max(SALDO_INICIAL), 0) SALDO_INICIAL,
+COALESCE(sum(DEBITO), 0) DEBITO,
+COALESCE(sum(CREDITO), 0) CREDITO,
+
+--FIRMAS INICIO
+(select distinct(CB1.name) from ad_org ORGA inner join c_bpartner CB1 on ORGA.em_sfcbr_balance_sign_1 = CB1.c_bpartner_id where AD_Orgtype_ID = '1') as nombrefirma1,
+(select distinct(sfcbr_getsignaturedata(CB12.c_bpartner_id)) from ad_org ORGA inner join c_bpartner CB12 on ORGA.em_sfcbr_balance_sign_1 = CB12.c_bpartner_id where AD_Orgtype_ID = '1')as cargofirma1,
+(select distinct(CB2.name) from ad_org ORGA inner join c_bpartner CB2 on ORGA.em_sfcbr_balance_sign_2 = CB2.c_bpartner_id where AD_Orgtype_ID = '1') as nombrefirma2,
+(select distinct(sfcbr_getsignaturedata(CB21.c_bpartner_id)) from ad_org ORGA inner join c_bpartner CB21 on ORGA.em_sfcbr_balance_sign_2 = CB21.c_bpartner_id where AD_Orgtype_ID = '1')as cargofirma2,
+(select AD_USER.NAME from AD_USER where AD_USER_ID = $P{AD_USER_ID})as usuario
+--FIRMAS FIN
+
+
+FROM
+(
+--TREE INICIO
+select * from sfcbr_tree_acounting_v
+--TREE FIN
+) TREE
+LEFT JOIN
+(
+--BALANCE INI
+
+
+SELECT MO.ad_org_id,MO.ID, MO.ACCOUNT_ID, MO.NAME, MO.ELEMENTLEVEL,MO.accounttype,
+COALESCE(SI.AMTACCTDR, 0) AMTACCTDRSI,
+COALESCE(SI.AMTACCTCR, 0) AMTACCTCRSI,
+COALESCE(SI.SALDO_INICIAL, 0) SALDO_INICIAL,
+COALESCE(MO.AMTACCTDR, 0) DEBITO,
+COALESCE(MO.AMTACCTCR, 0) CREDITO,
+COALESCE((COALESCE(SI.SALDO_INICIAL, 0)+COALESCE(MO.AMTACCTDR, 0)-COALESCE(MO.AMTACCTCR, 0)), 0) SALDO_FINAL
+FROM
+(
+--MOVIMIENTO DEL MES
+SELECT ad_org_id,MAX(PARENT_ID) AS PARENT_ID, ID, NAME, ACCOUNT_ID, ELEMENTLEVEL,accounttype,
+SUM(AMTACCTDR) AS AMTACCTDR,
+SUM(AMTACCTCR) AS AMTACCTCR
+FROM
+(
+SELECT CASE WHEN $P{ad_org_id} = '0' then '0' ELSE AD_TREENODE.ad_org_id END as ad_org_id,AD_TREENODE.PARENT_ID, C_ELEMENTVALUE.C_ELEMENTVALUE_ID AS ID, C_ELEMENTVALUE.ELEMENTLEVEL, C_ELEMENTVALUE.accounttype,
+C_ELEMENTVALUE.NAME AS NAME, C_ELEMENTVALUE.VALUE AS ACCOUNT_ID, 0 AS AMTACCTDR, 0 AS AMTACCTCR
+FROM AD_TREENODE, C_ELEMENTVALUE, SBPRF_FACT_ACCT_AGGD
+WHERE AD_TREENODE.NODE_ID = C_ELEMENTVALUE.C_ELEMENTVALUE_ID
+and SBPRF_FACT_ACCT_AGGD.ACCOUNT_ID = C_ELEMENTVALUE.C_ELEMENTVALUE_ID
+AND AD_TREENODE.AD_TREE_ID = (SELECT AD_TREE_ID
+				FROM AD_TREE
+				WHERE
+				      TREETYPE = 'EV'
+				      AND ISACTIVE = 'Y'
+				      AND AD_CLIENT_ID IN (SELECT AD_CLIENT_ID FROM AD_CLIENT WHERE AD_CLIENT_ID <> '0'))
+AND AD_TREENODE.ISACTIVE = 'Y'
+AND C_ELEMENTVALUE.ISACTIVE = 'Y'
+AND (select max(c_element_id) from c_acctschema_element where
+ELEMENTTYPE = 'AC') = C_ELEMENTVALUE.C_ELEMENT_ID
+AND C_ELEMENTVALUE.ELEMENTLEVEL = 'S'
+AND (SBPRF_FACT_ACCT_AGGD.C_COSTCENTER_ID = $P{C_Costcenter_ID} OR $P{C_Costcenter_ID} IS NULL)
+AND (SBPRF_FACT_ACCT_AGGD.USER1_ID = $P{User1_ID} OR $P{User1_ID} IS NULL)
+UNION ALL
+SELECT CASE WHEN $P{ad_org_id} = '0' then '0' ELSE f.ad_org_id END as ad_org_id,'0' AS PARENT_ID, F.ACCOUNT_ID AS ID, EV.ELEMENTLEVEL,EV.accounttype, EV.NAME AS NAME, EV.VALUE AS ACCOUNT_ID,
+SUM((CASE f.FACTACCTTYPE WHEN 'C' THEN 0 ELSE F.AMTACCTDR END)) AS AMTACCTDR,
+SUM((CASE f.FACTACCTTYPE WHEN 'C' THEN 0 ELSE f.AMTACCTCR END)) AS AMTACCTCR
+FROM SBPRF_FACT_ACCT_AGGD F, C_ELEMENTVALUE EV
+WHERE F.ACCOUNT_ID = EV.C_ELEMENTVALUE_ID
+AND F.DATEACCT between $P{datefrom} and $P{dateto}
+AND F.FACTACCTTYPE <> 'R'
+AND F.FACTACCTTYPE <> 'C'
+AND F.FACTACCTTYPE = 'N'
+AND F.ISACTIVE = 'Y'
+AND (F.C_COSTCENTER_ID = $P{C_Costcenter_ID} OR $P{C_Costcenter_ID} IS NULL)
+AND (F.USER1_ID = $P{User1_ID} OR $P{User1_ID} IS NULL)
+and f.ad_org_id = CASE WHEN $P{ad_org_id} = '0' then f.ad_org_id ELSE $P{ad_org_id} END
+GROUP BY f.ad_org_id,ACCOUNT_ID,EV.NAME, EV.VALUE, EV.ELEMENTLEVEL,EV.accounttype) A
+GROUP BY ad_org_id,ID, NAME, ACCOUNT_ID, ELEMENTLEVEL,accounttype
+) MO
+FULL OUTER JOIN
+(
+--SALDO INICIAL A LA FECHA DESDE
+SELECT B.VALUE, ACCOUNT_ID, COALESCE(SUM(AMTACCTDR),0) AS AMTACCTDR, COALESCE(SUM(AMTACCTCR),0) AS AMTACCTCR,
+     COALESCE(SUM(AMTACCTDR-AMTACCTCR), 0) AS SALDO_INICIAL
+FROM (
+   (SELECT F.ACCOUNT_ID AS ACCOUNT_ID, 0 AS AMTACCTDR, 0 AS AMTACCTCR,
+	   F.DATEACCT, F.FACTACCTTYPE
+    FROM SBPRF_FACT_ACCT_AGGD F
+    WHERE F.DATEACCT < $P{datefrom}
+    AND F.FACTACCTTYPE <> 'C'
+    AND F.ISACTIVE = 'Y'
+    AND f.ad_org_id = CASE WHEN $P{ad_org_id} = '0' then f.ad_org_id ELSE $P{ad_org_id} END
+)) A
+LEFT JOIN C_ELEMENTVALUE B ON A.ACCOUNT_ID = B.C_ELEMENTVALUE_ID
+GROUP BY B.VALUE, ACCOUNT_ID
+HAVING SUM(AMTACCTDR) - SUM(AMTACCTCR) <> 0
+) SI ON MO.ID = SI.ACCOUNT_ID
+
+--BALANCE FIN SI VAN PARAMETROS
+
+) BALANCE ON TREE.ID = BALANCE.ID
+left join ad_org o on BALANCE.ad_org_id=o.ad_org_id
+and balance.ad_org_id = CASE WHEN $P{ad_org_id} = '0' then balance.ad_org_id ELSE $P{ad_org_id} END
+WHERE accounttype IN ('R', 'E') --PARA ESTADO DE RESULTADOS
+GROUP BY o.name,p6,p6name,p5,p5name,p4,p4name,p3,p3name,p2,p2name,p1,p1name,accounttype,BALANCE.ACCOUNT_ID, BALANCE.NAME
+ORDER BY p6,P5,p4,p3,p2,p1 ) A
+group by nombre,p6,p6name,p5,p5name,p4,p4name,p3,p3name,p2,p2name,p1,p1name,accounttype,nombrefirma1,cargofirma1,nombrefirma2,cargofirma2,usuario
+ORDER BY p6,P5,p4,p3,p2,p1]]>
+	</queryString>
+	<field name="name" class="java.lang.String"/>
+	<field name="p6" class="java.lang.String"/>
+	<field name="p6name" class="java.lang.String"/>
+	<field name="p5" class="java.lang.String"/>
+	<field name="p5name" class="java.lang.String"/>
+	<field name="p4" class="java.lang.String"/>
+	<field name="p4name" class="java.lang.String"/>
+	<field name="p3" class="java.lang.String"/>
+	<field name="p3name" class="java.lang.String"/>
+	<field name="p2" class="java.lang.String"/>
+	<field name="p2name" class="java.lang.String"/>
+	<field name="p1" class="java.lang.String"/>
+	<field name="p1name" class="java.lang.String"/>
+	<field name="accounttype" class="java.lang.String"/>
+	<field name="saldo_final" class="java.math.BigDecimal"/>
+	<field name="nombrefirma1" class="java.lang.String"/>
+	<field name="cargofirma1" class="java.lang.String"/>
+	<field name="nombrefirma2" class="java.lang.String"/>
+	<field name="cargofirma2" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fecha" class="java.lang.String"/>
+	<variable name="saldo_final_1" class="java.math.BigDecimal" resetType="Group" resetGroup="p4name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="saldo_final_2" class="java.math.BigDecimal" resetType="Group" resetGroup="p2name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="saldo_final_3" class="java.math.BigDecimal" resetType="Group" resetGroup="p3name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="utilidades" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="saldo_final_6" class="java.math.BigDecimal" resetType="Group" resetGroup="p6name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="saldo_final_5" class="java.math.BigDecimal" resetType="Group" resetGroup="p5name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<variable name="saldo_final_4" class="java.math.BigDecimal" resetType="Group" resetGroup="p4name" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo_final}]]></variableExpression>
+	</variable>
+	<group name="p6name">
+		<groupExpression><![CDATA[$F{p6name}]]></groupExpression>
+		<groupHeader>
+			<band height="15">
+				<textField>
+					<reportElement x="0" y="0" width="327" height="15" uuid="656bf0eb-497a-411a-bf6b-876c56b67d9d"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{p6name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="23">
+				<textField>
+					<reportElement x="0" y="0" width="379" height="15" uuid="e29ff2b9-b856-4b50-9cbb-0d2b861883fe"/>
+					<textElement>
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["TOTAL ".concat($F{p6name})]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="380" y="0" width="100" height="15" uuid="e76736f2-2ae6-4804-892b-7c13988ea019"/>
+					<textElement textAlignment="Right">
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{saldo_final_6}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="p5name">
+		<groupExpression><![CDATA[$F{p5name}]]></groupExpression>
+		<groupHeader>
+			<band height="17">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("1") || $P{nivel}.equals("2") || $P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="12" y="0" width="337" height="15" uuid="22d6d226-f4ab-4165-ab01-d3ea0d50f9a5"/>
+					<textElement>
+						<font fontName="SansSerif" size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{p5name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="15">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("1") || $P{nivel}.equals("2") || $P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="12" y="0" width="261" height="15" uuid="9eb895e1-2855-46a6-a2ec-e32b15b0e629"/>
+					<textElement>
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["TOTAL ".concat($F{p5name})]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="380" y="0" width="100" height="15" uuid="bf243c95-dd4b-4a28-8605-58b9cba13a4b"/>
+					<textElement textAlignment="Right">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{saldo_final_5}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="p4name">
+		<groupExpression><![CDATA[$F{p4name}]]></groupExpression>
+		<groupHeader>
+			<band height="17">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("2") || $P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="22" y="0" width="337" height="15" uuid="0db5a756-5888-44e7-852f-21e575c3e9f9"/>
+					<textElement>
+						<font fontName="SansSerif" size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{p4name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="17">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("2") || $P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="22" y="0" width="250" height="15" uuid="f165d188-7d99-4a34-871e-d3373e0f7c2d"/>
+					<textElement>
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["TOTAL ".concat($F{p4name})]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)" isBlankWhenNull="true">
+					<reportElement x="380" y="0" width="100" height="15" uuid="c8927430-2a40-49eb-adf3-51c4f913cc93"/>
+					<textElement textAlignment="Right">
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{saldo_final_1}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="p3name">
+		<groupExpression><![CDATA[$F{p3name}]]></groupExpression>
+		<groupHeader>
+			<band height="17">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="32" y="0" width="347" height="15" uuid="9feb4ddd-c9c7-4694-be49-f6fa6f4571e5"/>
+					<textElement>
+						<font fontName="SansSerif" size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{p3name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="17">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("3") || $P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="32" y="0" width="235" height="15" uuid="71cebaf3-5e7e-41d2-befe-b02b91936856"/>
+					<textElement>
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["TOTAL ".concat($F{p3name})]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="380" y="0" width="100" height="15" uuid="4bfbbad1-5084-40a5-99cb-8b50062dc60e"/>
+					<textElement textAlignment="Right">
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{saldo_final_3}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="p2name">
+		<groupExpression><![CDATA[$F{p2name}]]></groupExpression>
+		<groupHeader>
+			<band height="15">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField>
+					<reportElement x="44" y="0" width="337" height="15" uuid="b0138cc6-ea73-4af6-b101-9dcbf3560960"/>
+					<textElement>
+						<font fontName="SansSerif" size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{p2name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="16">
+				<printWhenExpression><![CDATA[$P{nivel}.equals("4") || $P{nivel}.equals("5")]]></printWhenExpression>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="380" y="0" width="100" height="15" uuid="07d7fa62-eb3e-4f5e-8bc2-bb1be51ac458"/>
+					<textElement textAlignment="Right">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{saldo_final_2}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="44" y="0" width="235" height="15" uuid="82bc5601-ab47-4c1a-a29b-70ea9c1f6182"/>
+					<textElement>
+						<font fontName="SansSerif" size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["TOTAL ".concat($F{p2name})]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<title>
+		<band height="136" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="74" width="545" height="20" uuid="9eb9ec46-9aad-4462-bc5e-136cf25d2ba3"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Balance de Resultados Acumulado]]></text>
+			</staticText>
+			<textField pattern="">
+				<reportElement x="0" y="95" width="545" height="20" uuid="0b89fc30-e1eb-4f26-9a5c-a96a44f09b0c"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA["AL ".concat(new SimpleDateFormat("dd/MM/yyyy").format($P{dateto}))]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="116" width="545" height="17" uuid="d98a092a-6bcd-4075-8f40-1fa7c8af4439"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="144" height="74" uuid="a159aba1-95cb-4f79-8529-18b6f1f9c971"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $P{ad_org_id})]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="348" y="26" width="196" height="20" uuid="fe209440-402b-424b-86da-425b7e1899d9"/>
+				<textFieldExpression><![CDATA[$F{usuario} +" - "+ $F{fecha}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<detail>
+		<band height="16" splitType="Stretch">
+			<printWhenExpression><![CDATA[$P{nivel}.equals("5")]]></printWhenExpression>
+			<textField pattern="#,##0.00;(#,##0.00)">
+				<reportElement x="380" y="0" width="100" height="15" uuid="ef8c012f-b44a-4e2d-a731-01e89910ecea"/>
+				<textElement textAlignment="Right">
+					<font fontName="SansSerif" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{saldo_final}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="56" y="0" width="195" height="15" uuid="994ea542-df4a-4a98-a11d-cca118a6dbce"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{p1name}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="149">
+			<textField pattern="###0.00;(###0.00)" isBlankWhenNull="true">
+				<reportElement x="380" y="0" width="100" height="15" uuid="d777c25f-0c3c-4f79-94b3-be972dbd4965"/>
+				<textElement textAlignment="Right">
+					<font fontName="SansSerif" size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{utilidades}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="100" height="20" uuid="fb466376-900c-4485-977e-d65bb92dded1"/>
+				<textElement>
+					<font fontName="SansSerif" size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[UTILIDAD /PERDIDA]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="288" y="106" width="193" height="20" uuid="5cd189a5-f636-4c8f-afdc-03788f5244d8"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{nombrefirma2}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="32" y="106" width="193" height="20" uuid="597b5bd4-aeb0-453e-b9ff-c0e7ed3939ef"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{nombrefirma1}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="288" y="104" width="193" height="1" uuid="43eb4cb5-3f8d-42c6-9a96-63e9c9f99470"/>
+			</line>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="32" y="126" width="193" height="20" uuid="cc1d1df5-2974-434b-b055-59677391e1a4"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cargofirma1}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="288" y="126" width="193" height="20" uuid="500f59fb-3f3b-4877-83d8-d617c982ff07"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cargofirma2}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="32" y="104" width="193" height="1" uuid="250da484-0287-47e8-b6f3-327df683ca8f"/>
+			</line>
+		</band>
+	</summary>
+</jasperReport>

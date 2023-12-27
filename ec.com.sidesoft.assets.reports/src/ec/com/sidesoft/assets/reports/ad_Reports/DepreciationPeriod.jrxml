@@ -1,0 +1,674 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptM_Inount" pageWidth="842" pageHeight="680" orientation="Landscape" columnWidth="814" leftMargin="14" rightMargin="14" topMargin="14" bottomMargin="14" uuid="cfaf7223-c06e-4591-8e0f-b406a2336150">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<parameter name="AD_ORG_ID" class="java.lang.String"/>
+	<parameter name="ASSET_TYPE" class="java.lang.String"/>
+	<parameter name="DATE_TO" class="java.util.Date"/>
+	<queryString>
+		<![CDATA[SELECT
+	--Extras
+    to_char(NOW(), 'DD/MM/YYYY HH:mm') AS fecha_actual
+    ,UPPER(cu.name) usuario
+	,UPPER(o.name) organizacion
+	,(SELECT UPPER(spd.name) FROM c_doctype AS dt LEFT JOIN scsdc_signaturesperdoc AS spd ON (dt.c_doctype_id=spd.c_doctype_id AND spd.line = 10) WHERE dt.name='REPORTE-DEPRECIACION-PERIODO') AS elaborado_por
+	,(SELECT UPPER(spd.name) FROM c_doctype AS dt LEFT JOIN scsdc_signaturesperdoc AS spd ON (dt.c_doctype_id=spd.c_doctype_id AND spd.line = 20) WHERE dt.name='REPORTE-DEPRECIACION-PERIODO') AS autorizado_por
+	,(SELECT UPPER(spd.name) FROM c_doctype AS dt LEFT JOIN scsdc_signaturesperdoc AS spd ON (dt.c_doctype_id=spd.c_doctype_id AND spd.line = 30) WHERE dt.name='REPORTE-DEPRECIACION-PERIODO') AS revisado_por
+	,$P{AD_ORG_ID} AS organizationid
+
+	,(select UPPER(suba.name)
+		from ad_ref_list_trl  suba
+			join ad_ref_list subb on suba.ad_ref_list_id= subb.ad_ref_list_id
+		where suba.ad_language  ='es_ES'
+			and subb.ad_reference_id   = '6EC576DCC5074435B7778A676BAD78E0'
+			and subb.value = $P{ASSET_TYPE}
+	) AS tipo_bien
+    --Detalle
+	,tmp.*, (valor_activo-da) AS valor_libro FROM
+    (SELECT
+        a.description AS categoria,  a.value AS valor_activo, (COALESCE(dea.value,0)+a.valueprevious) AS dea, COALESCE(dma.value,0) AS dma
+        , COALESCE(dmf.value,0) AS dmf, COALESCE((((COALESCE(dea.value,0)+a.valueprevious)+COALESCE(dma.value,0)+COALESCE(dmf.value,0))),0) AS da
+    FROM
+        (SELECT ag.a_asset_group_id, ag.description,
+		SUM(a.assetvalueamt) - COALESCE( (select sum(al.assetvalueamt) from ssam_alienateline al
+											  WHERE al.a_asset_group_id = ag.a_asset_group_id
+											  AND al.alienatedate  <=  $P{DATE_TO}::date
+				and (exists(select 1 from a_asset ast where ast.a_asset_id = al.a_asset_id
+		   									  AND (ast.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL) ))
+							 ),0) AS value,
+		SUM(a.depreciatedpreviousamt) AS valueprevious
+
+        FROM a_asset AS a JOIN a_asset_group AS ag ON ag.a_asset_group_id=a.a_asset_group_id
+        WHERE a.datepurchased<=$P{DATE_TO}
+	AND (a.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+	AND (a.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL)
+
+        GROUP BY ag.a_asset_group_id ) AS a
+
+      LEFT JOIN (SELECT ag.a_asset_group_id, SUM(coalesce(al.amortizationamt,0))
+        - COALESCE( (select sum(al.amortizationvalue) from ssam_alienateline al
+											  WHERE al.a_asset_group_id = ag.a_asset_group_id
+											  AND al.alienatedate  <  $P{DATE_TO}::date
+				and (exists(select 1 from a_asset ast where ast.a_asset_id = al.a_asset_id
+		   									  AND (ast.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL) ))
+							 ),0)  AS value
+        FROM a_asset AS a
+ 		JOIN a_asset_group AS ag ON ag.a_asset_group_id=a.a_asset_group_id
+        left JOIN (a_amortizationline AS al JOIN a_amortization AS am ON al.a_amortization_id=am.a_amortization_id) ON al.a_asset_id=a.a_asset_id
+        WHERE am.startdate<TO_DATE($P{DATE_TO},'yyyy')
+	AND (a.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+	AND (a.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL)
+        GROUP BY ag.a_asset_group_id) AS dea ON a.a_asset_group_id=dea.a_asset_group_id
+
+        LEFT JOIN (SELECT ag.a_asset_group_id, SUM(al.amortizationamt)
+        - COALESCE( (select sum(al.amortizationvalue) from ssam_alienateline al
+											  WHERE al.a_asset_group_id = ag.a_asset_group_id
+											  AND al.alienatedate  BETWEEN TO_DATE($P{DATE_TO},'yyyy') AND TO_DATE($P{DATE_TO},'yyyy-MM')-'1 days'::INTERVAL
+				and (exists(select 1 from a_asset ast where ast.a_asset_id = al.a_asset_id
+		   									  AND (ast.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL) ))
+							 ),0)
+        AS value
+        FROM a_asset AS a
+ 		JOIN a_asset_group AS ag ON ag.a_asset_group_id=a.a_asset_group_id
+        left JOIN (a_amortizationline AS al JOIN a_amortization AS am ON al.a_amortization_id=am.a_amortization_id) ON al.a_asset_id=a.a_asset_id
+        WHERE (am.startdate BETWEEN TO_DATE($P{DATE_TO},'yyyy') AND TO_DATE($P{DATE_TO},'yyyy-MM')-'1 days'::INTERVAL)
+            AND TO_CHAR(TO_DATE($P{DATE_TO},'yyyy-MM-dd'),'MM')!='01'
+	AND (a.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+	AND (a.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL)
+        GROUP BY ag.a_asset_group_id) AS dma ON dma.a_asset_group_id=a.a_asset_group_id
+
+        LEFT JOIN (SELECT ag.a_asset_group_id,
+			SUM(al.amortizationamt) - COALESCE( (select sum(al.amortizationvalue) from ssam_alienateline al
+											  WHERE al.a_asset_group_id = ag.a_asset_group_id
+											  AND al.alienatedate   BETWEEN TO_DATE($P{DATE_TO},'yyyy-mm') AND TO_DATE($P{DATE_TO},'yyyy-mm-dd')
+and (exists(select 1 from a_asset ast where ast.a_asset_id = al.a_asset_id
+ AND (ast.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL) ))
+											 ),0)
+
+                                             AS value
+        FROM a_asset AS a
+ 		JOIN a_asset_group AS ag ON ag.a_asset_group_id=a.a_asset_group_id
+        left JOIN (a_amortizationline AS al JOIN a_amortization AS am ON al.a_amortization_id=am.a_amortization_id) ON al.a_asset_id=a.a_asset_id
+        WHERE am.startdate BETWEEN TO_DATE($P{DATE_TO},'yyyy-mm') AND $P{DATE_TO}
+	AND (a.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+	AND (a.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL)
+        GROUP BY ag.a_asset_group_id) AS dmf ON dmf.a_asset_group_id=a.a_asset_group_id
+
+        LEFT JOIN (SELECT ag.a_asset_group_id ,
+		SUM(al.amortizationamt) - COALESCE( (select sum(al.amortizationvalue) from ssam_alienateline al
+											  WHERE al.a_asset_group_id = ag.a_asset_group_id
+											  AND al.alienatedate  <=  $P{DATE_TO}::date
+			and (exists(select 1 from a_asset ast where ast.a_asset_id = al.a_asset_id
+        AND (ast.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL) ))								 ),0) AS value
+        FROM (a_amortizationline AS al JOIN a_amortization AS am ON al.a_amortization_id=am.a_amortization_id)
+            JOIN (a_asset AS a JOIN a_asset_group AS ag ON ag.a_asset_group_id=a.a_asset_group_id) ON al.a_asset_id=a.a_asset_id
+        WHERE am.startdate<=$P{DATE_TO}
+	AND (a.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+	AND (a.em_ssam_assettype=$P{ASSET_TYPE} OR $P{ASSET_TYPE} IS NULL)
+        GROUP BY ag.a_asset_group_id) AS da ON da.a_asset_group_id=a.a_asset_group_id) AS tmp
+ JOIN ad_org o ON o.issummary = 'Y' AND o.ad_orgtype_id = '1'
+ JOIN ad_user cu ON cu.ad_user_id = $P{AD_USER_ID}
+ORDER BY categoria ASC]]>
+	</queryString>
+	<field name="fecha_actual" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="elaborado_por" class="java.lang.String"/>
+	<field name="autorizado_por" class="java.lang.String"/>
+	<field name="revisado_por" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="tipo_bien" class="java.lang.String"/>
+	<field name="categoria" class="java.lang.String"/>
+	<field name="valor_activo" class="java.math.BigDecimal"/>
+	<field name="dea" class="java.math.BigDecimal"/>
+	<field name="dma" class="java.math.BigDecimal"/>
+	<field name="dmf" class="java.math.BigDecimal"/>
+	<field name="da" class="java.math.BigDecimal"/>
+	<field name="valor_libro" class="java.math.BigDecimal"/>
+	<variable name="TOTAL_PAGINAS" class="java.lang.Integer">
+		<variableExpression><![CDATA[$V{PAGE_NUMBER}]]></variableExpression>
+	</variable>
+	<variable name="V_VALOR_ACTIVO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_activo}]]></variableExpression>
+	</variable>
+	<variable name="V_DEA" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dea}]]></variableExpression>
+	</variable>
+	<variable name="V_DMA" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dma}]]></variableExpression>
+	</variable>
+	<variable name="V_DMF" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dmf}]]></variableExpression>
+	</variable>
+	<variable name="V_DA" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{da}]]></variableExpression>
+	</variable>
+	<variable name="V_VALOR_LIBRO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valor_libro}]]></variableExpression>
+	</variable>
+	<variable name="V_TO" class="java.lang.Integer" resetType="None">
+		<variableExpression><![CDATA[Integer.parseInt(new SimpleDateFormat("MM").format($P{DATE_TO}))]]></variableExpression>
+	</variable>
+	<variable name="V_YEAR" class="java.lang.Integer" resetType="None">
+		<variableExpression><![CDATA[Integer.parseInt(new SimpleDateFormat("yyyy").format($P{DATE_TO}))]]></variableExpression>
+	</variable>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="180" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="214" y="90" width="600" height="14" uuid="2d5feacc-a9d0-42e7-88e2-d3f60413164a"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="SansSerif" size="10" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{ASSET_TYPE} == null ? "TODOS" : $F{tipo_bien}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="90" width="214" height="14" uuid="ef4bd805-7f2f-4000-a54e-94b0da3df503"/>
+				<box leftPadding="5"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de bien:]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="1" y="58" width="613" height="18" uuid="202fbfe4-562a-4b04-96db-d040da736f82"/>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["DEPRECIACIÓN DEL PERIODO"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="76" width="214" height="14" uuid="824d8879-da8a-42d7-900f-89d3fa11a324"/>
+				<box leftPadding="5"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Organización:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="104" width="214" height="14" uuid="60c6ff87-cfcf-41db-b701-c4cc89a3b828"/>
+				<box leftPadding="5"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha hasta:]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="1" y="0" width="201" height="58" uuid="e244cc02-b2a7-495b-bb04-7c2a5fe3b483"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="214" y="76" width="600" height="14" uuid="dfd13af1-0c57-4f65-86e7-fdb7a3ae10e9"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{AD_ORG_ID}.equals("0") ? "TODAS" : $F{organizacion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="214" y="104" width="600" height="14" uuid="b3c1d239-8605-44d1-8280-6698e7ef141e"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[($V{V_TO}==1 ? "Enero" :
+$V{V_TO}==2 ? "Febrero" :
+$V{V_TO}==3 ? "Marzo" :
+$V{V_TO}==4 ? "Abril" :
+$V{V_TO}==5 ? "Mayo" :
+$V{V_TO}==6 ? "Junio" :
+$V{V_TO}==7 ? "Julio" :
+$V{V_TO}==8 ? "Agosto" :
+$V{V_TO}==9 ? "Septiembre" :
+$V{V_TO}==10 ? "Octubre" :
+$V{V_TO}==11 ? "Noviembre" :
+$V{V_TO}==12 ? "Diciembre" : "") +"/"+$V{V_YEAR}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="314" y="150" width="100" height="30" uuid="d5589b9f-d074-410a-b378-ca3384f10360"/>
+				<box>
+					<pen lineWidth="0.75"/>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Depreciación ejercicio anterior]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="614" y="150" width="100" height="30" uuid="b2ba3d3b-549c-4d9d-b4bc-b6d96250c834"/>
+				<box>
+					<pen lineWidth="0.75"/>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Depreciación acumulada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="714" y="150" width="100" height="30" uuid="da6e5c05-6f0e-4d63-8987-043dacf0fbce"/>
+				<box>
+					<pen lineWidth="0.75"/>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor en libros]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="214" y="150" width="100" height="30" uuid="01b50666-038b-402e-b5f9-8c7bcae35d3f"/>
+				<box>
+					<pen lineWidth="0.75"/>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor / Nuevo CH]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="150" width="214" height="30" uuid="c5106721-17af-4c83-82f0-f3ce4a6646c3"/>
+				<box>
+					<pen lineWidth="0.75"/>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Categoría de activo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="414" y="135" width="200" height="15" uuid="c43e7d29-d6dd-408b-91ec-86eda4d4b090"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Depreciación Ejercicio Vigente]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="514" y="150" width="100" height="30" uuid="38155b47-f809-40a0-9588-b1c2048651f3"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Depreciación de " +
+($V{V_TO}==1 ? "Enero" :
+$V{V_TO}==2 ? "Febrero" :
+$V{V_TO}==3 ? "Marzo" :
+$V{V_TO}==4 ? "Abril" :
+$V{V_TO}==5 ? "Mayo" :
+$V{V_TO}==6 ? "Junio" :
+$V{V_TO}==7 ? "Julio" :
+$V{V_TO}==8 ? "Agosto" :
+$V{V_TO}==9 ? "Septiembre" :
+$V{V_TO}==10 ? "Octubre" :
+$V{V_TO}==11 ? "Noviembre" :
+$V{V_TO}==12 ? "Diciembre" : "")]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="414" y="150" width="100" height="30" uuid="57ac4d1e-27d2-4622-84a7-9ee61697ec39"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Depreciación hasta " +
+($V{V_TO}==2 ? "Enero" :
+$V{V_TO}==3 ? "Febrero" :
+$V{V_TO}==4 ? "Marzo" :
+$V{V_TO}==5 ? "Abril" :
+$V{V_TO}==6 ? "Mayo" :
+$V{V_TO}==7 ? "Junio" :
+$V{V_TO}==8 ? "Julio" :
+$V{V_TO}==9 ? "Agosto" :
+$V{V_TO}==10 ? "Septiembre" :
+$V{V_TO}==11 ? "Octubre" :
+$V{V_TO}==12 ? "Noviembre" : "")]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="0" y="0" width="214" height="12" uuid="e90fb82f-b280-4cb7-a5b7-6a9729aa0e37"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{categoria}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="714" y="0" width="100" height="12" uuid="caf8699d-0fc0-4b39-8ded-0b0adfb2db05"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{valor_libro}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="614" y="0" width="100" height="12" uuid="99cc83cb-83c1-405c-b4d5-4625c775e87b"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{da}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="514" y="0" width="100" height="12" uuid="b6828d17-0079-497d-b44c-7d38095ebccf"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{dmf}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="414" y="0" width="100" height="12" uuid="f258ffb7-afdc-492a-907c-007feb655f9c"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{dma}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="314" y="0" width="100" height="12" uuid="ebd36217-1978-4ba8-bdcc-53e00ce6c49e"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{dea}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="214" y="0" width="100" height="12" uuid="f069e07d-7559-44d2-9882-6741aa0fde8f"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{valor_activo}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="40">
+			<textField>
+				<reportElement x="214" y="22" width="194" height="10" uuid="4a22b48f-a757-4505-83c8-2c1245da90ae"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Página " + $V{PAGE_NUMBER} + "/"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="22" width="214" height="10" uuid="fc7e0793-bab0-44f9-9a81-b947c026adcb"/>
+				<box leftPadding="5" rightPadding="0"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha_actual}]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="408" y="22" width="206" height="10" uuid="894436d1-3e0a-4c60-8ad6-7ff55dd6ba56"/>
+				<textElement verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="32" width="814" height="8" uuid="9ff8787e-8c58-4ee7-9cd8-7d93e6850952"/>
+				<textElement verticalAlignment="Middle">
+					<font size="4"/>
+				</textElement>
+				<text><![CDATA[/ec/com/sidesoft/assets/reports/ad_Reports/DepreciationPeriod.jrxml]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="614" y="22" width="200" height="10" uuid="71a84636-16c1-4f9a-ad1a-ca2744f3f6a7"/>
+				<box rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="147">
+			<textField isBlankWhenNull="true">
+				<reportElement x="45" y="88" width="155" height="12" uuid="6e46de1e-61f5-425f-b96b-8954102eb5b1">
+					<printWhenExpression><![CDATA[$F{elaborado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["ELABORADO POR"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="45" y="100" width="155" height="30" uuid="35cf9972-967c-41e9-962c-be089fb5eaff">
+					<printWhenExpression><![CDATA[$F{elaborado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{elaborado_por}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="613" y="100" width="155" height="30" uuid="a889f93c-6d38-4003-9999-a799e63f81e8">
+					<printWhenExpression><![CDATA[$F{revisado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{revisado_por}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="613" y="88" width="155" height="12" uuid="ecae7c5e-f444-482f-a4e0-11f2fbd5a871">
+					<printWhenExpression><![CDATA[$F{revisado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["REVISADO POR"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="0" y="0" width="214" height="12" uuid="4824ac28-486c-42b4-8584-fe080f4fb54d"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total =>]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="332" y="88" width="155" height="12" uuid="954bb53d-d1ac-4610-ab23-ecd9b7ef34bd">
+					<printWhenExpression><![CDATA[$F{autorizado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["AUTORIZADO POR"]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="332" y="100" width="155" height="30" uuid="21b09e74-e686-489b-a239-bdb9664eb774">
+					<printWhenExpression><![CDATA[$F{autorizado_por}!=null]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{autorizado_por}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="714" y="0" width="100" height="12" uuid="b977abae-9f9d-48cc-9799-bb43d454a0e8"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_VALOR_LIBRO}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="614" y="0" width="100" height="12" uuid="ff6fea6b-a058-4e53-a00d-7a6d220b0a09"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_DA}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="514" y="0" width="100" height="12" uuid="fc2d06da-e80d-4d94-84e4-f3d28ecca703"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_DMF}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="414" y="0" width="100" height="12" uuid="919a115e-999f-4df6-a8ff-4a0cd23686eb"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_DMA}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="314" y="0" width="100" height="12" uuid="5ca237c5-70ac-4498-95de-1ef657d9d1bd"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_DEA}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="214" y="0" width="100" height="12" uuid="e7cae6b0-55ce-4829-ab49-0d970306c2ae"/>
+				<box leftPadding="5" rightPadding="5">
+					<topPen lineWidth="0.75"/>
+					<leftPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.75"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="SansSerif" size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_VALOR_ACTIVO}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

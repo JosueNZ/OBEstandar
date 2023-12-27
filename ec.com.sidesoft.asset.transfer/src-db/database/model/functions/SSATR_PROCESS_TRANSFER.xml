@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSATR_PROCESS_TRANSFER">
+    <function name="SSATR_PROCESS_TRANSFER" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Assets RECORD;
+  Cur_Movements RECORD;
+  
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_Result NUMBER:=1; -- Success
+
+  v_Record_ID  VARCHAR2(32);
+  v_Message VARCHAR2(2000):='';
+  
+  v_custodian_id VARCHAR(32);
+  v_building_id VARCHAR(32); 
+  v_unit_id VARCHAR(32); 
+  v_department_id VARCHAR(32);  
+  v_count NUMBER:=0;
+  v_c_doctype_id VARCHAR(32);
+  v_documentno VARCHAR(60); 
+  v_datetransfer DATE WITHOUT TIME ZONE; 
+  v_a_asset_group_id  VARCHAR(32);
+  v_custodian_asset_id  VARCHAR(32);
+  v_building_asset_id  VARCHAR(32);
+  v_unit_asset_id  VARCHAR(32);
+  v_department_asset_id  VARCHAR(32);
+  v_costcenter_asset_id  VARCHAR(32);
+  v_user1_asset_id  VARCHAR(32);
+  v_user2_asset_id  VARCHAR(32);
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+
+	SELECT count(*) INTO v_count FROM ssatr_asset_detail WHERE transfer='Y' AND ssatr_asset_transfer_id = v_Record_ID;
+
+	IF(v_count=0) THEN
+		RAISE_APPLICATION_ERROR(-20000, '@SSATR_NoLineSelected@');
+	END IF;
+
+    -- BEGIN RARC
+    DELETE FROM
+	    ssatr_asset_detail
+    WHERE
+        ssatr_asset_transfer_id = v_Record_ID
+        AND transfer = 'N';
+    -- END RARC
+	
+	SELECT trasferto_id, em_ssal_building_dest_id, em_ssal_unit_dest_id, em_ssal_department_dest_id, c_doctype_id, documentno, datetransfer
+	INTO v_custodian_id, v_building_id, v_unit_id, v_department_id, v_c_doctype_id, v_documentno, v_datetransfer
+	FROM ssatr_asset_transfer WHERE ssatr_asset_transfer_id = v_Record_ID;
+
+	FOR Cur_Assets IN(
+		SELECT a_asset_id,custodian_id FROM ssatr_asset_detail WHERE ssatr_asset_transfer_id = v_Record_ID
+	)LOOP
+			    
+		FOR Cur_Movements IN
+		(
+			SELECT ssal_appl_active_id FROM ssal_appl_active WHERE a_asset_id = Cur_Assets.a_asset_id ORDER BY created DESC
+		)LOOP
+			UPDATE ssal_appl_active SET enddate = v_datetransfer WHERE ssal_appl_active_id = Cur_Movements.ssal_appl_active_id;
+			EXIT;
+		END LOOP;
+
+		SELECT em_ssal_custodio_id, em_ssal_building_id, em_ssal_unit_id, em_ssal_department_id, c_costcenter_id, user1_id, user2_id, a_asset_group_id
+		INTO v_custodian_asset_id, v_building_asset_id, v_unit_asset_id, v_department_asset_id, v_costcenter_asset_id, v_user1_asset_id, v_user2_asset_id,v_a_asset_group_id
+		FROM a_asset WHERE a_asset_id = Cur_Assets.a_asset_id;
+
+		UPDATE a_asset SET em_ssal_custodio_id=COALESCE(v_custodian_id,v_custodian_asset_id), em_ssal_building_id=COALESCE(v_building_id,v_building_asset_id),
+		em_ssal_unit_id=COALESCE(v_unit_id,v_unit_asset_id), em_ssal_department_id=COALESCE(v_department_id,v_department_asset_id), updatedby =v_User_ID, updated=now()
+		WHERE a_asset_id = Cur_Assets.a_asset_id;
+
+		INSERT INTO ssal_appl_active(
+			    ad_client_id, ad_org_id, created, createdby, updated, updatedby, 
+			    isactive, ssal_appl_active_id, c_doctype_id,
+			    date_application, documentno, approved, 
+			    processed, ssal_building_id, ssal_unit_id, 
+			    ssal_department_id, process_request, state, a_asset_id, a_asset_group_id, 
+			    date_transaction, c_custodian_id, startdate,
+			    c_costcenter_id, user1_id, user2_id, c_previous_custodian_id
+			    )
+		    VALUES (v_Client_ID, v_Org_ID, now() ,v_User_ID, now() ,v_User_ID,
+			    'Y', get_uuid(), v_c_doctype_id,
+			    v_datetransfer, v_documentno, 'Y',
+			    'Y',  COALESCE(v_building_id,v_building_asset_id),  COALESCE(v_unit_id,v_unit_asset_id),
+			    COALESCE(v_department_id,v_department_asset_id),'Y', '3',Cur_Assets.a_asset_id, v_a_asset_group_id,
+			    v_datetransfer, COALESCE(v_custodian_id,Cur_Assets.custodian_id), v_datetransfer,
+			    v_costcenter_asset_id, v_user1_asset_id, v_user2_asset_id,Cur_Assets.custodian_id
+			    );
+
+	END LOOP;
+
+	UPDATE ssatr_asset_transfer SET docstatus='SSATR_PR' WHERE ssatr_asset_transfer_id = v_Record_ID;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSATR_PROCESS_TRANSFER
+]]></body>
+    </function>
+  </database>

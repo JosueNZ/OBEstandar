@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSACH_LOAD_VALUE_ASSET">
+    <trigger name="SSACH_LOAD_VALUE_ASSET" table="SSACH_MODIFY_LINE" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+  V_ASSET_ID VARCHAR(4000) := NULL;
+  V_COLUMN_NAME TEXT;
+  V_LINE_ID VARCHAR(4000) := NULL;
+
+  --V_ASSET_ID VARCHAR(4000) := NULL; 
+
+BEGIN
+
+  V_COLUMN_NAME=lower(:New.actual_record);
+  V_LINE_ID=:NEW.ssach_modify_line_id;
+  SELECT a_asset_id INTO V_ASSET_ID FROM ssach_modify_asset WHERE ssach_modify_asset_id=:NEW.ssach_modify_asset_id;
+  --SELECT a_asset_id INTO V_ASSET_ID FROM a_asset WHERE a_asset_id=V_ASSET_ID;  New.actual_record
+
+  EXECUTE IMMEDIATE format('UPDATE public.ssach_modify_line SET previous_record=(SELECT a_asset.%I FROM a_asset where a_asset_id= ''%s''),
+  actual_record='''' WHERE ssach_modify_line_id=''%s'';',V_COLUMN_NAME,V_ASSET_ID,V_LINE_ID);
+  RETURN NEW;
+  
+END SSACH_LOAD_VALUE_ASSET
+]]></body>
+    </trigger>
+  </database>
