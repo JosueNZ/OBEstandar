@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSMAACT_CONTROL_TRG">
+    <trigger name="SSMAACT_CONTROL_TRG" table="SSMAACT_ACCOUNTING" fires="before" insert="false" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+v_account_id  VARCHAR2(32);
+v_originaldr NUMBER:=0;
+v_originalcr NUMBER:=0;
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING) THEN
+
+	SELECT amtacctdr, amtacctcr
+	INTO v_originaldr, v_originalcr
+	FROM ssmaact_audit
+	WHERE fact_acct_id = :NEW.fact_acct_id;
+
+	IF (v_originaldr = 0 AND :NEW.amtacctdr<>0) THEN
+		RAISE_APPLICATION_ERROR(-20000, 'No se puede editar el débito');		
+	END IF;
+
+	IF (v_originalcr = 0 AND :NEW.amtacctcr<>0) THEN
+		RAISE_APPLICATION_ERROR(-20000, 'No se puede editar el crédito');		
+	END IF;	
+	
+	IF (ABS(v_originaldr - :NEW.amtacctdr) > 0.05 OR ABS(v_originalcr - :NEW.amtacctcr) > 0.05) THEN
+		RAISE_APPLICATION_ERROR(-20000, 'La modificación no puede ser mayor a 0.05');
+	END IF;
+
+	:NEW.amtsourcedr := :NEW.amtacctdr;
+	:NEW.amtsourcecr := :NEW.amtacctcr;
+
+  ELSIF (DELETING) THEN
+
+	SELECT b.account_id INTO v_account_id
+	FROM fact_acct b
+	INNER JOIN c_acctschema c ON b.c_acctschema_id = c.c_acctschema_id
+	INNER JOIN c_acctschema_gl d ON c.c_acctschema_id = d.c_acctschema_id
+	INNER JOIN c_validcombination e ON d.suspensebalancing_acct = e.c_validcombination_id
+	WHERE b.account_id = e.account_id AND b.fact_acct_id = :OLD.fact_acct_id;
+	
+	IF (v_account_id IS NULL) THEN
+		RAISE_APPLICATION_ERROR(-20000, 'No se puede borrar un asiento con una cuenta que no esté configurada en el campo "Cuenta de asiento no cuadrado" en la pestaña "Contabilidad general" de la ventana "Esquema contable"');
+	END IF;
+	
+  END IF;
+    
+  END SSMAACT_CONTROL_TRG
+]]></body>
+    </trigger>
+  </database>

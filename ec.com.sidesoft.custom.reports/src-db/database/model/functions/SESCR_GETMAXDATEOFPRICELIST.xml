@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GETMAXDATEOFPRICELIST">
+    <function name="SESCR_GETMAXDATEOFPRICELIST" type="VARCHAR">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_Product_ID VARCHAR2(32);
+V_DATE 	     VARCHAR2(10);
+
+BEGIN
+V_Product_ID:=p_product_id;
+SELECT 
+coalesce((
+select 
+TO_CHAR(MAX(VALIDFROM),'dd/MM/yyyy')
+from m_productprice mpp
+join (
+	m_pricelist_version mpv 
+	join m_pricelist mpl on mpl.m_pricelist_id = mpv.m_pricelist_id
+) on mpv.m_pricelist_version_id = mpp.m_pricelist_version_id
+where mpl.issopricelist = 'Y'
+--and mpv.isactive='Y'
+and mpp.m_product_id = V_Product_ID
+
+),null)
+into V_DATE
+from dual;
+return V_DATE;
+END SESCR_GETMAXDATEOFPRICELIST
+]]></body>
+    </function>
+  </database>

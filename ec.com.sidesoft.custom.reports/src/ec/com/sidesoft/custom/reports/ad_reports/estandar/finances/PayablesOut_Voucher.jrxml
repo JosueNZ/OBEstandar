@@ -1,0 +1,645 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="PayablesReceivables_Voucher" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.3660269107301504"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="267"/>
+	<style name="Validacion">
+		<conditionalStyle>
+			<conditionExpression><![CDATA[$F{to_char}.equals( "ARR" )]]></conditionExpression>
+			<style mode="Transparent" forecolor="#FF3333" backcolor="#FF0000"/>
+		</conditionalStyle>
+		<conditionalStyle>
+			<conditionExpression><![CDATA[$F{to_char}.equals( "APP" )]]></conditionExpression>
+			<style forecolor="#0033CC" backcolor="#0033CC"/>
+		</conditionalStyle>
+	</style>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String"/>
+	<parameter name="AD_USER_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["100"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="PRINTUSER" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["Y"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+upper(organizationid) as "organizationid"
+,typedocument as "typedocument"
+,partner as "partner"
+,rep_p.date_ as "date"
+,amountletter as "amountletter"
+,bank as "bank"
+,amount as "amount"
+,description as "description"
+,referenceno as "referenceno"
+,account as "account"
+,det as "det"
+,sum(debit) as "debit"
+,sum(credit) as "credit"
+,rep_p.user_  as "user"
+,rep_p.documento  as "documento"
+,dateactual  as "dateactual"
+,datepayment  as "datepayment"
+,datecreated as "datecreated"
+,isreceipt as "isreceipt"
+,detailreport as "detailreport"
+,orden as "orden"
+,paymentmethod AS "paymentmethod"
+,organizacion_nombre as "organizacion_nombre"
+,elaborado_por as "elaborado_por"
+,revisado_por as "revisado_por"
+,autorizado_por as "autorizado_por"
+from
+(
+select to_char(p.ad_org_id) as organizationid,
+	case when d.docbasetype = 'APP' then to_char('COMPROBANTE DE  ' || UPPER(D.PRINTNAME) || ' No. ' || p.documentno)
+	 when d.docbasetype = 'ARR' then to_char('COMPROBANTE DE ' || UPPER(D.PRINTNAME) || ' No. ' || p.documentno) end as typedocument,
+	  to_char(b.name) as partner, to_char(p.paymentdate,'dd/MM/yyyy') as date_,  ssior_convert_numbertoletters(P.AMOUNT) as amountletter
+,to_char(f.name) as bank, P.AMOUNT as amount
+    , to_char(p.description) as description, to_char(p.referenceno) as referenceno,
+	e.value as account, e.name || to_char(', ') || coalesce(to_char(f.description),to_char('')) as det,  a.amtacctdr as debit, a.amtacctcr as credit
+,to_char((SELECT upper(coalesce(cbp.name,au.name)) as usuario from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = $P{AD_USER_ID}
+)) as user_,
+to_char(p.documentno) as documento
+,to_char(now(),'dd/MM/yyyy HH24:MI:SS') as dateactual
+,to_char(p.paymentdate,'dd/MM/yyyy HH24:MI:SS') as datepayment
+,to_char(p.created,'dd/MM/yyyy HH24:MI:SS') as datecreated,
+P.isreceipt
+,p.EM_SSIOR_DETAILREPORT as detailreport
+,case when (a.amtacctdr>0) then 1 else 2 end as orden
+,fpm.name as "paymentmethod"
+,ao.name as organizacion_nombre
+,
+(select COALESCE((
+  select
+
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = P.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+
+  AS elaborado
+ from SCSDC_signaturesperdoc sign
+ where UPPER(label) = 'ELABORADO POR:' and sign.c_doctype_id = P.c_doctype_id )
+,to_char('SF'))
+FROM DUAL
+) as elaborado_por
+,
+(select COALESCE((
+select
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = P.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+AS aprobado
+ from SCSDC_signaturesperdoc sign
+ where UPPER(label) = 'REVISADO POR:' and sign.c_doctype_id = P.c_doctype_id)
+,to_char('SF'))
+FROM DUAL
+) as revisado_por
+,(
+select COALESCE((
+select
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = P.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+ AS solicitado
+
+ from SCSDC_signaturesperdoc  sign
+ where UPPER(label) = 'AUTORIZADO POR:'
+ and sign.c_doctype_id = P.c_doctype_id
+)
+,to_char('SF'))
+FROM DUAL
+) as autorizado_por
+from fin_payment p
+inner join FIN_PaymentMethod FPM on p.Fin_Paymentmethod_ID = FPM.Fin_Paymentmethod_ID
+left join c_doctype d on d.c_doctype_id = p.c_doctype_id
+left join c_bpartner b on b.c_bpartner_id = p.c_bpartner_id
+left join fin_financial_account f on f.fin_financial_account_id = p.fin_financial_account_id
+left join fact_acct a on a.record_id = p.fin_payment_id
+left join c_elementvalue e on e.c_elementvalue_id = a.account_id
+left join ad_org ao on ao.ad_org_id = p.ad_org_id
+where p.fin_payment_id = $P{DOCUMENT_ID}
+
+union all
+
+SELECT
+FP.ad_org_id as organiacion
+,(select
+	case when d.docbasetype = 'APP' then to_char('COMPROBANTE DE '|| d.printname || ' No. ' || fp2.documentno)
+	 when d.docbasetype = 'ARR' then to_char('COMPROBANTE DE '|| d.printname || ' No. ' || fp2.documentno) end as tipo_doc
+from fin_payment fp2
+left join c_doctype d on d.c_doctype_id = fp2.c_doctype_id
+where fp2.fin_payment_id = $P{DOCUMENT_ID}
+) as typedocument
+,BP.name as partner
+, to_char(FP.paymentdate,'dd/MM/yyyy') as date_
+,ssior_convert_numbertoletters(FP.AMOUNT) as amountletter
+,FA.name  as bank
+,FP.AMOUNT as amount
+,FP.description as description
+,FP.referenceno as referenceno
+,e.value as codigo
+,e.name as cuenta
+,AFTA.AMTACCTDR AS debe
+,AFTA.AMTACCTCR AS haber
+,to_char((SELECT upper(coalesce(cbp.name,au.name)) as usuario from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id =  $P{AD_USER_ID}
+)) as user_,
+to_char('') as documentno
+,to_char(now(),'dd/MM/yyyy  HH24:MI:SS') as dateactual
+,to_char(FP.paymentdate,'dd/MM/yyyy HH24:MI:SS') as datepayment
+,to_char(FP.created,'dd/MM/yyyy HH24:MI:SS') as datecreated,
+to_char('') as isreceipt
+,fp.EM_SSIOR_DETAILREPORT as detailreport
+,case when (AFTA.AMTACCTDR>0) then 1 else 2 end as orden
+,fpm.name as "paymentmethod"
+,ao.name as organizacion_nombre
+,
+(select COALESCE((
+  select
+
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = fP.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+
+  AS elaborado
+ from SCSDC_signaturesperdoc sign
+ where UPPER(label) = 'ELABORADO POR:' and sign.c_doctype_id = fP.c_doctype_id )
+,to_char('SF'))
+FROM DUAL
+) as elaborado_por
+,
+(select COALESCE((
+select
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = fP.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+AS aprobado
+ from SCSDC_signaturesperdoc sign
+ where UPPER(label) = 'REVISADO POR:' and sign.c_doctype_id = fP.c_doctype_id)
+,to_char('SF'))
+FROM DUAL
+) as revisado_por
+,(
+select COALESCE((
+select
+(case when sign.isaudit='Y' then
+
+	COALESCE(sign.label || chr(13),TO_CHAR(''))
+	|| coalesce(( select  coalesce((coalesce(firstname || TO_CHAR('') ,TO_CHAR('')) || coalesce(lastname || TO_CHAR('') || coalesce(position || chr(13) ,TO_CHAR('')) ,TO_CHAR('')) || chr(13)),'') from ad_user
+	where ad_user_id = fP.createdby),TO_CHAR(''))
+
+else
+ COALESCE( sign.LABEL|| chr(13),TO_CHAR('')) || COALESCE(NAME|| chr(13),TO_CHAR('')) ||  COALESCE(POSITION,TO_CHAR(''))
+end
+)
+ AS solicitado
+
+ from SCSDC_signaturesperdoc  sign
+ where UPPER(label) = 'AUTORIZADO POR:'
+ and sign.c_doctype_id = fP.c_doctype_id
+)
+,to_char('SF'))
+FROM DUAL
+) as autorizado_por
+FROM
+ FIN_Finacc_Transaction FFT
+ LEFT JOIN FIN_PAYMENT FP ON FP.FIN_PAYMENT_ID = FFT.FIN_PAYMENT_ID
+inner join FIN_PaymentMethod FPM on fp.Fin_Paymentmethod_ID = FPM.Fin_Paymentmethod_ID
+left join c_bpartner BP on BP.c_bpartner_id = FP.c_bpartner_id
+left join fin_financial_account FA on FA.fin_financial_account_id = FP.fin_financial_account_id
+left join c_doctype d on d.c_doctype_id = fp.c_doctype_id
+ LEFT JOIN APRM_FinAcc_Transaction_acct_v AFTA ON AFTA.FIN_Finacc_Transaction_ID = FFT.FIN_Finacc_Transaction_ID
+ LEFT JOIN c_elementvalue e on e.c_elementvalue_id = AFTA.C_ELEMENTVALUE_ID
+left join ad_org ao on ao.ad_org_id = fp.ad_org_id
+where fp.fin_payment_id =  $P{DOCUMENT_ID}
+) rep_p
+group by organizationid
+,typedocument
+,partner
+,rep_p.date_
+,amountletter
+,bank
+,amount
+,description
+,referenceno
+,account
+,det
+,rep_p.user_
+,rep_p.documento
+,dateactual
+,datepayment
+,datecreated
+,isreceipt
+,detailreport
+,credit
+,orden
+,paymentmethod,organizacion_nombre
+,elaborado_por
+,revisado_por
+,autorizado_por ]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="typedocument" class="java.lang.String"/>
+	<field name="partner" class="java.lang.String"/>
+	<field name="date" class="java.lang.String"/>
+	<field name="amountletter" class="java.lang.String"/>
+	<field name="bank" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="referenceno" class="java.lang.String"/>
+	<field name="account" class="java.lang.String"/>
+	<field name="det" class="java.lang.String"/>
+	<field name="debit" class="java.math.BigDecimal"/>
+	<field name="credit" class="java.math.BigDecimal"/>
+	<field name="user" class="java.lang.String"/>
+	<field name="documento" class="java.lang.String"/>
+	<field name="dateactual" class="java.lang.String"/>
+	<field name="datepayment" class="java.lang.String"/>
+	<field name="datecreated" class="java.lang.String"/>
+	<field name="isreceipt" class="java.lang.String"/>
+	<field name="detailreport" class="java.lang.String"/>
+	<field name="orden" class="java.lang.Integer"/>
+	<field name="paymentmethod" class="java.lang.String"/>
+	<field name="organizacion_nombre" class="java.lang.String"/>
+	<field name="elaborado_por" class="java.lang.String"/>
+	<field name="revisado_por" class="java.lang.String"/>
+	<field name="autorizado_por" class="java.lang.String"/>
+	<variable name="tot_credito" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{credit}]]></variableExpression>
+	</variable>
+	<variable name="tot_debito" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{debit}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="185" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="100" width="97" height="12"/>
+				<box rightPadding="4"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[A LA ORDEN DE: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="114" width="97" height="12"/>
+				<box rightPadding="4"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[LA CANTIDAD DE: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="128" width="97" height="12"/>
+				<box rightPadding="4"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[BANCO: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="142" width="97" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CONCEPTO: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="389" y="100" width="91" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FECHA: ]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="99" y="98" width="290" height="12"/>
+				<textElement>
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="99" y="114" width="290" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{amountletter}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="99" y="128" width="290" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bank}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="154" width="572" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{description}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="389" y="128" width="91" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[US $: ]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="480" y="128" width="93" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="480" y="100" width="92" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isUnderline="false" isStrikeThrough="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{date}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="5" y="61" width="365" height="20" forecolor="#010101"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{typedocument}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="207" height="41"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+			<textField>
+				<reportElement x="5" y="41" width="365" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacion_nombre}.toUpperCase()]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="389" y="114" width="91" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[N° REFERENCIA: ]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="480" y="114" width="93" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{referenceno}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="391" y="142" width="89" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FORMA DE PAGO: ]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="480" y="142" width="92" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{paymentmethod}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement positionType="Float" x="0" y="6" width="92" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CUENTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="92" y="6" width="28" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CC]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="120" y="6" width="268" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DETALLE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="389" y="6" width="91" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DEBITO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="480" y="6" width="90" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CREDITO]]></text>
+			</staticText>
+			<line>
+				<reportElement positionType="Float" x="0" y="18" width="572" height="1"/>
+			</line>
+			<line>
+				<reportElement positionType="Float" x="0" y="4" width="572" height="1"/>
+			</line>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="92" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{account}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="120" y="0" width="268" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{det}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="389" y="0" width="91" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{debit}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="480" y="0" width="90" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{credit}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="85" splitType="Stretch">
+			<textField>
+				<reportElement x="232" y="65" width="24" height="12"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="266" y="65" width="24" height="12"/>
+				<textElement textAlignment="Left"/>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<line direction="BottomUp">
+				<reportElement x="256" y="65" width="10" height="12"/>
+			</line>
+			<staticText>
+				<reportElement x="132" y="65" width="100" height="12"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[PAGINA]]></text>
+			</staticText>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="320" splitType="Prevent">
+			<line>
+				<reportElement x="0" y="6" width="572" height="1"/>
+			</line>
+			<rectangle>
+				<reportElement positionType="Float" x="0" y="25" width="572" height="30" forecolor="#FFFFFF"/>
+			</rectangle>
+			<subreport>
+				<reportElement positionType="Float" x="-2" y="25" width="572" height="15">
+					<printWhenExpression><![CDATA[$F{detailreport}.equals("Y")]]></printWhenExpression>
+				</reportElement>
+				<subreportParameter name="fin_payment_id">
+					<subreportParameterExpression><![CDATA[$P{DOCUMENT_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$P{BASE_DESIGN} + "/ec/com/sidesoft/custom/reports/ad_reports/estandar/finances/PayablesOut_Voucher_Detail.jasper"]]></subreportExpression>
+			</subreport>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="480" y="7" width="90" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_credito}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="389" y="7" width="91" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_debito}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement positionType="Float" x="298" y="7" width="91" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL]]></text>
+			</staticText>
+			<subreport>
+				<reportElement positionType="Float" stretchType="RelativeToBandHeight" x="0" y="77" width="573" height="19"/>
+				<subreportParameter name="DOCUMENT_ID">
+					<subreportParameterExpression><![CDATA[$P{DOCUMENT_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$P{BASE_DESIGN} + "/ec/com/sidesoft/custom/reports/ad_reports/estandar/finances/PayablesOut_Voucher_budget.jasper"]]></subreportExpression>
+			</subreport>
+			<textField>
+				<reportElement positionType="Float" x="388" y="200" width="161" height="38">
+					<printWhenExpression><![CDATA[!$F{autorizado_por}.equals("SF")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{autorizado_por}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement positionType="Float" x="30" y="200" width="161" height="38">
+					<printWhenExpression><![CDATA[!$F{elaborado_por}.equals("SF")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{elaborado_por}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement positionType="Float" x="209" y="200" width="161" height="38">
+					<printWhenExpression><![CDATA[!$F{revisado_por}.equals("SF")]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{revisado_por}]]></textFieldExpression>
+			</textField>
+			<rectangle>
+				<reportElement positionType="Float" x="-2" y="167" width="572" height="30" forecolor="#FFFFFF"/>
+			</rectangle>
+		</band>
+	</summary>
+</jasperReport>

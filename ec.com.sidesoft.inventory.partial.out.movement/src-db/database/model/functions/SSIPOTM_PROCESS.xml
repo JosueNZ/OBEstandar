@@ -1,0 +1,279 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSIPOTM_PROCESS">
+    <function name="SSIPOTM_PROCESS" type="VARCHAR">
+      <parameter name="vrecordid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vInOutID VARCHAR2(32);
+	vInvoiceID VARCHAR2(32);
+	vInoutDocumentno VARCHAR2(60);
+	vInvoiceDocumentno VARCHAR2(60);
+	vTaxID VARCHAR2(60);
+	vBPartnerLocationID VARCHAR2(32);
+	vBPartnerCurrencyID VARCHAR2(32);
+	vLocatorID VARCHAR2(32);
+	vUserID VARCHAR2(32);
+	vSalerRepID VARCHAR2(32);
+	vLine NUMBER:=0;
+	vValidModule NUMBER:=0;
+	v_Stock NUMBER:=0;
+	v_StockCurrent NUMBER:=0;
+	v_StockMvn NUMBER:=0;
+	v_qty NUMBER:=0;
+	
+	--  Parameter
+	TYPE RECORD IS REF CURSOR;
+	vRecord RECORD;
+	vConfig RECORD;
+	Cur_InoutLines RECORD;
+	Cur_Lines RECORD;
+	Cur_InvoiceLines RECORD;
+	Cur_Stock RECORD;
+	Cur_AttributeProduct RECORD;
+
+BEGIN
+	BEGIN
+		SELECT * INTO vConfig FROM ssipotm_config WHERE isactive='Y' LIMIT 1;
+
+		-- Valida si existe una configuracion 
+		IF vConfig.ssipotm_config_id IS NULL THEN
+			RAISE_APPLICATION_ERROR(-20000, '@Ssipotm_NoConfigAvailable@');
+		END IF;
+		
+		SELECT * INTO vRecord FROM ssipotm_partial_dispatch WHERE ssipotm_partial_dispatch_id=vRecordID;
+		SELECT c_bpartner_location_id INTO vBPartnerLocationID FROM c_bpartner_location
+		WHERE c_bpartner_id=vRecord.c_bpartner_id AND isactive='Y' AND isbillto='Y';
+		SELECT bp_currency_id,taxid  INTO vBPartnerCurrencyID,vTaxID FROM c_bpartner
+		WHERE c_bpartner_id=vRecord.c_bpartner_id;
+
+		-- Valida si se selecciono un almacen 
+		IF vRecord.m_locator_id IS NULL THEN
+			SELECT m_locator_id INTO vLocatorID FROM m_locator WHERE m_warehouse_id = vRecord.m_warehouse_id LIMIT 1;
+		ELSE
+			vLocatorID := vRecord.m_locator_id;
+		END IF;
+
+		vInOutID := get_uuid();
+		SELECT ad_sequence_doctype(vConfig.inout_doctype_id, vConfig.ad_client_id, 'Y') INTO vInoutDocumentno;
+		
+		-- Crea un Albaran (Cliente) en estado borrador  
+		INSERT INTO m_inout (
+			m_inout_id,ad_client_id,ad_org_id,created
+			,createdby,updated,updatedby,isactive
+			,issotrx,c_doctype_id,documentno,m_warehouse_id
+			,c_bpartner_id,c_bpartner_location_id,movementdate
+			,dateacct,docaction,docstatus,deliveryrule
+			,freightcostrule,deliveryviarule,priorityrule,processing
+			,createfrom,generateto,process_goods_java
+			,calculate_freight,rm_receipt_pickedit,rm_shipment_pickedit
+		) VALUES (
+			vInOutID,vRecord.ad_client_id,vRecord.ad_org_id,now()
+			,vRecord.createdby,now(),vRecord.updatedby,vRecord.isactive
+			,'Y',vConfig.inout_doctype_id,vInoutDocumentno,vRecord.m_warehouse_id
+			,vRecord.c_bpartner_id,vBPartnerLocationID,now()
+			,now(),'CO','DR','A'
+			,'I','P',5,'N','N','N','CO','N','N','N'
+		);
+		
+		--Obtenemos el stock del producto
+		FOR Cur_Lines IN (
+
+			SELECT m_product_id
+			FROM ssipotm_orderline 
+			WHERE ssipotm_partial_dispatch_id=vRecordID
+               AND coalesce(suggesteddelivery,0) > 0 
+			GROUP BY m_product_id
+
+		) LOOP
+
+			FOR Cur_AttributeProduct IN (
+
+				SELECT SUM(sd.qtyonhand) AS stock , a.m_attributesetinstance_id, c_uom_id
+				FROM m_storage_detail AS sd
+				JOIN m_locator AS l ON l.m_locator_id=sd.m_locator_id
+				JOIN m_attributesetinstance AS a ON a.m_attributesetinstance_id=sd.m_attributesetinstance_id
+				WHERE
+				sd.m_product_id=Cur_Lines.m_product_id
+				AND sd.qtyonhand>0 
+				AND l.m_warehouse_id=vRecord.m_warehouse_id
+				/*AND CASE
+					WHEN vLoop.m_locator_id IS NOT NULL THEN sd.m_locator_id=vLoop.m_locator_id
+					ELSE TRUE
+				END*/
+				GROUP BY a.m_attributesetinstance_id,c_uom_id
+				ORDER BY a.created
+
+			) LOOP
+				SELECT coalesce(max(line),0)+10  INTO vLine FROM ssipotm_attribute_product where ssipotm_partial_dispatch_id=vRecordID;
+				INSERT INTO ssipotm_attribute_product(
+							ssipotm_attribute_product_id, ad_client_id, ad_org_id, 
+							createdby, updatedby, ssipotm_partial_dispatch_id, 
+							m_product_id, c_uom_id, m_locator_id, m_attributesetinstance_id, 
+							stock,line)
+				VALUES (get_uuid(),vRecord.ad_client_id,vRecord.ad_org_id,vRecord.createdby
+				,vRecord.updatedby,vRecordID,Cur_Lines.m_product_id,Cur_AttributeProduct.c_uom_id
+				,vLocatorID,Cur_AttributeProduct.m_attributesetinstance_id,Cur_AttributeProduct.stock,vLine);
+
+			END LOOP;
+
+	  	END LOOP;
+
+		FOR Cur_InoutLines IN (
+
+			SELECT * 
+			FROM ssipotm_orderline 
+			WHERE ssipotm_partial_dispatch_id=vRecordID
+               AND coalesce(suggesteddelivery,0) > 0 
+			ORDER BY dateordered,c_order_id
+
+		) LOOP
+
+			SELECT salesrep_id, ad_user_id INTO vSalerRepID,vUserID FROM c_order where c_order_id=Cur_InoutLines.c_order_id;
+			v_Stock := Cur_InoutLines.suggesteddelivery;
+			v_StockCurrent := Cur_InoutLines.suggesteddelivery;
+			--Generamos las lineas necesarias por la cantidad disponible
+			LOOP
+			EXIT WHEN v_Stock = 0;
+				SELECT coalesce(max(line),0)+10  INTO vLine FROM m_inoutline where m_inout_id=vInOutID;
+
+				SELECT coalesce(sum(movementqty),0) 
+				INTO v_StockMvn
+				FROM m_inoutline WHERE m_inout_id = vInOutID 
+				AND c_orderline_id = Cur_InoutLines.c_orderline_id;
+
+				--Obtenemos el stock del producto
+				SELECT stock , m_attributesetinstance_id
+				INTO Cur_Stock
+				FROM ssipotm_attribute_product 
+				WHERE
+				m_product_id = Cur_InoutLines.m_product_id
+				AND ssipotm_partial_dispatch_id = vRecordID
+				AND stock > 0
+				ORDER BY line LIMIT 1;
+				v_qty := v_Stock;
+				IF v_Stock < Cur_Stock.stock THEN
+				 v_qty := v_Stock;	
+				END IF;
+
+				IF Cur_Stock.stock < v_Stock THEN
+				 v_qty := Cur_Stock.stock;
+				END IF;
+			
+				-- Crea la linea del Albaran (Cliente)  
+				INSERT INTO m_inoutline (
+				m_inoutline_id, ad_client_id, ad_org_id, created, createdby, 
+				updated, updatedby, line, m_inout_id, c_orderline_id, 
+				m_locator_id, m_product_id, c_uom_id, movementqty, 
+				m_attributesetinstance_id, c_bpartner_id
+				) VALUES (
+				get_uuid(),vRecord.ad_client_id,vRecord.ad_org_id,now(),vRecord.createdby
+				,now(),vRecord.updatedby,vLine,vInOutID,Cur_InoutLines.c_orderline_id
+				,vLocatorID,Cur_InoutLines.m_product_id,Cur_InoutLines.c_uom_id,v_qty
+				,Cur_Stock.m_attributesetinstance_id,Cur_InoutLines.c_bpartner_id
+				);
+				
+				v_Stock := v_StockCurrent - (v_StockMvn + v_qty) ;
+
+				UPDATE ssipotm_attribute_product SET stock = stock - v_qty
+				WHERE ssipotm_partial_dispatch_id=vRecordID
+				AND m_product_id = Cur_InoutLines.m_product_id
+				AND m_attributesetinstance_id = Cur_Stock.m_attributesetinstance_id;
+
+			END LOOP;
+
+	  	END LOOP;
+
+		vInvoiceID := get_uuid();
+		SELECT ad_sequence_doctype(vConfig.invoice_doctype_id, vConfig.ad_client_id, 'Y') INTO vInvoiceDocumentno;
+
+		-- Crea la Factura (Cliente) en estado borrador  
+		INSERT INTO c_invoice(
+			c_invoice_id, ad_client_id, ad_org_id, created, createdby
+			, updated, updatedby, issotrx, documentno, docstatus, docaction
+			, processing,   c_doctype_id, c_doctypetarget_id 
+			, dateinvoiced, dateacct, c_bpartner_id, c_bpartner_location_id
+			, c_currency_id, paymentrule, c_paymentterm_id  -- ,totallines, grandtotal, 
+			, m_pricelist_id, createfrom, generateto, copyfrom, isselfservice
+			, fin_paymentmethod_id, calculate_promotions, em_aprm_processinvoice)
+    	VALUES (
+			vInvoiceID,vRecord.ad_client_id,vRecord.ad_org_id,now(),vRecord.createdby
+			, now(),vRecord.updatedby, 'Y', vInvoiceDocumentno,'DR', 'CO'
+			, 'N', '0', vConfig.invoice_doctype_id ,now(), now(), vRecord.c_bpartner_id, vBPartnerLocationID
+			, vBPartnerCurrencyID, 'P', vConfig.c_paymentterm_id
+			, vConfig.m_pricelist_id,'N', 'N', 'N', 'N'
+			, vConfig.fin_paymentmethod_id, 'N', 'CO'
+		);
+
+		FOR Cur_InvoiceLines IN (
+
+			SELECT * 
+			FROM m_inoutline il
+			JOIN  c_orderline ol on ol.c_orderline_id=il.c_orderline_id
+			WHERE m_inout_id=vInOutID
+			ORDER BY il.line
+
+		) LOOP
+
+			SELECT coalesce(max(line),0)+10  INTO vLine FROM c_invoiceline where c_invoice_id=vInvoiceID;
+			-- Crea la linea de la Factura (Cliente)  
+			INSERT INTO c_invoiceline(
+						c_invoiceline_id, ad_client_id, ad_org_id, created, createdby
+						, updated, updatedby, c_invoice_id, c_orderline_id, 
+						m_inoutline_id, line,   
+						m_product_id, qtyinvoiced, pricelist, priceactual, pricelimit, 
+						linenetamt,  c_uom_id, c_tax_id,  
+						taxamt, m_attributesetinstance_id,  --quantityorder, 
+						pricestd, excludeforwithholding 
+						, c_bpartner_id, match_lccosts, taxbaseamt
+						, gross_unit_price, line_gross_amount
+						, C_Project_ID, A_Asset_ID
+						, C_Costcenter_ID, User1_ID, User2_ID
+						-- em_sprli_identifier, 
+						)
+				VALUES (
+					get_uuid(),vRecord.ad_client_id,vRecord.ad_org_id,now(),vRecord.createdby
+					, now(),vRecord.updatedby,vInvoiceID,Cur_InvoiceLines.c_orderline_id
+					, Cur_InvoiceLines.m_inoutline_id, vLine
+					, Cur_InvoiceLines.m_product_id, Cur_InvoiceLines.movementqty
+					, Cur_InvoiceLines.pricelist , Cur_InvoiceLines.priceactual , Cur_InvoiceLines.pricelimit
+					, C_Currency_Round(Cur_InvoiceLines.movementqty*Cur_InvoiceLines.PriceActual, vBPartnerCurrencyID, NULL)
+					, Cur_InvoiceLines.c_uom_id, Cur_InvoiceLines.c_tax_id
+					, 0, Cur_InvoiceLines.m_attributesetinstance_id, Cur_InvoiceLines.pricestd , 'N'
+					, vRecord.c_bpartner_id, 'N'
+					, C_Currency_Round(Cur_InvoiceLines.movementqty*Cur_InvoiceLines.PriceActual, vBPartnerCurrencyID, NULL)
+					, Cur_InvoiceLines.gross_unit_price
+					, C_Currency_Round(Cur_InvoiceLines.movementqty*Cur_InvoiceLines.gross_unit_price, vBPartnerCurrencyID, NULL)
+					, Cur_InvoiceLines.C_Project_ID, Cur_InvoiceLines.A_Asset_ID
+					, Cur_InvoiceLines.C_Costcenter_ID, Cur_InvoiceLines.User1_ID, Cur_InvoiceLines.User2_ID
+					);
+
+	  	END LOOP;
+
+		-- Actualizamos los valores de la cabecera al procesar
+		UPDATE ssipotm_partial_dispatch
+		SET process='Y', docstatus='P', m_inout_id=vInOutID, c_invoice_id=vInvoiceID
+		WHERE ssipotm_partial_dispatch_id=vRecordID;
+
+		-- Eliminamos las lineas temporales
+		DELETE FROM ssipotm_attribute_product
+		WHERE ssipotm_partial_dispatch_id=vRecordID;
+
+		-- Actualizamos los valores del usuario, representante de ventas
+		UPDATE m_inout
+		SET ad_user_id=vUserID, salesrep_id=vSalerRepID
+		WHERE m_inout_id=vInOutID;
+		
+		-- Actualizamos los valores de los impuestos en la linea de la factura
+		UPDATE c_invoiceline
+		SET taxamt = coalesce(c_getinvoiceline_taxamount(c_invoiceline_id),0)
+		WHERE c_invoice_id=vInvoiceID
+		AND coalesce(taxamt,0) <>  coalesce(c_getinvoiceline_taxamount(c_invoiceline_id),0);
+
+		RETURN 'OK';
+	END;
+	EXCEPTION WHEN OTHERS THEN
+	RETURN SQLERRM;
+END SSIPOTM_PROCESS
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GETLASTPURCHASERATE">
+    <function name="SESCR_GETLASTPURCHASERATE" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+	Cur_Parameter RECORD;
+BEGIN
+      FOR Cur_Parameter IN(
+         SELECT pricelist FROM m_productprice mp
+         LEFT JOIN m_pricelist_version lv ON mp.m_pricelist_version_id = lv.m_pricelist_version_id
+         LEFT JOIN m_pricelist ml ON lv.m_pricelist_id = ml.m_pricelist_id
+         WHERE mp.m_product_id = p_product_id AND ml.issopricelist = 'N' AND ml.isactive='Y'
+         ORDER BY mp.created DESC
+      )
+      LOOP
+	RETURN Cur_Parameter.pricelist;
+      END LOOP;
+      return NULL;
+END SESCR_GETLASTPURCHASERATE
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SFIAC_DEPOSITVERIFIED_TRG">
+    <trigger name="SFIAC_DEPOSITVERIFIED_TRG" table="FIN_FINACC_TRANSACTION" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+v_isdeposit         VARCHAR2(60);
+v_deposit           VARCHAR2(60);
+v_documentno        VARCHAR2(60);
+v_documentno_new    VARCHAR2(60);
+v_documentno_exist  VARCHAR2(60);
+v_Rdbms             VARCHAR2(32) := '';
+v_Disable           VARCHAR2(300):= '';
+v_Enable            VARCHAR2(300):= '';
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+
+  IF(INSERTING) THEN
+
+    SELECT em_sfiac_isdeposit, COALESCE(em_sfiac_deposit,'ND')
+    INTO v_isdeposit, v_deposit 
+    FROM fin_financial_account
+    WHERE fin_financial_account_id = :NEW.fin_financial_account_id;  
+
+    IF(v_isdeposit = 'Y' )  THEN
+
+      /* NUMERO DE DOCUMENTO DEL COBRO */
+      SELECT documentno
+      INTO v_documentno
+      FROM fin_payment
+      WHERE fin_financial_account_id = :NEW.fin_financial_account_id
+      AND fin_payment_id = :NEW.fin_payment_id;           
+
+      v_documentno_new := v_documentno || ' / ' || v_deposit;
+
+      SELECT COALESCE( TO_CHAR((SELECT documentno FROM fin_payment WHERE documentno = v_documentno_new)), TO_CHAR('ND') )      
+      INTO v_documentno_exist
+      FROM DUAL;
+
+      -- NO EXISTEN COBROS CON EL CHEQUE Y NUMERO DE DEPOSITO
+      IF(v_documentno_exist = 'ND')THEN
+
+        SELECT COALESCE( (Select ad_get_rdbms() from DUAL), 'ND')
+        INTO v_Rdbms 
+        FROM DUAL;    
+
+        IF(v_Rdbms = 'POSTGRE')Then
+          v_Disable := 'ALTER TABLE fin_payment DISABLE TRIGGER aprm_fin_pmt_check_trg';
+          v_Enable := 'ALTER TABLE fin_payment ENABLE TRIGGER aprm_fin_pmt_check_trg;';
+        ELSE
+          v_Disable := 'ALTER TRIGGER aprm_fin_pmt_check_trg DISABLE';    
+          v_Enable := 'ALTER TRIGGER aprm_fin_pmt_check_trg ENABLE';   
+        END IF;   
+
+        EXECUTE IMMEDIATE v_Disable;
+        UPDATE fin_payment SET documentno = v_documentno_new WHERE fin_payment_id = :NEW.fin_payment_id;
+        --UPDATE fin_financial_account SET em_sfiac_isdeposit = 'N', em_sfiac_deposit = NULL WHERE fin_financial_account_id = NEW.fin_financial_account_id;  
+        EXECUTE IMMEDIATE v_Enable;             
+
+      ELSE
+        RAISE_APPLICATION_ERROR(-20000, '@Sfiac_DepositExist@') ;
+      END IF;   
+
+    END IF;
+
+  END IF;    
+
+END SFIAC_DEPOSITVERIFIED_TRG
+]]></body>
+    </trigger>
+  </database>

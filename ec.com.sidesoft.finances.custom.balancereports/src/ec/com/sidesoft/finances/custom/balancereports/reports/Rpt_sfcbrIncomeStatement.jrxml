@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report1" pageWidth="595" pageHeight="425" columnWidth="595" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="ae1d3f39-28f8-4900-93fe-2621095f8ca3">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.columns" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.wrap.text" value="false"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.white.page.background" value="false"/>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/opt/Ambientes/TexticomJulio/modules/ec.com.sidesoft.finances.custom.balancereports/src"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATEfROM" class="java.util.Date"/>
+	<parameter name="DATETO" class="java.util.Date"/>
+	<parameter name="AD_USER_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["100"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String">
+		<defaultValueExpression><![CDATA[""]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_ORG_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["0"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_COSTCENTER_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="USER1_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="p_amount" class="java.lang.String">
+		<parameterDescription><![CDATA[]]></parameterDescription>
+		<defaultValueExpression><![CDATA["0"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+(case when typeheader = '2' then '' else  name end )as name
+,rep_sequence
+,rep_sql
+,ad_org_id
+,fecha
+,sql_account
+,typeheader
+from
+(
+select
+name
+,rep_sequence
+,REPLACE(replace(replace(replace(replace(replace(rep_sql,':p_df',to_char(date($P{DATEfROM}),'dd/MM/yyyy')),':p_dt',to_char(date($P{DATETO}),'dd/MM/yyyy')),':p_account',coalesce(sql_account,'')),':p_adorg',$P{AD_ORG_ID}),':pccenter', (case when $P{C_COSTCENTER_ID} IS NULL THEN 'NULL' ELSE ('''' ||$P{C_COSTCENTER_ID} || '''') END) ),':puser1', (case when $P{USER1_ID} IS NULL THEN 'NULL' ELSE ('''' || $P{USER1_ID} || '''') END)) as  rep_sql
+, ad_org_id
+, to_char(NOW(),'dd/MM/yyyy') as fecha
+,sql_account
+, typeheader
+ from sfcbr_inc_statmnt_script
+where  isactive= 'Y'
+and rep_group not in ('SUMA1','SUMA2','SUMA3','SUMA4','SUMA5','SUMA6','SUMA7','SUMA8','SUMA9','SUMA10','ADD1','ADD2','ADD3','ADD4')
+
+union all
+
+select
+
+name
+,rep_sequence
+,REPLACE(
+REPLACE(replace( replace(replace(rep_sql
+,':p_group1',(replace(replace(replace(sfcbr_get_sqlgroup(sql_account),':p_df',to_char(date($P{DATEfROM}),'dd/MM/yyyy')),':p_dt',to_char(date($P{DATETO}),'dd/MM/yyyy')),':p_account',coalesce(sql_account,'')) )
+),':p_adorg',$P{AD_ORG_ID})
+,':pccenter', (case when $P{C_COSTCENTER_ID} IS NULL THEN 'NULL' ELSE ('''' ||$P{C_COSTCENTER_ID} || '''') END) ),':puser1', (case when $P{USER1_ID} IS NULL THEN 'NULL' ELSE ('''' || $P{USER1_ID} || '''') END))
+,':p_amount',to_char(to_number($P{p_amount})*-1) )
+ as  rep_sql
+, ad_org_id
+, to_char(NOW(),'dd/MM/yyyy') as fecha
+,sql_account
+,typeheader
+from sfcbr_inc_statmnt_script
+where  isactive= 'Y'
+and rep_group in ('SUMA1','SUMA2','SUMA3','SUMA4','SUMA5','SUMA6','SUMA7','SUMA8','SUMA9','SUMA10')
+
+union all
+
+select
+
+name
+,rep_sequence
+,replace(rep_sql,':p_amount',to_char(to_number($P{p_amount})*-1) ) as  rep_sql
+, ad_org_id
+, to_char(NOW(),'dd/MM/yyyy') as fecha
+,sql_account
+,typeheader
+from sfcbr_inc_statmnt_script
+where  isactive= 'Y'
+and rep_group in ('ADD1','ADD2','ADD3','ADD4')
+) rep
+--where rep_sequence=15
+ORDER BY rep_sequence ASC]]>
+	</queryString>
+	<field name="name" class="java.lang.String"/>
+	<field name="rep_sequence" class="java.math.BigDecimal"/>
+	<field name="rep_sql" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="fecha" class="java.lang.String"/>
+	<field name="sql_account" class="java.lang.String"/>
+	<field name="typeheader" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<subreport>
+				<reportElement x="0" y="0" width="555" height="21" uuid="239d1232-3add-4b00-a5cd-1cae21f36bf3"/>
+				<subreportParameter name="p_sql">
+					<subreportParameterExpression><![CDATA[$F{rep_sql}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{BASE_DESIGN}+ "/ec/com/sidesoft/finances/custom/balancereports/reports/Rpt_sfcbrIncomeStatementLines.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

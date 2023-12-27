@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptc_ProviderTransfer" pageWidth="1273" pageHeight="1027" orientation="Landscape" columnWidth="1233" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="54919f4a-249d-42e4-a398-bf818ab0d5aa">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATEFROM" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATETO" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_DOCTYPE_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT NOW() AS DATEPROCESS,FIN_PAYMENT.PAYMENTDATE,
+          (
+            SELECT COUNT(FIN_PAYMENT.C_BPARTNER_ID)
+            FROM FIN_PAYMENT
+            LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+            LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+            WHERE (to_date(FIN_PAYMENT.PAYMENTDATE) BETWEEN $P{DATEFROM} AND $P{DATETO})
+            AND FIN_PAYMENT.C_DOCTYPE_ID = $P{C_DOCTYPE_ID}
+            AND  FIN_PAYMENT.ISRECEIPT='N'
+          ) AS NUMBEREMPLOYEE,
+          to_char('1') AS CONSTANTE1,
+          (
+            SELECT SUM(ROUND(FIN_PAYMENT.AMOUNT,2))
+            FROM FIN_PAYMENT
+            LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+            LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+            WHERE (to_date(FIN_PAYMENT.PAYMENTDATE) BETWEEN $P{DATEFROM} AND $P{DATETO})
+            AND FIN_PAYMENT.C_DOCTYPE_ID = $P{C_DOCTYPE_ID}
+            AND FIN_PAYMENT.ISRECEIPT='N'
+          ) AS TOTALNETEMPLOYEE,
+          '0' AS CONSTANTE2,
+          '01310086' AS CONSTANTE3,
+          '01310086' AS CONSTANTE4,
+          AD_ORG.NAME AS RAZONSOCIAL, C_LOCATION.CITY  AS CITY,
+          (
+            SELECT C_PERIOD.PERIODNO||'/'||C_YEAR.YEAR
+            FROM C_PERIOD
+            LEFT JOIN C_YEAR ON C_YEAR.C_YEAR_ID = C_PERIOD.C_YEAR_ID
+            WHERE TO_DATE($P{DATEFROM}) BETWEEN C_PERIOD.STARTDATE AND C_PERIOD.ENDDATE
+          ) AS PERIOD,
+          ROUND(FIN_PAYMENT.AMOUNT,2) AS TOTALNET,
+          SSPR_CATEGORY_ACCT.VALUE AS CODCATEGORYACCT,
+          SSFI_BANKTRANSFER.CODE AS BANKCODE,
+          C_BP_BANKACCOUNT.ACCOUNTNO,
+          (
+            CASE WHEN C_BP_BANKACCOUNT.BANKACCOUNTTYPE = 'S' THEN '02'
+            WHEN C_BP_BANKACCOUNT.BANKACCOUNTTYPE = 'C' THEN '01'
+            END
+          ) AS BANKACCOUNTTYPE,
+          C_BPARTNER.NAME AS EMPLOYEE,
+          C_BPARTNER.DESCRIPTION AS FLEETCODE,
+          C_DOCTYPE.NAME AS DESCRIPTION,
+          COALESCE(C_BP_BANKACCOUNT.EM_SSWH_TAXIDNO,  C_BPARTNER.TAXID) AS CI,
+          SFB_Budget_Item.NAME AS PARTIDAPRESUPUESTARIA,
+	SUBSTR(SFB_Budget_Item.NAME,1,5)AS NOMBREPARTIDA
+        FROM FIN_PAYMENT
+        LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+        LEFT JOIN AD_ORG ON AD_ORG.AD_ORG_ID = FIN_PAYMENT.AD_ORG_ID
+        LEFT JOIN AD_ORGINFO ON AD_ORGINFO.AD_ORG_ID = FIN_PAYMENT.AD_ORG_ID
+        LEFT JOIN C_LOCATION ON C_LOCATION.C_LOCATION_ID = AD_ORGINFO.C_LOCATION_ID
+        LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+        LEFT JOIN C_DOCTYPE ON C_DOCTYPE.C_DOCTYPE_ID = FIN_PAYMENT.C_DOCTYPE_ID
+        LEFT JOIN C_BP_BANKACCOUNT ON C_BP_BANKACCOUNT.C_BP_BANKACCOUNT_ID = FIN_PAYMENT.EM_SSWH_BP_BANKACCOUNT_ID
+        LEFT JOIN SSFI_BANKTRANSFER ON SSFI_BANKTRANSFER.SSFI_BANKTRANSFER_ID = C_BP_BANKACCOUNT.EM_SSFI_BANKTRANSFER_ID
+LEFT JOIN ssfi_fin_payment_detail_v ON FIN_PAYMENT.FIN_PAYMENT_ID = ssfi_fin_payment_detail_v.FIN_PAYMENT_ID
+        LEFT JOIN C_INVOICE ON ssfi_fin_payment_detail_v.fin_payment_SCHED_INV_ID = C_INVOICE.C_INVOICE_ID
+        LEFT JOIN C_INVOICELINE ON C_INVOICE.C_INVOICE_ID = C_INVOICELINE.C_INVOICE_ID and C_INVOICELINE.line = 10
+        LEFT JOIN SFB_BUDGET_CERT_LINE ON C_INVOICELINE.EM_SFB_BUDGET_CERT_LINE_ID = SFB_BUDGET_CERT_LINE.SFB_BUDGET_CERT_LINE_ID
+        LEFT JOIN SFB_Budget_Item ON SFB_BUDGET_CERT_LINE.SFB_Budget_Item_ID = SFB_Budget_Item.SFB_Budget_Item_ID
+        WHERE
+(to_date(to_char(FIN_PAYMENT.PAYMENTDATE),'dd/MM/yyyy') BETWEEN $P{DATEFROM} and  $P{DATETO}) AND
+ FIN_PAYMENT.C_DOCTYPE_ID = $P{C_DOCTYPE_ID}
+        AND FIN_PAYMENT.ISRECEIPT='N'
+GROUP BY FIN_PAYMENT.AMOUNT, FIN_PAYMENT.C_DOCTYPE_ID,FIN_PAYMENT.PAYMENTDATE,
+ad_org.name,C_LOCATION.CITY,SSPR_CATEGORY_ACCT.VALUE ,
+          SSFI_BANKTRANSFER.CODE ,C_BP_BANKACCOUNT.BANKACCOUNTTYPE,C_BPARTNER.NAME , C_BPARTNER.DESCRIPTION ,
+          C_DOCTYPE.NAME, C_BP_BANKACCOUNT.ACCOUNTNO,C_BP_BANKACCOUNT.EM_SSWH_TAXIDNO,C_BPARTNER.TAXID, SFB_Budget_Item.NAME
+        ORDER BY C_BPARTNER.NAME]]>
+	</queryString>
+	<field name="dateprocess" class="java.sql.Timestamp"/>
+	<field name="paymentdate" class="java.sql.Timestamp"/>
+	<field name="numberemployee" class="java.lang.Long"/>
+	<field name="constante1" class="java.lang.String"/>
+	<field name="totalnetemployee" class="java.math.BigDecimal"/>
+	<field name="constante2" class="java.lang.String"/>
+	<field name="constante3" class="java.lang.String"/>
+	<field name="constante4" class="java.lang.String"/>
+	<field name="razonsocial" class="java.lang.String"/>
+	<field name="city" class="java.lang.String"/>
+	<field name="period" class="java.lang.String"/>
+	<field name="totalnet" class="java.math.BigDecimal"/>
+	<field name="codcategoryacct" class="java.lang.String"/>
+	<field name="bankcode" class="java.lang.String"/>
+	<field name="accountno" class="java.lang.String"/>
+	<field name="bankaccounttype" class="java.lang.String"/>
+	<field name="employee" class="java.lang.String"/>
+	<field name="fleetcode" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="partidapresupuestaria" class="java.lang.String"/>
+	<field name="nombrepartida" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="181" height="20" uuid="c5224669-04b4-486e-bd40-c76b72b31618"/>
+				<textElement>
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DETALLE PAGOS]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="28" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="100" height="20" uuid="00339b09-f562-4cca-a2fd-32d1d28073e9"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CI/RUC]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="100" y="0" width="72" height="20" uuid="6567a80e-6090-46a9-a748-476e5339a36f"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[REFERENCIA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="172" y="0" width="301" height="20" uuid="20112285-3cc7-4366-b2e0-4aac049671e2"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[NOMBRE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="473" y="0" width="131" height="20" uuid="12a92fc2-cf64-4a65-85d6-10f1a06bd4e0"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[INST. FINANCIERA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="604" y="0" width="100" height="20" uuid="dcd99fef-5309-442a-8bd9-e85c87096160"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CUENTA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="704" y="0" width="100" height="20" uuid="58ac71fc-189c-44bd-a685-6f197c0d16ca"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TIPO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="804" y="0" width="100" height="20" uuid="f493f83a-aca0-42f9-b6a6-4196055cbf41"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="904" y="0" width="217" height="20" uuid="72e1cde8-4724-42ff-9e44-a16eb38b7a3b"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CONCEPTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1121" y="0" width="107" height="20" uuid="95f85d32-0f2b-42f5-a02b-1c71818e935d"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DETALLLE]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="100" y="0" width="72" height="20" uuid="4acf8912-5226-4795-9689-6fba4542490e"/>
+				<textFieldExpression><![CDATA[$F{constante1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="100" height="20" uuid="5c351899-c01b-4627-bba5-d6b1640a1f9e"/>
+				<textFieldExpression><![CDATA[$F{ci}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="172" y="0" width="301" height="20" uuid="2dfe33a2-d9e0-404b-9e23-f584fb84c204"/>
+				<textFieldExpression><![CDATA[$F{employee}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="473" y="0" width="131" height="20" uuid="0e68eb2a-f238-440f-b303-091084c90612"/>
+				<textFieldExpression><![CDATA[$F{bankcode}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="604" y="0" width="100" height="20" uuid="7e11a1ab-daf5-4d41-a6ef-f556096aff19"/>
+				<textFieldExpression><![CDATA[$F{accountno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="704" y="0" width="100" height="20" uuid="6bc8fe75-4357-4f77-8e85-a400a7960e4b"/>
+				<textFieldExpression><![CDATA[$F{bankaccounttype}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="804" y="0" width="100" height="20" uuid="5cf9adca-157f-43c1-81d9-673a8dafda6b"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{totalnet}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[ $P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1121" y="0" width="107" height="20" uuid="fde24682-5c8f-4f3f-b6b7-48978ca1e703"/>
+				<textFieldExpression><![CDATA[$F{nombrepartida}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="904" y="0" width="217" height="20" uuid="b4fa9669-8859-4d86-ab0b-2f86ca67e055"/>
+				<textFieldExpression><![CDATA[$F{partidapresupuestaria}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

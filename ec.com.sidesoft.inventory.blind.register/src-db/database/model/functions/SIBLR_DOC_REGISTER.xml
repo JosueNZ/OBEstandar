@@ -1,0 +1,547 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SIBLR_DOC_REGISTER">
+    <function name="SIBLR_DOC_REGISTER" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.process
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2013 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): Rodney Xavier Jácome Teran
+************************************************************************/
+  -- Logistice
+  v_Record_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32):='0';
+  v_ResultStr VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Message VARCHAR2(2000):='';
+  v_DocAction VARCHAR2(60);
+  v_DocStatus VARCHAR2(60);
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_m_locator_id VARCHAR2(32);
+  v_m_warehouse_id VARCHAR2(32);
+  v_flag VARCHAR2(32);
+  v_name_inv VARCHAR2(100);
+  v_description VARCHAR2(250);
+  v_documentno VARCHAR2(30);
+  v_movementdate DATE;
+  v_documenttype VARCHAR2(32);
+  v_my_alert VARCHAR2(32):='NDSAD';
+
+  v_NoInserted NUMBER:=0;
+  v_Contador_nuevo NUMBER:=0;
+  v_contador NUMBER:=0;
+  v_contarEntry NUMBER:=0;
+  v_resultErrors NUMBER:=0;
+  v_contarMInout NUMBER:=0;
+  v_contarMP NUMBER:=0;  
+
+  v_Qtycount NUMBER:=0;
+  v_LinesCount NUMBER:=0;
+  v_Real_Qtycount NUMBER:=0;
+
+  v_id_newinventory VARCHAR2(32):='ND';
+  v_physical_invtlines_id VARCHAR2(32);
+ v_org_c_costcenter_id VARCHAR2(32);
+  v_org_c_costcenter2_id VARCHAR2(32);
+
+  v_Sql VARCHAR(2000);
+
+  v_org_value VARCHAR2(30);
+  v_m_attributesetinstance_id VARCHAR2(32);
+  v_ContadorStorage NUMBER;
+
+v_countLinetmp NUMBER;
+  
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_Storage RECORD;
+    Cur_New_Storage RECORD;
+    Cur_Products_change RECORD;
+
+
+ 
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+  v_ResultStr:='PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, i.AD_Client_ID, i.AD_Org_ID,
+        p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo) LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_User_ID:=Cur_Parameter.AD_User_ID;
+      v_client_id := Cur_Parameter.AD_Client_ID;
+      v_org_id := Cur_Parameter.AD_Org_ID;
+    END LOOP; -- Get Parameter
+	/*********************************************************************************************************/
+
+    --BEGIN
+
+	/********** FIN Coge campos del registro***********/
+	SELECT AD_Org_ID,
+		AD_client_id, 
+		M_Locator_ID,
+		docstatus,
+		documentno, 
+		name, 
+		description, 
+		c_doctype_id, 
+		movementdate, 
+		m_warehouse_id,
+		c_costcenter_id
+	INTO v_Org_ID,--Organizacion
+		v_Client_ID,--Client
+		v_M_Locator_ID,--Hueco
+		v_DocStatus,--Estado doc
+		v_documentno,--Numero de documento
+		v_name_inv,--nombre del inventario
+		v_description, -- Descripcion
+		v_documenttype, --tipo de docuemto
+		v_movementdate, -- Fecha de movimiento
+		v_m_warehouse_id -- Almacen
+		,v_org_c_costcenter2_id -- Centro de Costos
+	FROM siblr_physical_inventory
+    WHERE siblr_physical_inventory_id= v_Record_ID;
+    
+    select value 
+    into v_org_value
+    from ad_org  
+    where ad_org_id  = v_Org_ID;
+
+    v_documentno := v_org_value || '-' || v_documentno;
+
+	/********** FIN Coge campos del registro***********/
+
+	v_LinesCount :=(SELECT COUNT(*) FROM siblr_physical_invtlines  where siblr_physical_inventory_id  =v_Record_ID);
+
+	IF (v_LinesCount > 0) THEN
+
+		/* *************************************** */	
+		/* INICIO REGISTRO INVENTARIO FISICO CIEGO */
+		/* *************************************** */
+		IF(v_DocStatus = 'DR') THEN
+
+			/*********************************************Colocar validación(Ticket #5574)*****************************************************/
+			SELECT COALESCE(COUNT(OBERR.OBPOS_Errors_id),0)
+				INTO v_contador
+			FROM OBPOS_Errors OBERR
+				INNER JOIN Obpos_Applications OBAPP on OBAPP.Obpos_Applications_ID = OBERR.Obpos_Applications_ID
+			WHERE OBERR.orderstatus = 'N'
+				--AND TO_DATE(TO_CHAR(OBERR.created,'YYYY-MM-DD'),'YYYY-MM-DD') = TO_DATE(TO_CHAR(TO_DATE(NOW()),'YYYY-MM-DD'),'YYYY-MM-DD')
+				AND OBAPP.ad_org_id =v_Org_ID;
+				
+			SELECT COALESCE((select count(*) from c_import_entry where UPPER(importstatus)=UPPER('Initial') and ad_org_id = v_Org_ID
+			--AND TO_DATE(TO_CHAR(created,'YYYY-MM-DD'),'YYYY-MM-DD') = TO_DATE(TO_CHAR(TO_DATE(NOW()),'YYYY-MM-DD'),'YYYY-MM-DD')
+			),0)
+			INTO v_contarEntry
+			FROM DUAL;
+
+			v_resultErrors:= COALESCE(v_contador,0) + COALESCE(v_contarEntry,0);
+    
+			IF(v_contador=0) THEN
+			/************************************************************************************************************************************/
+
+				v_Sql := 'SELECT siblr_differences_in_lines('''||v_Record_ID||''','''||v_M_Locator_ID||''') FROM DUAL';
+				
+				EXECUTE IMMEDIATE v_Sql;
+				
+				v_NoInserted:=(SELECT COUNT(*) FROM siblr_physical_invtlines WHERE siblr_physical_inventory_id = v_Record_ID AND difference = 'Y');
+
+				UPDATE	siblr_physical_inventory SET 
+					docstatus = 'REG',
+					new_docaction = 'PR'
+				WHERE siblr_physical_inventory_id= v_Record_ID;
+		
+				IF(v_NoInserted > 0)THEN
+					v_Message:='Se encontraron '||v_NoInserted||' productos con diferencias.';
+				ELSE
+					v_Message:='No se encontraron diferencias para esta transacción.';
+				END IF;
+
+			/**********************************Colocar validación(Ticket #5574)****************************************************/
+			ELSE
+				RAISE_APPLICATION_ERROR(-20000, 'No se pueden registrar esta transacción debido a errores en pedidos de venta') ;
+			END IF;
+			/************************************************************************************************************************/
+		
+		END IF;
+		/* *************************************** */	
+		/*   FIN REGISTRO INVENTARIO FISICO CIEGO  */
+		/* *************************************** */		
+
+		/* *************************************** */	
+		/* INICIO PROCESAR INVENTARIO FISICO CIEGO */
+		/* *************************************** */
+		IF(v_DocStatus = 'REG') THEN
+
+            /* PEDIDOS QUEDADOS CON ERROR */
+			SELECT COALESCE(COUNT(OBERR.OBPOS_Errors_id),0)
+			INTO v_contador
+			FROM OBPOS_Errors OBERR
+			INNER JOIN Obpos_Applications OBAPP on OBAPP.Obpos_Applications_ID = OBERR.Obpos_Applications_ID
+			WHERE OBERR.orderstatus = 'N'
+			AND OBAPP.ad_org_id =v_Org_ID;
+
+            /* PEDIDOS QUEDADOS CON EN LA IMPORENTRY */
+			SELECT COALESCE((select count(*) from c_import_entry where UPPER(importstatus) IN (UPPER('Initial'),UPPER('Error')) and ad_org_id = v_Org_ID),0)
+			INTO v_contarEntry
+			FROM DUAL;
+
+            /* ALABARANES DE PROOVEDOR EN ESTADO BORRADOR */
+			SELECT COALESCE(COUNT(m_inout_id),0)
+			INTO v_contarMInout
+            FROM m_inout
+            WHERE issotrx = 'N'
+            AND ad_org_id = v_Org_ID
+            AND TO_CHAR(movementdate, 'YYYY-MM-dd') = TO_CHAR(v_movementdate, 'YYYY-MM-dd')
+            AND docstatus = 'DR'
+            AND movementtype IN ('V-', 'V+') 
+            AND isLogistic = 'N';                             
+
+            /* RECIBOS DE MATERIAL PENDIENTES POR DEVOLVER */
+            SELECT COALESCE(COUNT(m_inout_id),0)
+            INTO v_contarMP
+            FROM m_inout miout
+            WHERE miout.issotrx = 'Y'
+            AND miout.ad_org_id =  v_Org_ID
+            AND TO_CHAR( miout.movementdate, 'YYYY-MM-dd') = TO_CHAR(v_movementdate, 'YYYY-MM-dd')
+            AND miout.EM_Slrldm_Inventory_ID IS NULL
+            AND miout.movementtype IN ('C-', 'C+') 
+            AND miout.isLogistic = 'N' 
+            AND exists ( select 1 from C_DocType where C_DocType_ID = miout.C_DocType_ID and isreturn='Y');
+
+            IF(v_contarMInout > 0) THEN
+                RAISE_APPLICATION_ERROR(-20000, 'Existen albaranes de proveedores en estado borrador') ;
+            END IF;
+
+            IF(v_contarMP > 0) THEN
+                RAISE_APPLICATION_ERROR(-20000, 'Existen recibos de material pendientes por devolver MP') ;
+            END IF;
+
+			v_resultErrors:= COALESCE(v_contador,0) + COALESCE(v_contarEntry,0) + COALESCE(v_contarMInout,0) + COALESCE(v_contarMP,0);
+
+			IF(v_resultErrors=0) THEN
+
+				--actualiza si hay o no diferencias en las lineas de inventario
+				v_Sql := 'SELECT siblr_differences_in_lines('''||v_Record_ID||''','''||v_M_Locator_ID||''') FROM DUAL';
+				EXECUTE IMMEDIATE v_Sql;
+				--variable para ver si hay diferencias
+				
+				v_Contador_nuevo:=(SELECT count(*)
+							FROM siblr_physical_invtlines 
+							WHERE siblr_physical_inventory_id = v_Record_ID 
+							AND difference = 'Y');
+
+				IF(v_Contador_nuevo <> 0 )THEN
+				
+					select em_scmba_costcenter_id
+					into v_org_c_costcenter_id
+					from ad_org   
+					where  ad_org_id = v_org_id;  
+				
+					/* *******************************************/
+					/* INICIO GUARDAR CABECERA INVENTARIO FISICO */
+					/* *******************************************/			 
+					INSERT INTO m_inventory(
+						m_inventory_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+						updated, updatedby, name, description, m_warehouse_id, movementdate, 
+						/**--posted, processed, processing, updateqty, generatelist, ad_orgtrx_id, 
+						--c_project_id, c_campaign_id, c_activity_id, user1_id, user2_id, c_costcenter_id, a_asset_id, **/
+						inventory_type, documentno, processing,
+						/**--em_sswh_istransformation, **/
+						em_ssin_doctype_id, em_ssin_documentno,c_costcenter_id)
+					VALUES (get_uuid(), v_client_id, v_org_id , 'Y', now(), v_User_ID, 
+						now(), v_User_ID, v_name_inv, v_description, v_m_warehouse_id, v_movementdate, 
+						/**--?, ?, ?, ?, ?, ?, 
+						--?, ?, ?, ?, ?, ?, ?, **/
+						'N', v_documentno, 'N',
+						/**--?, **/
+						v_documenttype, v_documentno,coalesce(v_org_c_costcenter2_id,v_org_c_costcenter_id));
+		
+
+					v_id_newinventory:=(Select m_inventory_id from m_inventory where documentno = v_documentno);
+					/* *******************************************/
+					/*   FIN GUARDAR CABECERA INVENTARIO FISICO  */
+					/* *******************************************/				
+
+				END IF;	
+
+				/* **********************************************************/
+				/* INICIO PRODUCTOS CON DIFERENCIAS INVENTARIO FISICO CIEGO */
+				/* **********************************************************/
+				FOR Cur_Products_change IN (
+							SELECT invt.m_product_id, COALESCE(m_attributeset_id,'ND') as lote ,coalesce(invt.qtycount,0) as qtycount
+							, invt.siblr_physical_invtlines_id, coalesce(invt.qtyteory,0) as qtyteory
+							FROM siblr_physical_invtlines invt
+							LEFT JOIN m_product mpr ON mpr.m_product_id = invt.m_product_id
+							WHERE invt.siblr_physical_inventory_id = v_Record_ID
+							AND invt.difference = 'Y'
+							order by invt.qtyteory desc				
+							/*SELECT m_product_id,qtycount,siblr_physical_invtlines_id,qtyteory
+							FROM siblr_physical_invtlines 
+							WHERE siblr_physical_inventory_id = v_Record_ID 
+							AND difference = 'Y'
+							order by qtyteory desc*/)
+				LOOP
+					
+					v_Qtycount:=(Cur_Products_change.qtycount-Cur_Products_change.qtyteory);
+
+					SELECT COUNT(*)
+					INTO v_ContadorStorage
+					FROM M_Storage_Detail
+					WHERE M_Locator_ID= v_M_Locator_ID
+					AND M_Product_id = Cur_Products_change.m_product_id; 
+
+					/* ***********************************/
+					/* EL PRODUCTO NO ESTA EN EL ALMACEN */
+					/* ***********************************/
+					IF(v_ContadorStorage = 0)THEN
+
+						IF(Cur_Products_change.lote = 'ND')THEN
+
+							/* EL PRODUCTO NO TIENE CONJUNTO DE ATRIBUTOS NO SE CREA UN LOTE */
+							v_m_attributesetinstance_id := NULL;
+
+						ELSE
+
+							/* EL PRODUCTO TIENE CONJUNTO DE ATRIBUTOS NO SE CREA UN LOTE */
+							SELECT 
+								COALESCE((SELECT m_attributesetinstance_id
+								FROM m_attributesetinstance 
+								WHERE to_char(created,'YYYY-MM-DD') = to_char(now(),'YYYY-MM-DD')
+								AND lot = 'L'),'ND')
+							INTO v_m_attributesetinstance_id
+							FROM DUAL;
+
+							IF(v_m_attributesetinstance_id = 'ND')THEN
+
+								SELECT get_uuid()
+									INTO v_m_attributesetinstance_id
+								FROM DUAL;
+								
+								INSERT INTO m_attributesetinstance(
+									m_attributesetinstance_id, ad_client_id, ad_org_id, isactive, 
+									created, createdby, updated, updatedby, m_attributeset_id, 
+									lot, guaranteedate,  description)
+								VALUES (v_m_attributesetinstance_id, v_client_id, v_org_id, 'Y', now(), 
+										v_User_ID, now(), v_User_ID, '0', 
+									'L', TO_DATE(to_char(now(),'YYYY-MM-DD'),'YYYY-MM-DD'), 'L_'||to_char(now(),'YYYY-MM-DD'));
+
+							END IF;					
+
+						END IF;
+		
+
+						INSERT INTO m_inventoryline(
+							m_inventoryline_id, ad_client_id, ad_org_id, isactive, created, 
+							createdby, updated, updatedby, m_inventory_id, m_locator_id, 
+							m_product_id, 
+							line, 
+							qtybook, 
+							qtycount,
+							m_attributesetinstance_id, 
+							c_uom_id)
+						VALUES (get_uuid(), v_client_id, v_org_id, 'Y', now(), 
+							v_User_ID, now(), v_User_ID, v_id_newinventory, v_M_Locator_ID, 
+							Cur_Products_change.m_product_id, 
+							COALESCE((select MAX(line)+10 from m_inventoryline where m_inventory_id = v_id_newinventory),10), 
+							0, 
+							coalesce(Cur_Products_change.qtycount,0), 
+							v_m_attributesetinstance_id, 
+							(SELECT c_uom_id FROM m_product WHERE m_product_id = Cur_Products_change.m_product_id)
+							);
+
+						UPDATE siblr_physical_invtlines SET 
+							qtyteory = 0,
+							difference  = (CASE WHEN (0-Cur_Products_change.qtycount) <> 0 
+									THEN 'Y'
+									ELSE 'N'
+									END)
+						WHERE siblr_physical_inventory_id = v_Record_ID
+						AND m_product_id = Cur_Products_change.m_product_id;
+
+						v_NoInserted:=v_NoInserted + 1;
+
+					ELSE
+
+						/* EL PRODUCTO SI ESTA EN EL ALMACEN */
+						FOR Cur_New_Storage IN
+						
+									(SELECT s.M_Product_ID,--St.IDProducto
+									s.M_Locator_ID,--ST.Hueco/almcacen
+									COALESCE(s.QtyOnHand, 0) AS QtyOnHand,--St.Cantidad Disponible
+									coalesce(s.QTYORDERONHAND,0) AS QtyOnHandOrder,--Cantidad de pedido disponible
+									s.C_UOM_ID,--ST.Unidad
+									s.M_Product_UOM_ID,--Unidad de pedido
+									s.M_AttributeSetInstance_ID--Valor Atributos
+									FROM M_Product p  
+									INNER JOIN M_Storage_Detail s ON (s.M_Product_ID=p.M_Product_ID) 
+									INNER JOIN m_attributesetinstance ASETI ON ASETI.m_attributesetinstance_ID = S.m_attributesetinstance_ID
+									LEFT JOIN m_attributeset aset ON p.m_attributeset_id = aset.m_attributeset_id	
+									WHERE p.IsActive='Y'	--Producto activo
+									AND p.IsStocked='Y'	-- es Almacenado
+									AND(s.M_Locator_ID=v_M_Locator_ID)
+									AND p.em_siblr_iswarehouse = 'Y'
+									AND p.M_Product_id = Cur_Products_change.m_product_id
+									AND (NOT (coalesce(p.attrsetvaluetype, '-') <> 'F'
+										AND COALESCE(aset.isoneattrsetvalrequired, '-') = 'Y'
+										AND COALESCE(s.m_attributesetinstance_id, '0') = '0'
+										AND QTYONHAND = 0
+										AND COALESCE(QTYORDERONHAND,0) = 0
+										AND PREQTYONHAND=0
+										AND COALESCE(PREQTYORDERONHAND,0) = 0))
+									ORDER BY s.M_Locator_ID,p.Value,s.Created,ASETI.guaranteedate
+									)
+						LOOP
+
+							v_Real_Qtycount:=Cur_New_Storage.QtyOnHand;
+
+							IF(v_Qtycount<0)THEN
+
+								IF(v_Qtycount+Cur_New_Storage.QtyOnHand<0)THEN
+									
+									v_Qtycount:=v_Qtycount+Cur_New_Storage.QtyOnHand;
+									v_Real_Qtycount := 0;
+
+								ELSE
+
+									v_Real_Qtycount:=v_Qtycount+Cur_New_Storage.QtyOnHand;
+									v_Qtycount:=0;
+
+								END IF;
+
+							ELSIF(v_Qtycount>0)THEN
+
+								v_Real_Qtycount:=v_Qtycount+Cur_New_Storage.QtyOnHand;
+								v_Qtycount:=0;
+
+							END IF;
+
+							IF (Cur_New_Storage.QtyOnHand-v_Real_Qtycount <>0) THEN--se podria considerar redundante
+
+
+								/* ****************************************************/
+								/* INICIO INSERTAR LAS LINEAS EN EL INVENTARIO FISICO */
+								/* ****************************************************/
+								v_countLinetmp:=v_countLinetmp+10;
+								--insert into t_test values(v_countLinetmp, Cur_New_Storage.M_Product_ID,Cur_New_Storage.QtyOnHand,v_Real_Qtycount,Cur_New_Storage.M_AttributeSetInstance_ID );
+
+								
+								INSERT INTO m_inventoryline(
+									m_inventoryline_id, ad_client_id, ad_org_id, isactive, created, 
+									createdby, updated, updatedby, m_inventory_id, m_locator_id, 
+									m_product_id, 
+									line, 
+									qtybook, 
+									qtycount,
+									m_attributesetinstance_id, 
+									c_uom_id)
+								VALUES (get_uuid(), v_client_id, v_org_id, 'Y', now(), 
+									v_User_ID, now(), v_User_ID, v_id_newinventory, v_M_Locator_ID, 
+									Cur_New_Storage.M_Product_ID, 
+									COALESCE((select MAX(line)+10 from m_inventoryline where m_inventory_id = v_id_newinventory),10), 
+									coalesce(Cur_New_Storage.QtyOnHand,0), 
+									coalesce(v_Real_Qtycount,0), 
+									Cur_New_Storage.M_AttributeSetInstance_ID, 
+									(SELECT c_uom_id FROM m_product WHERE m_product_id = Cur_New_Storage.M_Product_ID)
+									);
+								/* ****************************************************/
+								/* 	 FIN INSERTAR LAS LINEAS EN EL INVENTARIO FISICO  */
+								/* ****************************************************/						
+					
+								/* ********************************************/
+								/* INICIO ACTUALIZO LAS LINEAS DEL INVENTARIO */
+								/* ********************************************/					
+								UPDATE siblr_physical_invtlines SET 
+									qtyteory = Cur_New_Storage.QtyOnHand,
+									difference  = (CASE WHEN (Cur_New_Storage.QtyOnHand-qtycount) <> 0 
+											THEN 'Y'
+											ELSE 'N'
+											END)
+								WHERE siblr_physical_inventory_id = v_Record_ID
+								AND m_product_id = Cur_New_Storage.M_Product_ID;
+								/* ********************************************/
+								/* 	 FIN ACTUALIZO LAS LINEAS DEL INVENTARIO  */
+								/* ********************************************/						
+
+								v_NoInserted:=v_NoInserted + 1;
+
+							END IF;
+								
+						END LOOP; --    Cur_Storage
+
+					END IF;			
+
+				END LOOP;
+				/* **********************************************************/
+				/*   FIN PRODUCTOS CON DIFERENCIAS INVENTARIO FISICO CIEGO  */
+				/* **********************************************************/
+
+				/* ****************************************************/
+				/* INICIO ACTUALIZO EL ESTADO INVENTARIO FISICO CIEGO */
+				/* ****************************************************/	
+				UPDATE	siblr_physical_inventory 
+				SET docstatus = 'CO', documentno = v_documentno
+				WHERE siblr_physical_inventory_id= v_Record_ID;
+
+				v_Message:='Se ingresó y completó un nuevo registro en en la ventana de Inventario Físico con el número de documento: '||v_documentno;
+				/* ****************************************************/
+				/*   FIN ACTUALIZO EL ESTADO INVENTARIO FISICO CIEGO  */
+				/* ****************************************************/								
+
+			ELSE
+				RAISE_APPLICATION_ERROR(-20000, 'No se puede registrar esta transacción debido a errores en pedidos de venta') ;
+			END IF;				
+
+		END IF;
+		/* *************************************** */	
+		/*   FIN PROCESAR INVENTARIO FISICO CIEGO  */
+		/* *************************************** */
+
+	    --v_Message:='@Inserted@=' || v_NoInserted;
+	    v_Result:=1; --    success
+
+ 	ELSE
+
+		v_my_alert:='1';
+		RAISE_APPLICATION_ERROR(-20000, 'No existen lineas para procesar esta transacción') ;
+
+	END IF;
+
+/*********************************************************************************************************/
+--    RAISE_APPLICATION_ERROR(-20000, 'La linea ' ||  Cur_m_inoutline.line || ' producto: ' || Cur_m_inoutline.product || ', No tiene una ubicacion configurada') ;
+  END; --BODY
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', v_Result, v_Message) ;
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('M_RequisitionLine_Post error: ' || v_ResultStr);
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr);
+END SIBLR_DOC_REGISTER
+]]></body>
+    </function>
+  </database>

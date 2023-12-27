@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?><ob:Openbravo xmlns:ob="http://www.openbravo.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <sfcbr_inc_statmnt_script id="080C29ED15FA44499A8E4BE009D19C2A" identifier="6.1.02">
+    <id>080C29ED15FA44499A8E4BE009D19C2A</id>
+    <active>true</active>
+    <rEPSequence>50</rEPSequence>
+    <name>6.1.02</name>
+    <totalGroups>REP2</totalGroups>
+    <rEPSql>select
+account_id as codigo
+,name as cuenta
+,round(sum(debe),2) as  valor
+,'2' as typeheader from (
+select a.id, ev.value as account_id, name as  name,  
+a.initialamt as SALDO_INICIAL, a.amtacctdr as debe , a.amtacctcr as haber, 
+A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL     
+from(            
+SELECT sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             
+FROM FACT_ACCT F             
+WHERE date(DATEACCT) &lt;= TO_DATE(':p_dt')        
+AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')              
+group by F.ACCOUNT_ID          
+) a, c_elementvalue ev          
+where a.id = ev.c_elementvalue_id          
+and ev.elementlevel = 'S'          
+and  EV.VALUE in (:p_account)
+and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+order by  ev.value, ev.name, id
+) rep 
+group by name, account_id</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'1.1.01.01.04'</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="162C3568512640DEB88F23BDFEA8FE80" identifier="Espacio en blanco">
+    <id>162C3568512640DEB88F23BDFEA8FE80</id>
+    <active>true</active>
+    <rEPSequence>13</rEPSequence>
+    <name>Espacio en blanco</name>
+    <totalGroups>Repp2</totalGroups>
+    <rEPSql>select
+null as codigo
+,' ' as cuenta
+,null as valor 
+,'ES' as typeheader
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="177E8AF91B0643D3A8209BF90F2CD6AF" identifier="Titulo 1">
+    <id>177E8AF91B0643D3A8209BF90F2CD6AF</id>
+    <active>true</active>
+    <rEPSequence>5</rEPSequence>
+    <name>Titulo 1</name>
+    <totalGroups>Rep0</totalGroups>
+    <rEPSql>
+select
+codigo, cuenta, valor,typeheader
+from
+( select null as codigo,'RESULTADOS INTEGRALES' as cuenta, round(sum(valor),2) as   valor
+, '1' as typeheader from 
+ (
+	 
+select
+account_id as codigo
+,name as cuenta
+,round(sum(debe),2) as  valor
+,'2' as typeheader from (
+select a.id, ev.value as account_id, name as  name,  
+a.initialamt as SALDO_INICIAL, a.amtacctdr as debe , a.amtacctcr as haber, 
+A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL     
+from(            
+SELECT sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             
+FROM FACT_ACCT F             
+WHERE date(DATEACCT) &lt;= TO_DATE(':p_dt')        
+AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')              
+group by F.ACCOUNT_ID          
+) a, c_elementvalue ev          
+where a.id = ev.c_elementvalue_id          
+and ev.elementlevel = 'S'          
+and  EV.VALUE in (:p_account)
+and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+order by  ev.value, ev.name, id
+) rep 
+group by name, account_id
+
+ 
+ ) rep0
+ 
+ ) rep</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2.1.07.01.01','1.1.02.01.01'</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="5CD8C07249004C588EC01D5F34DDB9CE" identifier="6.2.02">
+    <id>5CD8C07249004C588EC01D5F34DDB9CE</id>
+    <active>true</active>
+    <rEPSequence>30</rEPSequence>
+    <name>6.2.02</name>
+    <totalGroups>ADD2</totalGroups>
+    <rEPSql>select codigo, cuenta, case when valor&lt;&gt;0 then ((valor*22)/100) else 0 end  as valor,typeheader
+from
+( select '6.1.02' as codigo,'Impuesto a la renta del ejercicio' as cuenta,coalesce(:p_amount,0) as   valor
+, '2' as typeheader from dual
+ ) rep</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="6E5E959F65DB4358AEDB4D57495FF6CE" identifier="6.2.01">
+    <id>6E5E959F65DB4358AEDB4D57495FF6CE</id>
+    <active>true</active>
+    <rEPSequence>20</rEPSequence>
+    <name>6.2.01</name>
+    <totalGroups>ADD1</totalGroups>
+    <rEPSql>select codigo, cuenta, case when valor&lt;&gt;0 then ((valor*15)/100) else 0 end  as valor,typeheader
+from
+(select '6.2.01' as codigo,'Participación Laboral' as cuenta,coalesce(:p_amount,0) as   valor
+, '2' as typeheader from dual 
+) rep </rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="79683C35AB9C4A9EB52889D79FC786CD" identifier="60.0.1">
+    <id>79683C35AB9C4A9EB52889D79FC786CD</id>
+    <active>true</active>
+    <rEPSequence>10</rEPSequence>
+    <name>60.0.1</name>
+    <totalGroups>REP2</totalGroups>
+    <rEPSql>select
+account_id as codigo
+,name as cuenta
+,round(sum(debe),2) as  valor
+,'2' as typeheader from (
+select a.id, ev.value as account_id, name as  name,  
+a.initialamt as SALDO_INICIAL, a.amtacctdr as debe , a.amtacctcr as haber, 
+A.INITIALAMT+A.AMTACCTDR-A.AMTACCTCR AS SALDO_FINAL     
+from(            
+SELECT sum(case when (DATEACCT &lt; TO_DATE(':p_df') or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = 'O')) then F.AMTACCTDR - F.AMTACCTCR else 0 end) as initialamt,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTDR else 0 end) as AMTACCTDR,              
+sum(case when (DATEACCT &gt;= TO_DATE(':p_df') AND F.FACTACCTTYPE not in('O', 'R', 'C')) or (DATEACCT = TO_DATE(':p_df') and F.FACTACCTTYPE = NULL) then F.AMTACCTCR else 0 end) as AMTACCTCR,              
+F.ACCOUNT_ID AS ID, to_char('') AS groupbyid             
+FROM FACT_ACCT F             
+WHERE date(DATEACCT) &lt;= TO_DATE(':p_dt')        
+AND F.ISACTIVE='Y' and (f.ad_org_id = ':p_adorg' OR COALESCE(':p_adorg','ND')='ND')              
+group by F.ACCOUNT_ID          
+) a, c_elementvalue ev          
+where a.id = ev.c_elementvalue_id          
+and ev.elementlevel = 'S'          
+and  EV.VALUE in (:p_account)
+and (a.initialamt &lt;&gt;0 or a.amtacctcr &lt;&gt;0 or a.amtacctdr&lt;&gt;0)          
+union all 
+select
+ '' as id_, ev.value as account_id, ev.name as  name,  
+0 as SALDO_INICIAL,0 as debe ,0 as haber, 
+0 AS SALDO_FINAL 	
+from c_elementvalue ev   
+where  EV.VALUE in (:p_account)  
+order by  2,1  
+) rep 
+group by name, account_id</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>'2.1.07.01.01','1.1.02.01.01'</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="A2E62DD136814E91997650C20CA6831D" identifier="Espacio en blanco">
+    <id>A2E62DD136814E91997650C20CA6831D</id>
+    <active>true</active>
+    <rEPSequence>1</rEPSequence>
+    <name>Espacio en blanco</name>
+    <totalGroups>Repp1</totalGroups>
+    <rEPSql>select
+null as codigo
+,' ' as cuenta
+,null as valor 
+,'ES' as typeheader
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="B52E78F66C004DEF860D9D993CDECED7" identifier="tITULO2">
+    <id>B52E78F66C004DEF860D9D993CDECED7</id>
+    <active>true</active>
+    <rEPSequence>15</rEPSequence>
+    <name>tITULO2</name>
+    <totalGroups>SUMA1</totalGroups>
+    <rEPSql>SELECT
+null as codigo
+,'COMPONENTES DE RESULTADOS INTEGRALES' as cuenta
+,SUM(VALOR) AS valor
+,'1' as typeheader
+from 
+(
+:p_group1
+) REP</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;20&gt;&lt;30&gt;&lt;50&gt;</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="D629656E7558414E8D3648A4CEB83F05" identifier="Espacio en blanco">
+    <id>D629656E7558414E8D3648A4CEB83F05</id>
+    <active>true</active>
+    <rEPSequence>55</rEPSequence>
+    <name>Espacio en blanco</name>
+    <totalGroups>Repp3</totalGroups>
+    <rEPSql>select
+null as codigo
+,' ' as cuenta
+,null as valor 
+,'ES' as typeheader
+from dual</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount xsi:nil="true"/>
+    <typeheader>2</typeheader>
+  </sfcbr_inc_statmnt_script>
+  <sfcbr_inc_statmnt_script id="D80A9004EF0E41C481DC565C7BEB43E5" identifier="Titulo3">
+    <id>D80A9004EF0E41C481DC565C7BEB43E5</id>
+    <active>true</active>
+    <rEPSequence>60</rEPSequence>
+    <name>Titulo3</name>
+    <totalGroups>SUMA2</totalGroups>
+    <rEPSql>SELECT
+null as codigo
+,'UTILIDAD INTEGRAL DEL PERIODO' as cuenta
+,SUM(VALOR)  AS valor
+,'1' as typeheader
+from 
+(
+select null as codigo,'UTILIDAD INTEGRAL DEL PERIODO' as cuenta, :p_amount as   valor
+, '1' as typeheader from dual union all
+:p_group1
+) REP</rEPSql>
+    <description xsi:nil="true"/>
+    <sQLAccount>&lt;10&gt;&lt;20&gt;&lt;30&gt;&lt;50&gt;</sQLAccount>
+    <typeheader xsi:nil="true"/>
+  </sfcbr_inc_statmnt_script>
+</ob:Openbravo>

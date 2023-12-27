@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_RETURN_POSITION">
+    <function name="SPROV_RETURN_POSITION" type="VARCHAR">
+      <parameter name="p_partner" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Module NUMBER;  --OBTG:NUMBER--
+v_position VARCHAR2(100) ;
+    
+  BEGIN
+
+	select c.name
+	into v_position
+	from sspr_contract a
+	left join sspr_contract_position b on b.sspr_contract_id = a.sspr_contract_id and b.isactive = 'Y'
+	left join sspr_position c on c.sspr_position_id = b.sspr_position_id 
+	where a.c_bpartner_id = p_partner --'1C4D47EAC8CB4FA39E2DD14FE45F7FEB'
+	and a.startdate = (select max(a.startdate)
+			from sspr_contract a
+			left join sspr_contract_position b on b.sspr_contract_id = a.sspr_contract_id and b.isactive = 'Y'
+			left join sspr_position c on c.sspr_position_id = b.sspr_position_id 
+			where a.c_bpartner_id = p_partner); --'1C4D47EAC8CB4FA39E2DD14FE45F7FEB')
+
+    RETURN (coalesce(v_position,'No Definido')) ;
+END SPROV_RETURN_POSITION
+]]></body>
+    </function>
+  </database>

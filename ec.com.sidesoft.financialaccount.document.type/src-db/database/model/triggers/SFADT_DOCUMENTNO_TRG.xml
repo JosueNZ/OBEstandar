@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SFADT_DOCUMENTNO_TRG">
+    <trigger name="SFADT_DOCUMENTNO_TRG" table="FIN_FINACC_TRANSACTION" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+	vDocTypeID		VARCHAR2(32);
+	vCurrentNext	VARCHAR2(30);
+	vSeq			RECORD;
+
+BEGIN
+
+IF AD_isTriggerEnabled() = 'N' THEN RETURN;END IF;
+	
+	
+		IF INSERTING THEN
+		
+			IF :NEW.trxtype IN ('BPW','BPD') THEN
+
+				--id unico del tipo de documento para finacc_transaction, tomamos el ultimo creado
+				--vDocTypeID := '44F94AE042F54E929FF360F18D0D28F0';
+				SELECT cd.C_DOCTYPE_ID INTO vDocTypeID
+				FROM C_DOCTYPE cd WHERE cd.docbasetype='FAT' and isactive='Y' order by cd.created desc limit 1;
+				
+
+				SELECT s.* INTO vSeq
+				FROM ad_sequence s
+					JOIN c_doctype dt ON dt.docnosequence_id = s.ad_sequence_id
+				WHERE dt.c_doctype_id = vDocTypeID;
+
+				vCurrentNext := vSeq.currentnext;
+				IF vSeq.prefix IS NOT NULL THEN 
+					vCurrentNext := vSeq.prefix||vCurrentNext;
+				END IF;
+				
+				--NEW.EM_Sfadt_Documentno := vCurrentNext;
+				--NEW.em_sfadt_c_doctype_id := vDocTypeID;
+				
+				UPDATE fin_finacc_transaction SET EM_Sfadt_Documentno = vCurrentNext,em_sfadt_c_doctype_id=	vDocTypeID				
+				WHERE fin_finacc_transaction_id = :NEW.fin_finacc_transaction_ID;
+
+				UPDATE ad_sequence SET currentnext = vSeq.currentnext + 1 
+				WHERE ad_sequence_id = vSeq.AD_Sequence_ID;
+			END IF;
+		END IF;
+
+		END SFADT_DOCUMENTNO_TRG
+]]></body>
+    </trigger>
+  </database>

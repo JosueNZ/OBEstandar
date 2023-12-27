@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SIBLR_DIFFERENCES_IN_LINES">
+    <function name="SIBLR_DIFFERENCES_IN_LINES" type="NULL">
+      <parameter name="v_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="v_m_locator_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2009 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): RODNEY XAVIER JÁCOME TERAN.
+************************************************************************/
+v_Sql VARCHAR2(2000);
+v_QtyOnHand NUMBER;
+TYPE RECORD IS REF CURSOR;
+  Cur_Storage RECORD;
+
+BEGIN
+
+	/* **********************************************************************/
+	/* INICIO BUSCO LOS PRODUCTOS DE LAS LINEAS DEL INVENTARIO FISICO CIEGO */
+	/* **********************************************************************/
+	FOR Cur_Storage IN
+			(
+				SELECT m_product_id, qtycount
+				FROM siblr_physical_invtlines l 
+				WHERE l.siblr_physical_inventory_id = v_Record_ID
+			)
+	LOOP
+
+		IF(Cur_Storage.qtycount >= 0)THEN
+
+			/* ***********************************************************************************************/
+			/* INICIO PARA CADA PRODUCTO VERIFICO SI TIENE STOCK EN EL ALMACEN DE LA CABECERA DEL INVENTARIO */
+			/* ***********************************************************************************************/
+			SELECT COALESCE((SELECT ROUND(SUM(COALESCE(s.QtyOnHand, 0)),4)
+							FROM M_Product p  
+							INNER JOIN M_Storage_Detail s ON (s.M_Product_ID=p.M_Product_ID) 
+							LEFT JOIN m_attributeset aset ON p.m_attributeset_id = aset.m_attributeset_id	
+							WHERE p.IsActive='Y'	--Producto activo
+							AND p.IsStocked='Y'	-- es Almacenado
+							AND s.M_Locator_ID = v_M_Locator_ID
+							AND s.M_Product_ID = Cur_Storage.m_product_id
+							AND (NOT (coalesce(p.attrsetvaluetype, '-') <> 'F'
+								AND COALESCE(aset.isoneattrsetvalrequired, '-') = 'Y'
+								AND COALESCE(s.m_attributesetinstance_id, '0') = '0'
+								AND QTYONHAND = 0
+								AND COALESCE(QTYORDERONHAND,0) = 0
+								AND PREQTYONHAND=0
+								AND COALESCE(PREQTYORDERONHAND,0) = 0))
+							GROUP BY s.M_Product_ID,--St.IDProducto
+								s.M_Locator_ID--ST.Hueco/almcacen
+								--s.C_UOM_ID,--ST.Unidad
+								--s.M_Product_UOM_ID--Unidad de pedido
+							ORDER BY s.M_Locator_ID) ,0)
+			INTO v_QtyOnHand
+			FROM DUAL;
+			/* ***********************************************************************************************/
+			/*   FIN PARA CADA PRODUCTO VERIFICO SI TIENE STOCK EN EL ALMACEN DE LA CABECERA DEL INVENTARIO  */
+			/* ***********************************************************************************************/
+
+			/* ********************************************/
+			/* INICIO ACTUALIZO LAS LINEAS DEL INVENTARIO */
+			/* ********************************************/
+			UPDATE siblr_physical_invtlines SET 
+			qtyteory = v_QtyOnHand,
+			difference  = (CASE 
+						WHEN (v_QtyOnHand-qtycount) <> 0 
+						THEN 'Y'
+						ELSE 'N'
+					END)
+			WHERE siblr_physical_inventory_id = v_Record_ID
+			AND m_product_id = Cur_Storage.m_product_id;
+			/* ********************************************/
+			/* 	 FIN ACTUALIZO LAS LINEAS DEL INVENTARIO  */
+			/* ********************************************/
+
+		END IF;
+
+	END LOOP; --    Cur_Storage
+	/* **********************************************************************/
+	/* FIN BUSCO LOS PRODUCTOS DE LAS LINEAS DEL INVENTARIO FISICO CIEGO */
+	/* **********************************************************************/
+
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('siblr_differences_in_lines exception') ;
+  RAISE;
+END SIBLR_DIFFERENCES_IN_LINES
+]]></body>
+    </function>
+  </database>

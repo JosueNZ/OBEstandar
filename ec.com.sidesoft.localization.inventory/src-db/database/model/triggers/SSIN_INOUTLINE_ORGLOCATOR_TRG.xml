@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSIN_INOUTLINE_ORGLOCATOR_TRG">
+    <trigger name="SSIN_INOUTLINE_ORGLOCATOR_TRG" table="M_INOUTLINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+   TYPE RECORD IS REF CURSOR; 
+
+  v_org_warehouse VARCHAR2(32);
+  v_org_inout VARCHAR2(32);
+  
+BEGIN
+
+    IF AD_isTriggerEnabled()='N' THEN IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+    END IF;
+
+ 
+    IF (INSERTING) THEN
+
+	select a.ad_org_id into v_org_warehouse
+	from m_warehouse a 
+	left join m_locator b on a.m_warehouse_id = b.m_warehouse_id
+	where b.m_locator_id = :new.m_locator_id;
+
+	select a.ad_org_id into v_org_inout
+	from m_inout a
+	where a.m_inout_id = :new.m_inout_id;
+
+	IF (v_org_warehouse <> v_org_inout) THEN
+
+		RAISE_APPLICATION_ERROR(-20000,'No se puede registrar lineas con Huecos de otra Organizacion');
+
+        END IF;                
+
+                 
+    END IF;
+
+    IF (UPDATING) THEN
+
+        select a.ad_org_id into v_org_warehouse
+	from m_warehouse a 
+	left join m_locator b on a.m_warehouse_id = b.m_warehouse_id
+	where b.m_locator_id = :new.m_locator_id;
+
+	select a.ad_org_id into v_org_inout
+	from m_inout a
+	where m_inout_id = :new.m_inout_id;
+
+	IF (v_org_warehouse <> v_org_inout) THEN
+
+		RAISE_APPLICATION_ERROR(-20000,'No se puede registrar lineas con Huecos de otra Organizacion');
+
+        END IF;                     
+
+                 
+    END IF;
+
+
+        END SSIN_INOUTLINE_ORGLOCATOR_TRG
+]]></body>
+    </trigger>
+  </database>

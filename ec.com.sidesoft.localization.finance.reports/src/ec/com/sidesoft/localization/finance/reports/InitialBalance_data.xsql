@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<SqlClass name="InitialBalanceData" package="ec.com.sidesoft.localization.finance.reports">
+  <SqlClassComment></SqlClassComment>
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+    <![CDATA[select sum(abs(debit) - abs(credit)) as ibalance 
+	           from (
+				select fa.amtacctdr as debit , fa.amtacctcr as credit
+				 from fact_acct fa 
+				  inner join c_invoice ci on ci.c_invoice_id = fa.record_id 
+				  inner join c_doctype cd on cd.c_doctype_id = ci.c_doctype_id
+				  inner join (select fps3.ExpectedDate, fps3.c_invoice_id 
+								from fin_payment_schedule fps3
+							   where fps3.ExpectedDate = (select max(ExpectedDate) 
+								 from fin_payment_schedule fps4 where fps4.c_invoice_id = fps3.c_invoice_id )) as fpi on fpi.c_invoice_id = ci.c_invoice_id
+				  where fa.ad_table_id = '318' 
+				     and ci.issotrx = ? 
+				     and ci.c_bpartner_id = ?
+				     and ci.dateinvoiced < TO_DATE(?)
+					 and (fa.account_id in ('1'))
+				 union
+				 select fa2.amtacctdr as debit , fa2.amtacctcr as credit
+				   from fact_acct fa2 
+					inner join fin_payment fp on fp.fin_payment_id = fa2.record_id
+					inner join fin_payment_detail fpd on fpd.fin_payment_id  = fp.fin_payment_id 
+					inner join fin_payment_scheduledetail fps on fps.fin_payment_detail_id = fpd.fin_payment_detail_id 
+					left join fin_payment_schedule fps2 on fps2.fin_payment_schedule_id = fps.fin_payment_schedule_invoice 
+					left join c_invoice ci2 on ci2.c_invoice_id = fps2.c_invoice_id 
+				   where fa2.ad_table_id = 'D1A97202E832470285C9B1EB026D54E2' 
+				        and fp.isReceipt = ? 
+				        and fp.c_bpartner_id = ?
+				        and fp.paymentdate < TO_DATE(?)
+					    and (fa2.account_id in ('1'))
+						and case when ci2.em_scnr_isref_inv = 'Y' 
+					             then not exists( select 1 
+                                                     from fin_payment fp01 
+		                                              inner join fin_payment_detail fpd01 on fpd01.fin_payment_id  = fp01.fin_payment_id 
+													  inner join fin_payment_scheduledetail fps01 on fps01.fin_payment_detail_id = fpd01.fin_payment_detail_id 
+													  inner join fin_payment_schedule fps201 on fps201.fin_payment_schedule_id = fps01.fin_payment_schedule_invoice
+													  inner join c_invoice ci201 on ci201.c_invoice_id = fps201.c_invoice_id
+												   	 where fp01.fin_payment_id = fp.fin_payment_id and ci201.c_invoice_id <> ci2.c_invoice_id  and ci201.em_scnr_isref_inv = 'N'
+													)
+					             else not exists (select 1 
+                                                   from fin_payment fp02 
+                                                     inner join fin_payment_detail fpd02 on fpd02.fin_payment_id  = fp02.fin_payment_id 
+													 inner join fin_payment_scheduledetail fps02 on fps02.fin_payment_detail_id = fpd02.fin_payment_detail_id 
+													 inner join fin_payment_schedule fps202 on fps202.fin_payment_schedule_id = fps02.fin_payment_schedule_invoice
+													 inner join c_invoice ci202 on ci202.c_invoice_id = fps202.c_invoice_id
+												    where fp02.fin_payment_id = fp.fin_payment_id and ci202.c_invoice_id <> ci2.c_invoice_id  and ci202.em_scnr_isref_inv = 'Y') end  
+													group by fa2.amtacctdr, fa2.amtacctcr, fa2.account_id
+				union 
+			select fa3.amtacctdr as debit, fa3.amtacctcr as credit
+			  from fact_acct fa3
+			   inner join SSWS_WithholdingSale wh on wh.ssws_withholdingsale_id  = fa3.record_id 
+			   inner join c_invoice ci3 on ci3.c_invoice_id = wh.c_invoice_id 
+			   left  join (select fps3.Duedate as ExpectedDate, fps3.c_invoice_id 
+							from fin_payment_schedule fps3
+						   where fps3.Duedate = (select max(Duedate) 
+							 from fin_payment_schedule fps4 where fps4.c_invoice_id = fps3.c_invoice_id )) as fpi1 on fpi1.c_invoice_id = ci3.c_invoice_id
+			where fa3.ad_table_id = '211492B753264EAEBE328BA4FED1F066'   
+			 and ci3.issotrx = ?
+			 and ci3.c_bpartner_id = ?
+			 and ci3.dateinvoiced  <= TO_DATE(?)  
+			 and (fa3.account_id in ('1'))					 
+			) as  pp      
+     ]]></Sql>
+    <Parameter name="issotrx"/>
+    <Parameter name="bpartnerId"/>
+	<Parameter name="dateFrom"/>
+	<Parameter name="accountids" type="replace" optional="true" after="and (fa.account_id in (" text="'1'"/>
+    <Parameter name="issotrx"/>
+    <Parameter name="bpartnerId"/>
+	<Parameter name="dateFrom"/>
+	<Parameter name="accountids" type="replace" optional="true" after="and (fa2.account_id in (" text="'1'"/>
+	<Parameter name="issotrx"/>
+    <Parameter name="bpartnerId"/>
+	<Parameter name="dateFrom"/>
+	<Parameter name="accountids" type="replace" optional="true" after="and (fa3.account_id in (" text="'1'"/>
+  </SqlMethod>
+</SqlClass>

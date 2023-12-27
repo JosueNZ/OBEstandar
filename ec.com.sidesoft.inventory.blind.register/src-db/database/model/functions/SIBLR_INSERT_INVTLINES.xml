@@ -1,0 +1,252 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SIBLR_INSERT_INVTLINES">
+    <function name="SIBLR_INSERT_INVTLINES" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2013 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): Rodney Xavier Jácome Teran
+************************************************************************/
+  -- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Record_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32):='0';
+  v_DocAction VARCHAR2(60);
+  v_DocStatus VARCHAR2(60);
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_m_locator_id VARCHAR2(32);
+  v_m_warehouse_id VARCHAR2(32);
+  v_flag VARCHAR2(32);
+  v_NoInserted NUMBER:=0;
+  v_c_bpartner_id  VARCHAR2(32);
+  V_Admin NUMBER:=0;
+  V_count_org NUMBER:=0;
+  v_count_product NUMBER:=0; 
+  v_pathern_org_id  VARCHAR2(32);
+  v_contador NUMBER;
+  v_brand_type  VARCHAR2(32);
+  v_Org_ID_Brand VARCHAR2(32);
+  v_Org_Parent_Inventory VARCHAR2(32);
+  v_Siblr_physical_invtlines_id VARCHAR2(32);
+
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_Storage RECORD;
+    Cur_Collaborators RECORD;
+    Cur_Storage_Duplicate RECORD;
+    Cur_Storage_Delete RECORD;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+  v_ResultStr:='PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(p_pinstance_id, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, i.AD_Client_ID, i.AD_Org_ID,
+        p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo) LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_User_ID:=Cur_Parameter.AD_User_ID;
+      v_client_id := Cur_Parameter.AD_Client_ID;
+      v_org_id := Cur_Parameter.AD_Org_ID;
+    END LOOP; -- Get Parameter
+
+	--BEGIN
+
+	/**********Coge campos del registro***********/
+	SELECT AD_Org_ID,M_Locator_ID
+	INTO v_Org_ID,v_M_Locator_ID
+	FROM siblr_physical_inventory
+	WHERE siblr_physical_inventory_id= v_Record_ID;
+    /*********************************************Remover validación(Ticket #5574)*****************************************************
+	SELECT COALESCE(COUNT(OBERR.OBPOS_Errors_id),0)
+		INTO v_contador
+	FROM OBPOS_Errors OBERR
+		INNER JOIN Obpos_Applications OBAPP on OBAPP.Obpos_Applications_ID = OBERR.Obpos_Applications_ID
+	WHERE OBERR.orderstatus = 'N'
+	AND TO_DATE(TO_CHAR(OBERR.created,'YYYY-MM-DD'),'YYYY-MM-DD') = TO_DATE(TO_CHAR(now(),'YYYY-MM-DD'),'YYYY-MM-DD')
+		AND OBAPP.ad_org_id =v_Org_ID;
+		
+    ---	UPDATE OBPOS_Errors SET created = NOW() WHERE OBPOS_Errors_id='6AA691311B044F77A8ACC0461DC4A951'
+
+	IF(v_contador=0) THEN
+	************************************************************************************************************************************/
+		UPDATE siblr_physical_invtlines set processing = 'Y' WHERE siblr_physical_inventory_id = v_Record_ID;
+
+		delete from siblr_physical_invtlines where siblr_physical_inventory_id = v_Record_ID;
+
+		delete from siblr_collaborators where siblr_physical_inventory_id = v_Record_ID;
+		/********** FIN Coge campos del registro***********/
+
+		FOR Cur_Storage IN
+			(
+				SELECT p.M_Product_ID,--St.IDProducto
+					0 AS QtyOnHand,--St.Cantidad Disponible
+					p.C_UOM_ID,--ST.Unidad
+					--s.M_Product_UOM_ID--,--Unidad de pedido
+					p.m_product_category_id,
+					mbr.em_siblr_type,
+					p.m_brand_id,
+					p.value
+				FROM M_Product p  
+				LEFT JOIN m_brand mbr ON mbr.m_brand_id = p.m_brand_id
+				WHERE p.IsActive='Y'	--Producto activo
+				AND p.IsStocked='Y'	-- es Almacenado
+				AND p.em_siblr_iswarehouse = 'Y' -- de almacen
+				AND p.producttype = 'I'				-- tipo articulo 
+				AND p.m_brand_id IS NOT NULL
+				--AND p.em_siblr_iswarehouse = 'Y'
+				ORDER BY p.M_Product_ID			
+			)
+		LOOP
+
+			v_ResultStr:='CheckingInventoryLine';
+		
+			v_ResultStr:='InsertLine';
+
+			v_brand_type := Cur_Storage.em_siblr_type;
+
+
+			IF(v_brand_type = 'GN') THEN
+
+				-- MARCA TIPO GENERAL
+				INSERT INTO siblr_physical_invtlines
+								(
+								siblr_physical_invtlines_id, ad_client_id, ad_org_id, isactive, 
+								created, createdby, updated, updatedby, difference, m_product_id, 
+								qtycount, qtyteory, siblr_physical_inventory_id,m_product_category_id,c_uom_id
+								,product_code
+								)
+				VALUES
+				(
+				GET_UUID(), v_client_id, v_Org_ID,'Y', 
+				now(), v_User_ID, now(),v_User_ID, 'N',Cur_Storage.M_Product_ID,
+				0,Cur_Storage.QtyOnHand,v_Record_ID,Cur_Storage.m_product_category_id,Cur_Storage.C_UOM_ID
+				,Cur_Storage.value);
+				
+				v_NoInserted:=v_NoInserted + 1;
+
+			ELSE
+
+				-- BUSCO LA ORGANIZACION DE LA MARCA
+				SELECT ad_org_id
+				INTO v_Org_ID_Brand
+				FROM m_brand
+				WHERE m_brand_id = Cur_Storage.m_brand_id;
+
+				-- BUSCO EL PADRE DE LA ORGANIZACION DEL INVENTARIO
+				select ad_parent_org_id 
+				INTO v_Org_Parent_Inventory
+				from ad_org_tree 
+				where ad_org_id = v_Org_ID 
+				AND levelno = 2;
+
+				-- LA ORGANIZACION PADRE DEL INVENTARIO DEBE DE SER 
+				IF( v_Org_Parent_Inventory = v_Org_ID_Brand ) THEN
+
+				    -- LA ORGANIZACION DEL PRODUCTO ES IGUAL A LA ORGANIZACION DE LA MARCA
+					INSERT INTO siblr_physical_invtlines
+									(
+									siblr_physical_invtlines_id, ad_client_id, ad_org_id, isactive, 
+									created, createdby, updated, updatedby, difference, m_product_id, 
+									qtycount, qtyteory, siblr_physical_inventory_id,m_product_category_id,c_uom_id
+									,product_code
+									)
+					VALUES
+					(
+					GET_UUID(), v_client_id, v_Org_ID,'Y', 
+					now(), v_User_ID, now(),v_User_ID, 'N',Cur_Storage.M_Product_ID,
+					0,Cur_Storage.QtyOnHand,v_Record_ID,Cur_Storage.m_product_category_id,Cur_Storage.C_UOM_ID
+					,Cur_Storage.value);		  
+
+					v_NoInserted:=v_NoInserted + 1;
+
+				END IF;	
+
+			END IF;				
+			
+			--v_NextLine:=v_NextLine + 10;
+			--v_NoInserted:=v_NoInserted + 1;
+			
+
+		END LOOP; --    Cur_Storage
+
+		--VERIFICAR LINEAS DUPLICADAS
+		FOR Cur_Storage_Duplicate IN( 	SELECT m_product_id, count(m_product_id) as count
+										FROM siblr_physical_invtlines
+										WHERE siblr_physical_inventory_id = v_Record_ID
+										GROUP BY m_product_id
+        )
+		LOOP
+
+			-- VERIFICO SI HAY PRODUCTOS EN 2 LINEAS PARA EL INVENTARIO
+			IF(Cur_Storage_Duplicate.count > 1)THEN
+
+				-- BUSCO EL ID DE CUALQUIERA DE LAS LINEAS QUE ESTE DUPLICADA
+				FOR Cur_Storage_Delete IN( 	SELECT siblr_physical_invtlines_id
+											FROM siblr_physical_invtlines
+											WHERE siblr_physical_inventory_id = v_Record_ID
+											AND m_product_id = Cur_Storage_Duplicate.m_product_id 
+		        )
+				LOOP			
+					v_Siblr_physical_invtlines_id := Cur_Storage_Delete.siblr_physical_invtlines_id;
+				END LOOP;
+
+				DELETE FROM siblr_physical_invtlines WHERE siblr_physical_invtlines_id = v_Siblr_physical_invtlines_id;
+
+			END IF;
+
+		END LOOP;
+		--VERIFICAR LINEAS DUPLICADAS
+
+	/**********************************Remover validación(Ticket #5574)*****************************************************
+	ELSE
+		RAISE_APPLICATION_ERROR(-20000, 'No se pueden cargar lineas debido a errores en pedidos de venta') ;
+	END IF;
+	************************************************************************************************************************/
+	-- Commented by cromero 19102006 COMMIT;
+	v_Message:='@Inserted@=' || v_NoInserted;
+	v_Result:=1; --    success
+	--END IF;--END_PROCESS
+	--<<END_PROCESS>>
+	--  Update AD_PInstance
+
+/*************************************************************************************************************/
+--        		RAISE_APPLICATION_ERROR(-20000, 'La linea ' ||  Cur_m_inoutline.line || ' producto: ' || Cur_m_inoutline.product || ', No tiene una ubicacion configurada') ;
+
+  END; --BODY
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', v_Result, v_Message) ;
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('Load biometric error: ' || v_ResultStr);
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr);
+END SIBLR_INSERT_INVTLINES
+]]></body>
+    </function>
+  </database>

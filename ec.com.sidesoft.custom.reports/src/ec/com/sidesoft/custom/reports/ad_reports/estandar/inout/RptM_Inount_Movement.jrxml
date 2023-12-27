@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptM_Inount_Movement" pageWidth="510" pageHeight="623" columnWidth="460" leftMargin="36" rightMargin="14" topMargin="7" bottomMargin="59">
+	<property name="ireport.zoom" value="1.331000000000001"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+to_char('X') as "guia"
+,mm.documentno as "documento"
+, mw.em_slci_isconsignment as "motivo_traslado"
+, to_char(mm.movementdate) as "fecha_emision"
+, coalesce(cl.address1,cl.address2) as "direccion_org"
+, mw.name as "destinario"
+, coalesce(clw.address1,clw.address2) as "dir_destinatario"
+, cbp.name as "transportista"
+, cbpl.name as "direccion_transporte"
+, cbp.taxid as "ruc_transporte"
+, mml.movementqty as "cantidad"
+, mp.name as "producto"
+, coalesce((m_get_product_cost(mp.m_product_id, mm.movementdate,to_char('AV'))),0) as "precio"
+, mml.m_movementline_id as "lineas"
+, to_number(0) as basecero
+, to_number(0) as iva12
+from m_movement mm
+left join m_movementline mml on mm.m_movement_id = mml.m_movement_id
+left join m_product mp on mp.m_product_id = mml.m_product_id
+left join m_shipper ms on ms.m_shipper_id = em_ssrs_m_shipper_id
+left join c_bpartner cbp on cbp.c_bpartner_id = ms.c_bpartner_id
+left join c_bpartner_location cbpl on cbpl.c_bpartner_id = cbp.c_bpartner_id
+left join ad_org ao on ao.ad_org_id = mm.ad_org_id
+left join ad_orginfo aoi on aoi.ad_org_id = ao.ad_org_id
+left join c_location cl on cl.c_location_id = aoi.c_location_id
+left join m_locator ml on ml.m_locator_id = mml.m_locator_id
+left join m_locator ml2 on ml2.m_locator_id = mml.m_locatorto_id
+left join m_warehouse mw on mw.m_warehouse_id = ml2.m_warehouse_id
+left join c_location clw on clw.c_location_id = mw.c_location_id
+where mm.m_movement_id  = $P{DOCUMENT_ID}]]>
+	</queryString>
+	<field name="guia" class="java.lang.String"/>
+	<field name="documento" class="java.lang.String"/>
+	<field name="motivo_traslado" class="java.lang.String"/>
+	<field name="fecha_emision" class="java.lang.String"/>
+	<field name="direccion_org" class="java.lang.String"/>
+	<field name="destinario" class="java.lang.String"/>
+	<field name="dir_destinatario" class="java.lang.String"/>
+	<field name="transportista" class="java.lang.String"/>
+	<field name="direccion_transporte" class="java.lang.String"/>
+	<field name="ruc_transporte" class="java.lang.String"/>
+	<field name="cantidad" class="java.math.BigDecimal"/>
+	<field name="producto" class="java.lang.String"/>
+	<field name="precio" class="java.math.BigDecimal"/>
+	<field name="lineas" class="java.lang.String"/>
+	<field name="basecero" class="java.math.BigDecimal"/>
+	<field name="iva12" class="java.math.BigDecimal"/>
+	<variable name="V_TOTALLINEA" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{cantidad}.multiply($F{precio})]]></variableExpression>
+	</variable>
+	<variable name="V_TOTAL" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{basecero}.add($F{iva12})]]></variableExpression>
+	</variable>
+	<variable name="V_SUBTOTAL" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{precio}.multiply($F{cantidad})]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="268" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="-35" y="101" width="18" height="13">
+					<printWhenExpression><![CDATA[$F{motivo_traslado}.equals("Y")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{guia}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="32" y="116" width="100" height="15"/>
+				<textElement verticalAlignment="Bottom">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_emision}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="32" y="137" width="334" height="11"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{direccion_org}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="47" y="163" width="315" height="16"/>
+				<textElement verticalAlignment="Bottom">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{destinario}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="32" y="183" width="334" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{dir_destinatario}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="79" y="25" width="100" height="14"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_emision}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="48" y="217" width="182" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{transportista}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="264" y="217" width="92" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ruc_transporte}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="93" y="70" width="18" height="13">
+					<printWhenExpression><![CDATA[$F{motivo_traslado}.equals("N")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{guia}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="76" y="42" width="100" height="12"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documento}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="11" splitType="Stretch">
+			<textField pattern="#,##0.000" isBlankWhenNull="true">
+				<reportElement x="-35" y="0" width="35" height="11"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{cantidad}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="6" y="0" width="235" height="11"/>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{producto}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.0000" isBlankWhenNull="true">
+				<reportElement x="241" y="0" width="61" height="11"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{precio}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="318" y="0" width="44" height="11"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_TOTALLINEA}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="81">
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="318" y="0" width="44" height="15"/>
+				<textElement textAlignment="Right" verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_SUBTOTAL}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="318" y="15" width="44" height="14"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{iva12}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="318" y="30" width="44" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{basecero}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="318" y="52" width="44" height="14"/>
+				<textElement textAlignment="Right" verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_TOTAL}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+</jasperReport>

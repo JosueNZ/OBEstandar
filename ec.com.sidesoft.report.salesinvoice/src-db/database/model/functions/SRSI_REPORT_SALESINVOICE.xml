@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SRSI_REPORT_SALESINVOICE">
+    <function name="SRSI_REPORT_SALESINVOICE" type="VARCHAR">
+      <parameter name="p_c_invoice_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_type" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2006 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): RODNEY XAVIER JACOME TERAN.
+************************************************************************/
+  v_WareHouse_ID       VARCHAR2(50) ;
+  v_MovementDate       VARCHAR2(50) ;
+  v_Discount           NUMBER;
+  v_Result	       VARCHAR2(50) ;
+
+  TYPE RECORD IS REF CURSOR;
+  Cur_Category 		RECORD;
+  Cur_WareHouse 	RECORD;
+  Cur_MovementDate 	RECORD;
+
+
+
+BEGIN
+
+--Proceso para sacar la CATEGORIA mas vendida
+	IF(p_type='CAT')THEN
+		FOR Cur_Category IN (
+			SELECT 
+				PRO.m_product_category_id as category_id
+				,SUM(INVL.LineNetAmt) as LineNetAmt
+			FROM c_invoiceline  INVL
+				INNER JOIN m_product PRO on PRO.m_product_id = INVL.m_product_id
+			WHERE INVL.c_invoice_id = p_c_invoice_id
+			GROUP BY PRO.m_product_category_id,INVL.c_invoice_id
+			ORDER BY SUM(INVL.LineNetAmt) DESC
+		)LOOP
+			RETURN Cur_Category.category_id;
+		END LOOP;-- END Cur_Category--
+	END IF;--CAT--
+
+--Proceso para sacar el ALMACEN del ALBARAN 
+	IF(p_type='WAREHOUSE')THEN
+	
+		FOR Cur_WareHouse IN (
+			SELECT 
+				INO.m_warehouse_id as m_warehouse_id
+			FROM  m_inout INO 
+				LEFT JOIN m_warehouse WAR on WAR.m_warehouse_id = INO.m_warehouse_id
+			WHERE INO.c_invoice_id =p_c_invoice_id
+			ORDER BY INO.m_warehouse_id
+		)LOOP
+			RETURN Cur_WareHouse.m_warehouse_id;
+		END LOOP;-- END Cur_Category--
+		
+	END IF;--WAREHOUSE--
+	
+--Proceso para sacar el DESCUENTO de la factura
+	IF(p_type='DESC')THEN
+	
+		SELECT 
+			SUM((ORDL.PriceList*QtyOrdered)-ORDL.LineNetAmt) as descuento 
+			INTO v_Discount
+		FROM c_invoiceline  INVL 
+		INNER JOIN c_orderline  ORDL on ORDL.c_orderline_id = INVL.c_orderline_id
+		WHERE INVL.c_invoice_id = p_c_invoice_id
+		GROUP BY INVL.c_invoice_id;
+
+		RETURN TO_CHAR(COALESCE(v_Discount,0));
+		
+	END IF;--DESC--
+	
+--Proceso para sacar la FECHA DE ENTREGA del albaran
+
+	IF(p_type='DATEINV')THEN
+		FOR Cur_MovementDate IN (
+			SELECT 
+				TO_CHAR(INO.movementdate,'YYYY-MM-DD') as movementdate
+			FROM  m_inout INO 
+				LEFT JOIN m_warehouse WAR on WAR.m_warehouse_id = INO.m_warehouse_id
+			WHERE INO.c_invoice_id =p_c_invoice_id
+			ORDER BY TO_CHAR(INO.movementdate,'YYYY-MM-DD')
+		)LOOP
+			RETURN Cur_MovementDate.movementdate;
+		END LOOP;-- END Cur_MovementDate--
+	END IF;--DATEINV--
+	
+	
+  RETURN v_Result;
+END SRSI_REPORT_SALESINVOICE
+]]></body>
+    </function>
+  </database>

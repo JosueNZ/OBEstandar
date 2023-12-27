@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+
+<SqlClass name="SSCASEOrderBPartnerData" package="ec.com.sidesoft.special.customization.actuaria.ad_callouts">
+
+<!--not used anymore -->
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT p.C_PaymentTerm_ID,
+      p.M_PriceList_ID,p.PaymentRule,p.POReference,
+      p.SO_Description,COALESCE(p.IsDiscountPrinted,'N') AS IsDiscountPrinted,
+      p.InvoiceRule,p.DeliveryRule,DeliveryViaRule,
+      COALESCE(p.SO_CreditLimit-p.SO_CreditUsed,-1) AS CreditAvailable,
+      p.PO_PriceList_ID, p.PaymentRulePO, p.PO_PaymentTerm_ID, p.salesrep_Id
+      , COALESCE(p.EM_EEI_Email, '') AS email_fe
+      FROM C_BPartner p
+      WHERE p.C_BPartner_ID=?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+<!--not used anymore -->
+
+  <SqlMethod name="mWarehouse" type="preparedStatement" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT MAX(M_WAREHOUSE_ID) AS ID FROM M_WAREHOUSE_SHIPPER
+        WHERE M_WAREHOUSE_SHIPPER.C_BPARTNER_ID = ?
+        AND (SELECT ISACTIVE FROM M_WAREHOUSE WHERE M_WAREHOUSE_ID=M_WAREHOUSE_SHIPPER.M_WAREHOUSE_ID)='Y'
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="mWarehouseOnhand" type="preparedStatement" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        select m_warehouse_id AS ID from ad_org_warehouse
+        where ad_org_id = ?
+        and (select isactive from m_warehouse where m_warehouse_id=ad_org_warehouse.m_warehouse_id)='Y'
+        group by m_warehouse_id, priority
+        having min(priority) = priority
+      ]]>
+    </Sql>
+    <Parameter name="adOrgId"/>
+  </SqlMethod>
+  <SqlMethod name="getIsDicountPrinted" type="preparedStatement" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT COALESCE(IsDiscountPrinted,'N') AS IsDiscountPrinted FROM C_BPARTNER WHERE C_BPARTNER_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="selectPaymentTerm" type="preparedStatement" return="String" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        select c_paymentterm_id 
+        from c_paymentterm 
+        where isactive='Y' 
+        AND isdefault='Y' 
+        AND AD_Client_ID IN ('1') 
+      ]]>
+    </Sql>
+    <Parameter name="clientlist" optional="true" type="replace" after="AND AD_Client_ID IN (" text="'1'"/>
+  </SqlMethod>
+  <SqlMethod name="userIdSalesRep" type="preparedStatement" return="String" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        select max(ad_user_id) AS ID
+        from ad_user, c_bpartner
+        where ad_user.c_bpartner_id = c_bpartner.c_bpartner_id
+        and c_bpartner.issalesrep='Y'
+        and ad_user.isactive='Y' 
+        and ad_user.c_bpartner_id= ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="defaultPriceList" type="preparedStatement" return="String" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        select m_pricelist_id
+        from m_pricelist
+        where isdefault = 'Y' 
+        and issopricelist = ?
+        and ad_client_id = ?
+      ]]>
+    </Sql>
+    <Parameter name="isreceipt"/>
+    <Parameter name="ad_client_id"/>
+  </SqlMethod>
+</SqlClass>

@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_CASHMISSING">
+    <function name="SPEV_CASHMISSING" type="NULL">
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  --VARIABLES QUERY
+  V_LINE_ID VARCHAR2(32);
+  V_DATE DATE; 
+  V_VALUE NUMBER:=0;
+  V_VALUEDISCOUNT NUMBER:=0;
+  V_PERCENTAGE NUMBER:=0;
+  V_COUNT NUMBER:=0;
+  V_HEADER_ID VARCHAR2(32);
+  V_EMPLOYEE_ID VARCHAR2(32);
+  V_CONFIG_NEWS_ID VARCHAR2(32);
+  V_MAINTENANCE_NEWS_ID VARCHAR2(32);
+  V_SSPR_CONCEPT_ID VARCHAR2(32);
+  V_TYPE_CONCEPT VARCHAR2(32);
+  V_AD_CLIENT_ID VARCHAR2(32);
+  V_AD_ORG_ID VARCHAR2(32);
+  V_NAME_FUNCTION  VARCHAR2(60);
+  V_C_GLITEM_ID VARCHAR2(32);
+
+  --
+  V_LINEAUX_ID VARCHAR2(32);
+  V_HEADERAUX_ID VARCHAR2(32);
+  --
+  v_get_uuid VARCHAR2(32);
+  v_Result NUMBER:=0; -- failure
+  TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Transactions RECORD;
+  Cur_Config RECORD;  
+  END_PROCESS BOOLEAN:=false;
+
+BEGIN
+
+  -- Get Parameters
+  v_ResultStr:='ReadingParameters';
+  V_NAME_FUNCTION:='spev_cashmissing';
+
+  SELECT count(spev_config_news_id)
+  INTO V_COUNT
+  FROM spev_config_news 
+  WHERE isactive = 'Y'
+  AND c_glitem_id IS NOT NULL; 
+  
+  IF(V_COUNT > 0) THEN 
+
+    --BUSCO LAS CUENTAS CONTABLES QUE SEAN DE TIPO CAJA
+    FOR Cur_Parameter IN (  select ffa.fin_financial_account_id as finalcialid
+                            from fin_financial_account ffa 
+                            LEFT JOIN FIN_FinAcc_PaymentMethod ffapm ON ffapm.fin_financial_account_id = ffa.fin_financial_account_id
+                            LEFT JOIN FIN_Paymentmethod fpm ON fpm.FIN_Paymentmethod_ID = ffapm.FIN_Paymentmethod_ID
+                            where ffa.type = 'C'
+                            AND fpm.EM_Saqb_Type_Call_Center = 'EFE'
+                            group by ffa.ad_org_id, ffa.name, ffa.fin_financial_account_id
+                            order by ffa.name, ffa.ad_org_id ASC
+    ) LOOP
+
+      V_HEADER_ID:=Cur_Parameter.finalcialid;
+
+      --*** PROCESO LINEAS TRASACCIONES 
+      -- BUSCO EN LAS LINEAS PARA CADA CABECERA DE TIPO CAJA LAS QUE TENGAN 
+      -- EL CHECK DE PROCESADO EN N Y LAS QUE TENGAN
+      -- UN CONCEPTO CONTABLE ASOCIADO QUE ESTE ACTIVO EN LAS CONFIGURACIONES
+      FOR Cur_Transactions IN
+      (
+        SELECT  fft.fin_finacc_transaction_id as idlinea,
+                fft.statementdate as fecha, 
+                fft.paymentamt as valor, 
+                cb.c_bpartner_id as empleado, 
+                conf.spev_config_news_id as conf, 
+                conf.spev_maintenance_news_id as novedad, 
+                conf.sspr_concept_id as conceptolaboral,
+                conf.c_glitem_id as conceptocontable, 
+                conf.ad_client_id as cliente,
+                conf.ad_org_id as org,
+                conf.percentage as porcentaje,
+                CASE 
+                  WHEN fft.paymentamt > 0 THEN (  fft.paymentamt * (conf.percentage / 100) ) 
+                  ELSE to_number('0')
+                END as valoradescontar                
+        FROM fin_finacc_transaction fft
+        LEFT JOIN ad_user ad ON ad.ad_user_id = fft.createdBy
+        LEFT JOIN c_bpartner cb ON cb.c_bpartner_id = ad.c_bpartner_id 
+        LEFT JOIN spev_config_news conf ON conf.c_glitem_id = fft.c_glitem_id
+        WHERE fft.fin_financial_account_id = v_HEADER_ID
+        AND conf.spev_config_news_id IN (SELECT spev_config_news_id FROM spev_config_news WHERE isactive = 'Y' AND c_glitem_id IS NOT NULL ORDER BY percentage DESC)
+        AND fft.c_glitem_id IN (SELECT DISTINCT c_glitem_id FROM spev_config_news WHERE isactive = 'Y' AND c_glitem_id IS NOT NULL)
+        AND fft.em_spev_isprocessed = 'N'
+        ORDER BY fft.line desc           
+      )LOOP
+
+          V_LINE_ID:=Cur_Transactions.idlinea;
+          V_DATE:=Cur_Transactions.fecha;
+          V_VALUE:=Cur_Transactions.valor;
+          V_EMPLOYEE_ID:=Cur_Transactions.empleado;
+          V_CONFIG_NEWS_ID:=Cur_Transactions.conf;
+          V_MAINTENANCE_NEWS_ID:=Cur_Transactions.novedad;
+          V_SSPR_CONCEPT_ID:=Cur_Transactions.conceptolaboral;
+          V_C_GLITEM_ID:=Cur_Transactions.conceptocontable;
+          V_AD_CLIENT_ID:=Cur_Transactions.cliente;    
+          V_AD_ORG_ID:=Cur_Transactions.org;   
+          V_PERCENTAGE:=Cur_Transactions.porcentaje;
+          V_VALUEDISCOUNT:=Cur_Transactions.valoradescontar;
+        
+          SELECT conceptsubtype  
+          INTO V_TYPE_CONCEPT
+          FROM sspr_concept 
+          WHERE sspr_concept_id = V_SSPR_CONCEPT_ID;
+
+          IF( V_PERCENTAGE > 0 )THEN
+            V_VALUE:=V_VALUEDISCOUNT;
+
+            IF( V_VALUE > 0 )THEN
+              -- INICIO GUARDAR EN LA TABLA DETALLES DE NOVEDADES MULTA FALTANTE DE CAJA
+              INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,c_glitem_id,c_costcenter_id)
+                                  VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID,V_CONFIG_NEWS_ID,V_VALUE,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION), V_C_GLITEM_ID, spev_get_costcenter(V_EMPLOYEE_ID) );              
+              -- FIN GUARDAR EN LA TABLA DETALLES DE NOVEDADES FALTANTE DE CAJA
+            END IF;
+
+          ELSE
+
+            IF( V_VALUE > 0 )THEN
+              -- INICIO GUARDAR EN LA TABLA DETALLES DE NOVEDADES FALTANTE DE CAJA
+              INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,c_glitem_id,c_costcenter_id)
+                                    VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID,V_CONFIG_NEWS_ID,V_VALUE,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION), V_C_GLITEM_ID, spev_get_costcenter(V_EMPLOYEE_ID) ); 
+              -- FIN GUARDAR EN LA TABLA DETALLES DE NOVEDADES FALTANTE DE CAJA
+            END IF;            
+
+          END IF;
+
+      END LOOP;                  
+        -- ACTUALIZAR LINEA DE LA TRASACCION em_spev_isprocessed = 'Y'
+        UPDATE fin_finacc_transaction SET em_spev_isprocessed = 'Y' WHERE fin_finacc_transaction_id = V_LINE_ID;        
+
+    END LOOP;
+
+    -- ***********************************************************
+    -- INICIO SE ACTUALIZAN LAS LINEAS DE LA CUENTA FINANCIERA 
+    -- ***********************************************************
+    FOR Cur_Parameter IN (  select ffa.fin_financial_account_id as finalcialid
+                            from fin_financial_account ffa 
+                            LEFT JOIN FIN_FinAcc_PaymentMethod ffapm ON ffapm.fin_financial_account_id = ffa.fin_financial_account_id
+                            LEFT JOIN FIN_Paymentmethod fpm ON fpm.FIN_Paymentmethod_ID = ffapm.FIN_Paymentmethod_ID
+                            where ffa.type = 'C'
+                            AND fpm.EM_Saqb_Type_Call_Center = 'EFE'
+                            group by ffa.ad_org_id, ffa.name, ffa.fin_financial_account_id
+                            order by ffa.name, ffa.ad_org_id ASC
+    ) LOOP
+
+      V_HEADERAUX_ID:=Cur_Parameter.finalcialid;
+
+      UPDATE fin_finacc_transaction SET em_spev_isprocessed = 'Y' WHERE fin_finacc_transaction_id IN(
+        SELECT idlinea 
+        FROM (
+          SELECT  fft.fin_finacc_transaction_id as idlinea,
+            fft.statementdate as fecha, 
+            fft.paymentamt as valor, 
+            cb.c_bpartner_id as empleado,
+            cb.name, 
+            conf.spev_config_news_id as conf, 
+            conf.spev_maintenance_news_id as novedad, 
+            conf.sspr_concept_id as conceptolaboral,
+            conf.c_glitem_id as conceptocontable, 
+            conf.ad_client_id as cliente,
+            conf.ad_org_id as org,
+            conf.percentage as porcentaje,
+            CASE 
+              WHEN fft.paymentamt > 0 THEN (  fft.paymentamt * (conf.percentage / 100) ) 
+              ELSE to_number('0')
+            END as valoradescontar                
+          FROM fin_finacc_transaction fft
+          LEFT JOIN ad_user ad ON ad.ad_user_id = fft.createdBy
+          LEFT JOIN c_bpartner cb ON cb.c_bpartner_id = ad.c_bpartner_id 
+          LEFT JOIN spev_config_news conf ON conf.c_glitem_id = fft.c_glitem_id
+          WHERE fft.fin_financial_account_id = V_HEADERAUX_ID
+          AND conf.spev_config_news_id IN (SELECT spev_config_news_id FROM spev_config_news WHERE isactive = 'Y' AND c_glitem_id IS NOT NULL ORDER BY percentage DESC)
+          AND fft.c_glitem_id IN (SELECT DISTINCT c_glitem_id FROM spev_config_news WHERE isactive = 'Y' AND c_glitem_id IS NOT NULL)
+          AND fft.em_spev_isprocessed = 'N'
+          ORDER BY fft.line desc     
+        )A
+      );
+
+    END LOOP;    
+    -- ***********************************************************
+    -- INICIO SE ACTUALIZAN LAS LINEAS DE LA CUENTA FINANCIERA 
+    -- ***********************************************************
+      
+  END IF;
+END SPEV_CASHMISSING
+]]></body>
+    </function>
+  </database>

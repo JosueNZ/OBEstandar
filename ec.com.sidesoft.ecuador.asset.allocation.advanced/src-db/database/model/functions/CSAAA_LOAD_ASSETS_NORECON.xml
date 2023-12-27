@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION CSAAA_LOAD_ASSETS_NORECON">
+    <function name="CSAAA_LOAD_ASSETS_NORECON" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Record_ID VARCHAR2(32);
+  v_AD_User_ID VARCHAR2(32):='0';
+  v_PROCESSED VARCHAR2(60):='N';
+  v_POSTED VARCHAR2(60):='Y';
+  v_is_included NUMBER:=0;
+  v_AD_Org_ID VARCHAR2(32);
+  v_AD_Client_ID VARCHAR2(32);
+  v_CustodiumID VARCHAR2(32);
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_InvTaking RECORD;    
+    Cur_InvTakingLine RECORD;        
+ 
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_AD_User_ID:=Cur_Parameter.AD_User_ID;
+    END LOOP; -- Get Parameter
+
+
+	SELECT COALESCE((SELECT
+	AD_CLIENT_ID 
+	FROM csaaa_custodian WHERE csaaa_custodian_id = v_Record_ID),'ND')
+	INTO v_AD_Client_ID
+	FROM DUAL;
+
+	SELECT COALESCE((SELECT
+	AD_ORG_ID 
+	FROM csaaa_custodian WHERE csaaa_custodian_id = v_Record_ID),'ND')
+	INTO v_AD_Org_ID
+	FROM DUAL;
+
+	INSERT INTO csaaa_custodianline(
+		    csaaa_custodianline_id, ad_client_id, ad_org_id, isactive, created, 
+		    createdby, updated, updatedby, csaaa_custodian_id, custodian_id, 
+		    a_asset_id, barcode_id, datetransaction, custodian2_id,c_costcenter_id,
+		    user1_id, user2_id, building_id, unit_id, department_id,a_asset_group_id)
+	select 
+	get_uuid() as csaaa_custodianline_id
+	, v_AD_Client_ID as ad_client_id 
+	, v_AD_Org_ID as ad_org_id
+	, to_char('Y') as active
+	, now() as created
+	, v_AD_User_ID as createdby
+	, now() as updated
+	, v_AD_User_ID as updatedby
+--	, (ROW_NUMBER() OVER (ORDER BY sac.ssal_appl_active_id) * 10) AS line
+	, v_Record_ID as csaaa_custodian_id
+	, cit.custodium_id
+	, citl.a_asset_id
+	, citl.a_asset_id as barcode
+	, now() as datetrx
+	, null as custodian
+	, citl.c_costcenter_id
+	, citl.user1_id
+	, citl.user2_id
+	, citl.building_id
+	, citl.unit_id
+	, citl.department_id
+	, citl.a_asset_group_id
+	from  csaaa_inventory_taking  cit
+	join csaaa_invt_tkg_line citl on citl.csaaa_inventory_taking_id = cit.csaaa_inventory_taking_id
+	where cit.processed = 'Y'
+	and cit.status ='N'
+	and cit.status ='N'
+	and conciliation='N';
+	
+
+	update csaaa_inventory_taking
+	set status='Y'
+	where csaaa_inventory_taking_id in
+	(select csaaa_inventory_taking_id
+	from  csaaa_inventory_taking  cit
+	where cit.processed = 'Y');
+
+    v_Message:='Success';
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, v_AD_User_ID, 'N', 1, v_Message) ;
+
+    -- Commented by cromero 19102006 COMMIT;
+    RETURN;
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  IF(p_PInstance_ID IS NOT NULL) THEN
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  END IF;
+--  RAISE_APPLICATION_ERROR(-20100, v_ResultStr) ;
+--  RETURN;
+END CSAAA_LOAD_ASSETS_NORECON
+]]></body>
+    </function>
+  </database>

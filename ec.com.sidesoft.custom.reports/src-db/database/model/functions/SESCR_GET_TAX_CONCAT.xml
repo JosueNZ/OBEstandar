@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GET_TAX_CONCAT">
+    <function name="SESCR_GET_TAX_CONCAT" type="VARCHAR">
+      <parameter name="p_invoice_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+   FIN_PAYMENT_R RECORD;
+   v_display     VARCHAR2(5000);
+BEGIN
+
+    FOR FIN_PAYMENT_R IN (
+        select ct.name as tax_name
+        from c_invoicetax ciltax 
+        join c_tax ct on ct.c_tax_id = ciltax.c_tax_id
+        WHERE ct.c_taxcategory_id in (select c_taxcategory_id from c_taxcategory where name = 'RETENCIONES RENTA')
+       and C_INVOICE_ID = p_invoice_id
+        group by ct.name 
+    )
+      LOOP
+      IF v_display IS NULL THEN
+       v_display :=  FIN_PAYMENT_R.tax_name;
+      ELSE
+      v_display  := v_display  ||' - '|| FIN_PAYMENT_R.tax_name;
+      END IF;
+    END LOOP;
+    RETURN v_display;
+
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN '-';
+END SESCR_GET_TAX_CONCAT
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SLCMVL_ACCOUNT_ACCT_TRG">
+    <trigger name="SLCMVL_ACCOUNT_ACCT_TRG" table="C_GLITEM_ACCT" fires="after" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_reference_deb 				VARCHAR2(32);   
+ v_reference_cred               VARCHAR2(32);   
+ v_glitem_acct_Id	  		    VARCHAR2(32);   
+ V_CONTADOR_DEB  				VARCHAR2(5);   
+ V_CONTADOR_CRED   				VARCHAR2(5);   
+ v_contador NUMBER:= 0;
+ V_DATETO                	    DATE;
+ v_message_a                    VARCHAR2(2000); 
+ V_NEWSTATUS      			    VARCHAR2(32);
+ V_OLDSTATUS        		    VARCHAR2(32);
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+  /* Search for document type and validate that check for authorization is required. */
+    v_glitem_acct_Id := :new.c_glitem_acct_id; 
+	v_reference_cred :=:new.glitem_credit_acct; 
+	v_reference_deb :=:new.glitem_debit_acct; 
+	
+	--Cuenta débito
+	select ce.em_slcmvl_account_acct INTO V_CONTADOR_DEB
+	from c_glitem_acct gli 
+	left join c_validcombination vc on vc.c_validcombination_id=gli.glitem_debit_acct
+	left join C_ElementValue ce on ce.C_ElementValue_id=vc.account_id
+	where gli.c_glitem_acct_id=v_glitem_acct_Id and
+	vc.c_validcombination_id=v_reference_deb;
+
+	--Cuenta credito
+	select ce.em_slcmvl_account_acct INTO V_CONTADOR_CRED
+	from c_glitem_acct gli 
+	left join c_validcombination vc on vc.c_validcombination_id=gli.glitem_credit_acct
+	left join C_ElementValue ce on ce.C_ElementValue_id=vc.account_id
+	where gli.c_glitem_acct_id=v_glitem_acct_Id and
+	vc.c_validcombination_id=v_reference_cred;
+	
+   
+    /*****COMPLETAR*****/
+    
+       IF(V_CONTADOR_CRED='Y' OR V_CONTADOR_DEB='Y')THEN
+
+			RAISE_APPLICATION_ERROR(-20000, '@SLCMVL_AccountModule@');
+			--RAISE EXCEPTION 'SLCMVL_AccountModule';
+        
+	   END IF; 
+
+  END IF;  /* END TG -INSERT OR UPDATE */
+ 
+  END SLCMVL_ACCOUNT_ACCT_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SLCB_VALIDATECHECKBOOK_TRG">
+    <trigger name="SLCB_VALIDATECHECKBOOK_TRG" table="SLCB_CHECKBOOKLINE" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+
+v_PaymentNo  VARCHAR2(32);
+v_checkBookID  VARCHAR2(32);
+v_checkBookLineID  VARCHAR2(32);
+v_Status  VARCHAR2(32);
+
+BEGIN
+
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+
+   IF DELETING THEN
+
+	v_checkBookID:= :old.slcb_checkbook_id;
+
+	select coalesce((SELECT GENERATED from slcb_checkbook where slcb_checkbook_id = v_checkBookID),'ND')
+	into v_Status
+	from dual;
+
+	IF (v_Status='Y')THEN
+	
+		RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorGenerated@');
+		
+	END IF;
+
+	v_checkBookLineID:= :old.slcb_checkbookline_id;
+
+	select coalesce((SELECT status from slcb_checkbookline where slcb_checkbookline_id = v_checkBookLineID),'ND')
+	into v_Status
+	from dual;
+
+	IF (v_Status='U') THEN
+		
+		RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorUsed@');
+
+	END IF;
+
+	IF (v_Status='V') THEN
+		
+		RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorVoided@');
+		
+	END IF;
+
+
+
+
+   END IF;
+   
+END SLCB_VALIDATECHECKBOOK_TRG
+]]></body>
+    </trigger>
+  </database>

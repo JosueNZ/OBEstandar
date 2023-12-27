@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFCBR_GETSIGNATUREDATA">
+    <function name="SFCBR_GETSIGNATUREDATA" type="VARCHAR">
+      <parameter name="p_identifier" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Module NUMBER:=0;  --OBTG:NUMBER--
+v_Result VARCHAR2(200);
+
+  BEGIN
+	SELECT 
+	COALESCE((SELECT COUNT(*) AS CONTAR FROM AD_MODULE WHERE JAVAPACKAGE = 'com.sidesoft.hrm.payroll'),0)
+	INTO v_Module
+	FROM DUAL;
+	
+	IF (v_Module>0) THEN
+		IF (p_identifier IS NOT NULL) THEN
+			select p.name
+			into v_Result
+			from c_bpartner a
+			left join sspr_contract b on b.c_bpartner_id = a.c_bpartner_id
+			left join sspr_contract_position c on c.sspr_contract_id = b.sspr_contract_id
+			left join sspr_position p on p.sspr_position_id = c.sspr_position_id
+			where a.c_bpartner_id = p_identifier
+			and b.startdate = (select max(x.startdate) from sspr_contract x where x.c_bpartner_id = a.c_bpartner_id)
+			and c.startdate = (select max(y.startdate) from sspr_contract_position y where y.sspr_contract_id = c.sspr_contract_id);
+		END IF;
+	ELSE 
+		v_Result:= 'No Definido';
+	END IF;
+    RETURN(v_Result) ;
+END SFCBR_GETSIGNATUREDATA
+]]></body>
+    </function>
+  </database>

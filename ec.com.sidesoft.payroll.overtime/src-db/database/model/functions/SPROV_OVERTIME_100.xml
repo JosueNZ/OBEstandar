@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_OVERTIME_100">
+    <function name="SPROV_OVERTIME_100" type="VARCHAR">
+      <parameter name="p_sspr_shift_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_datemovement" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_authorized_time" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_starttime DATE;
+v_endtime DATE;
+v_entry DATE;
+v_exit DATE;
+v_sspr_shift_id VARCHAR2(32);
+v_datemovement DATE;
+v_nohours NUMBER;
+v_authorized_time_final DATE;
+v_starttime_final DATE;
+v_authorized_time DATE;
+v_monday_to_friday VARCHAR2(1);
+v_fromhour DATE;
+v_tohour DATE;
+v_day NUMBER;
+v_count NUMBER;
+v_shifttype VARCHAR2(60);
+v_lessday NUMBER;
+   
+BEGIN
+	v_nohours := 0;
+	v_sspr_shift_id := p_sspr_shift_id;
+	v_datemovement := p_datemovement;
+	v_authorized_time := p_authorized_time;
+
+	--Datos del turno
+	select to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(starttime,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'),
+	       to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(endtime,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'),
+	       to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(entry,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'),
+	       to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(exit,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'),
+	       shifttype
+	into v_starttime, v_endtime, v_entry, v_exit, v_shifttype
+	from sspr_shift
+	where sspr_shift_id = v_sspr_shift_id;
+
+	--Concateno fecha con horas del mismo dia
+	v_starttime_final := to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(v_starttime,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS');
+	If(v_shifttype = 'NI') Then
+		v_authorized_time_final := to_timestamp((to_char(add_days(v_datemovement,1),'YYYY-MM-DD') || ' ' || to_char(v_authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS');
+	else
+		v_authorized_time_final := to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(v_authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS');
+	End If;
+
+	--Datos de la configuracion de horas extras
+	select monday_to_friday, 
+		to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(fromhour,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'),
+		to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(tohour,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS')
+	into v_monday_to_friday, v_fromhour, v_tohour
+	from sprov_overtime_type
+	where hourtype = 'H100';
+
+	--Retorna el dia de la semana
+	select c_get_isoweek_day(v_datemovement) 
+	into v_day
+	from dual;
+
+	--Retorna si es feriado
+	select count(b.value)
+	into v_count
+	from sshd_holidays_period a 
+	left join sshd_holidays_period_line b on b.sshd_holidays_period_id =  a.sshd_holidays_period_id
+	left join c_year c on c.c_year_id = a.c_year_id
+	where c.year = to_char(v_datemovement,'YYYY')
+	and b.value = v_datemovement;
+
+	--Valida la diferencia de dias
+	v_lessday := 0;
+	v_lessday := round(to_number(v_entry - v_endtime) * 24,2);
+
+	--Calculo de horas 100%
+	If((v_count > 0) or  v_day = 6 or v_day = 7)Then
+
+		v_nohours := round(to_number(v_authorized_time_final - v_starttime_final) * 24,2) - v_lessday;
+		--RAISE_APPLICATION_ERROR(-20000, ' v_authorized_time_final 1 ' || v_authorized_time_final || ' v_starttime_final ' || v_starttime_final);
+	ElsIf(v_day >= 1 and v_day <= 5)Then
+
+		If(v_exit >= v_fromhour and v_exit <= v_tohour) Then
+
+			If(v_authorized_time_final >= v_tohour)Then
+				v_nohours := round(to_number(v_tohour - v_exit) * 24,2);
+				--RAISE_APPLICATION_ERROR(-20000, ' v_nohours 2 '  || v_nohours);
+			Else
+				v_nohours := round(to_number(v_authorized_time_final - v_exit) * 24,2);
+				--RAISE_APPLICATION_ERROR(-20000, ' v_nohours 3'  || v_nohours);
+			End If;
+		Else
+			v_nohours := 0;
+		End If;
+	End If;
+	--RAISE_APPLICATION_ERROR(-20000, ' v_nohours ' || v_nohours);
+	RETURN v_nohours;
+END SPROV_OVERTIME_100
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_CHECKLISTBONUS">
+    <function name="SPEV_CHECKLISTBONUS" type="NULL">
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  --VARIABLES QUERY  
+  V_PERCENTAGE_BY_TEMPLATE NUMBER:=0;
+  V_COUNT NUMBER:=0;
+  V_COUNT_EMPLOYEECC NUMBER:=0;
+  V_COUNT_SUCURSAL NUMBER:=0; 
+  V_WORKEDDAYS NUMBER:=0; 
+  V_PERCENTAGE_CC NUMBER:=0;
+  V_COUNT_CC NUMBER:=0;
+  V_TOPAY NUMBER:=0; 
+  V_VALUE NUMBER:=0;
+  -- INICIO VARIABLES CONFIGURACION
+  V_CONFIG_NEWS_ID VARCHAR2(32);
+  V_MAINTENANCE_NEWS_ID VARCHAR2(32);
+  V_SSPR_CONCEPT_ID VARCHAR2(32);
+  V_TYPE_CONCEPT VARCHAR2(32);
+  V_AD_CLIENT_ID VARCHAR2(32);
+  V_AD_ORG_ID VARCHAR2(32);
+  V_COSTCENTER_ID VARCHAR2(32);
+  V_PERIOD_ID VARCHAR2(32);
+  V_NAME_FUNCTION  VARCHAR2(60);
+  -- FIN VARIABLES CONFIGURACION
+  V_DATE DATE;
+  V_AD_ORG_ID_PRIMARY VARCHAR2(32);
+  V_EMPLOYEE_ID VARCHAR2(32);
+  V_EMPLOYEE_TYPE VARCHAR2(60);
+  --
+  v_Result NUMBER:=0; -- failure
+  TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Transactions RECORD; 
+  Cur_Cofig RECORD;   
+  Cur_Employees RECORD;
+  END_PROCESS BOOLEAN:=false;
+
+BEGIN
+
+  -- Get Parameters
+  v_ResultStr:='ReadingParameters';
+  V_NAME_FUNCTION:='spev_checklistbonus';
+
+  -- VERIFICO QUE PARA LA CONFIGURACION DE BONOS CHECKLIST TENGA LINEAS CREADAS
+  SELECT count(spev_config_newsline_id)
+  INTO V_COUNT
+  FROM spev_config_news cn
+  LEFT JOIN spev_config_newsline cnl ON cnl.spev_config_news_id =  cn.spev_config_news_id
+  WHERE cn.isactive = 'Y'
+  AND TRIM(cn.function) = V_NAME_FUNCTION;
+
+  -- SI TIENE LINEAS LA CONFIGURACION DE LOS BONOS CHECKLIST
+  IF(V_COUNT > 0) THEN 
+
+    /* ************************************************************************ */
+    /*    INICIO SACO LA INFORMACION DE LA CONFIGURACION PARA EL BONO CHEKLIST  */
+    /* ************************************************************************ */
+    FOR Cur_Cofig IN (  SELECT spev_config_news_id, ad_org_id, ad_client_id,spev_maintenance_news_id,sspr_concept_id, (date_trunc('month',(current_date - interval '1 month'))+'1month'::interval-'1day'::interval) as fecha   
+                        FROM spev_config_news
+                        WHERE isactive = 'Y'
+                        AND TRIM(function) = V_NAME_FUNCTION
+                        LIMIT 1
+    ) LOOP
+
+        V_CONFIG_NEWS_ID:=Cur_Cofig.spev_config_news_id;
+        V_MAINTENANCE_NEWS_ID:=Cur_Cofig.spev_maintenance_news_id;
+        V_SSPR_CONCEPT_ID:=Cur_Cofig.sspr_concept_id;
+        V_AD_CLIENT_ID:=Cur_Cofig.ad_client_id;    
+        V_AD_ORG_ID:=Cur_Cofig.ad_org_id;   
+        V_DATE:=Cur_Cofig.fecha;
+
+        --TIPO DE CONCEPTO LABORAL
+        SELECT conceptsubtype  
+        INTO V_TYPE_CONCEPT
+        FROM sspr_concept 
+        WHERE sspr_concept_id = V_SSPR_CONCEPT_ID;
+
+    END LOOP;   
+    /* *************************************************************************** */
+    /*   FIN SACO LA INFORMACION DE LA CONFIGURACION PARA EL PARA EL BONO CHEKLIST */
+    /* *************************************************************************** */
+
+    /* ***************************************************************************** */
+    /* INICIO BUSCAR TODAS LAS ORGANIZACIONES, CENTRO DE COSTOS QUE ESTEN ACTIVAS    */
+    /* ***************************************************************************** */
+    FOR Cur_Parameter IN (  SELECT  org.ad_org_id as orgid, cc.c_costcenter_id as centrocostoid 
+                            FROM ad_org org
+                            LEFT JOIN c_costcenter cc ON TRIM(cc.value) = TRIM(org.value)
+                            WHERE org.isactive = 'Y'
+                            AND cc.c_costcenter_id IS NOT NULL
+    ) LOOP
+
+        V_AD_ORG_ID_PRIMARY:=Cur_Parameter.orgid;
+        V_COSTCENTER_ID:=Cur_Parameter.centrocostoid;
+
+        /* ************************************************************************************* */
+        /* INICIO SOBRE LA TABLA TEMPORAL DE LOS PORCENTAJES DE LAS PLANTILLAS POR ORGANIZACION  */
+        /* ************************************************************************************* */
+        FOR Cur_Transactions IN(  SELECT  SUM(B.p1) as sumatotal, 
+                                          CASE WHEN COUNT(B.c1) <= 2 THEN 2 ELSE COUNT(B.c1) END as contadorfinal, 
+                                          COALESCE( ( SUM(B.p1) / (CASE WHEN COUNT(B.c1) <= 2 THEN 2 ELSE COUNT(B.c1) END) ) ,0) as promedioglobal                                         
+                                  FROM (
+                                    SELECT SUM(A.porcentage) as s1, COUNT(A.template) as c1, ( SUM(A.porcentage) / COUNT(A.template) ) as p1, tipo 
+                                    FROM (
+                                      SELECT  sta.ad_org_id as org, 
+                                        sta.spev_config_template_id as template, 
+                                        SUM(sta.percentage) as suma, 
+                                        COUNT(sta.spev_config_template_id) as contador, 
+                                        (SUM(sta.percentage) / COUNT(sta.spev_config_template_id) ) as porcentage, 
+                                        sta.type as tipo, 
+                                        sct.name as name
+                                      FROM spev_temp_auditor sta
+                                      LEFT JOIN spev_config_template sct ON sct.spev_config_template_id = sta.spev_config_template_id
+                                      WHERE to_char(start_date,'yyyy-MM-dd') = to_char((current_date - interval '1 month'), 'yyyy-MM-01')
+                                      AND to_char(end_date,'yyyy-MM-dd') = to_char(date_trunc('month',(current_date - interval '1 month'))+'1month'::interval-'0day'::interval,'yyyy-MM-dd')
+                                      AND sta.ad_org_id = V_AD_ORG_ID_PRIMARY
+                                      AND sta.processed = 'N'
+                                      GROUP BY sta.spev_config_template_id, sta.ad_org_id, sta.spev_config_template_id, sta.type, sct.name
+                                      ORDER BY sta.ad_org_id, sta.spev_config_template_id, sta.type 
+                                    )A
+                                    GROUP BY tipo
+                                  )B
+        )LOOP
+
+            V_PERCENTAGE_BY_TEMPLATE:=Cur_Transactions.promedioglobal;
+
+            /* *********************************************** */
+            /* INICIO SI EL PORCENTAJE DE LA PLANTILLA ES > 0  */
+            /* *********************************************** */            
+            IF(V_PERCENTAGE_BY_TEMPLATE > 0) THEN
+
+              --BUSCO LOS EMPLEADOS QUE SEAN DE TIPO LOCAL Y QUE PERTENEZCAN AL CENTRO DE COSTO DE LA ORGANIZACION
+              SELECT COALESCE((SELECT COUNT(c_bpartner_id)
+              FROM c_bpartner 
+              WHERE isemployee = 'Y' 
+              AND em_spev_local = 'Y'
+              AND em_sspr_status = 'A'
+              AND em_sspr_costcenter_id = V_COSTCENTER_ID),0)
+              INTO V_COUNT_EMPLOYEECC
+              FROM DUAL;
+
+              
+              /* ******************************* */
+              /* INICIO CONTADOR EMPLEADO LOCAL  */
+              /* ******************************* */   
+
+              IF(V_COUNT_EMPLOYEECC > 0) THEN
+
+                /*BUSCO EL PERIODO QUE SE GUARDARA EN EL DETALLE DE NOVEDADES*/
+                SELECT cp.c_period_id
+                INTO V_PERIOD_ID
+                FROM c_period cp 
+                LEFT JOIN c_year cy ON cy.c_year_id = cp.c_year_id
+                WHERE cy.year = to_char( (now() - interval '1 month'),'YYYY')
+                AND cp.periodno = TRIM (LEADING '0' FROM to_char((current_date - interval '1 month'),'MM') )
+                AND cp.isactive = 'Y'
+                ORDER BY cp.periodno;
+                
+                /* ********************************************************************* */
+                /* INICIO ITERAR SOBRE LOS EMPLEADOS QUE PERTENEZCAN A LA ORGANIZACION   */
+                /*                   Y QUE SEAN DE LOCAL                                 */
+                /* ********************************************************************* */
+                FOR Cur_Employees IN(   SELECT c_bpartner_id AS empleado, em_spev_type as tipoempleado
+                                        FROM c_bpartner 
+                                        WHERE isemployee = 'Y' 
+                                        AND em_spev_local = 'Y'
+                                        AND em_sspr_status = 'A'
+                                        AND em_sspr_costcenter_id = V_COSTCENTER_ID
+                )LOOP
+
+                  V_EMPLOYEE_ID:=Cur_Employees.empleado;
+                  V_EMPLOYEE_TYPE:=Cur_Employees.tipoempleado;
+
+                -- POR CADA EMPLEADO SE VERIFICA QUE QUE EN EL PERIODO ANTERIOR HAYA TRABAJADO 30 DIAS
+                -- NOMINA > BOLETA DE NOMINA > DIAS LABORADOS => 30 DIAS       
+                SELECT COALESCE((SELECT prt.workeddays
+                FROM sspr_payroll_ticket prt
+                LEFT JOIN sspr_payroll pr ON pr.sspr_payroll_id = prt.sspr_payroll_id
+                WHERE pr.ispayroll = 'Y'
+                AND pr.c_period_id = V_PERIOD_ID
+                AND prt.c_bpartner_id = V_EMPLOYEE_ID),0)
+                INTO V_WORKEDDAYS
+                FROM DUAL;                     
+
+                  --EL EMPLEADO TRABAJO 30 DIAS
+                  IF(V_WORKEDDAYS > 29) THEN
+
+                    -- BUSCO EN LAS LINEAS DE LA CONFIGURACION DEL BONO CHECKLIT 
+                    -- PARA FILTRAR POR TIPO DE EMPLEADO Y POR EL PORCENTAJE DE LA ORGANIZACION
+                    -- SN - Senior
+                    -- ADML - ADM/G Local
+                    -- ASSI - Assistants                             
+                    SELECT COALESCE((SELECT (  value * percentage ) as apagar
+                    FROM spev_config_newsline 
+                    WHERE spev_config_news_id = V_CONFIG_NEWS_ID
+                    AND startp <= V_PERCENTAGE_BY_TEMPLATE
+                    AND endp >= V_PERCENTAGE_BY_TEMPLATE
+                    AND TRIM(type) = TRIM(V_EMPLOYEE_TYPE)
+                    ORDER BY startp ASC),0)
+                    INTO V_TOPAY
+                    FROM DUAL;
+
+                    -- VERIFICAR SI EL EMPLEADO TRABAJO EN DOS LOCALES DIFERENTES 
+                    -- DISTRIBUCION POR CENTRO DE COSTO > EN LA CABECERA ESTA EL PERIODO, EN LA OTRA ESTA EL CBAPRTNER > VER SI TRABAJO EN DOS CENTROS DE COSTO                
+                    SELECT COALESCE((SELECT COUNT(distcc.sspd_pctdist_costcenter_id)
+                    FROM sspd_pctdist dist  
+                    LEFT JOIN sspd_pctdist_emp distem  ON distem.sspd_pctdist_id = dist.sspd_pctdist_id
+                    LEFT JOIN sspd_pctdist_costcenter distcc ON distcc.sspd_pctdist_emp_id = distem.sspd_pctdist_emp_id
+                    WHERE dist.isactive = 'Y'
+                    AND dist.processed = 'Y'
+                    AND dist.c_period_id = V_PERIOD_ID
+                    AND distem.c_bpartner_id = V_EMPLOYEE_ID),0)
+                    INTO V_COUNT_CC
+                    FROM DUAL;
+
+                    /* ************************************************************** */
+                    /*   INICIO EL EMPLEADO TRABAJO EN 2 SUCURSALE, SACAR PORCENTAJE  */
+                    /* ************************************************************** */
+                    V_PERCENTAGE_CC:= 0;
+                    IF(V_COUNT_CC > 1) THEN
+
+                      SELECT distcc.percentage
+                      INTO V_PERCENTAGE_CC
+                      FROM sspd_pctdist dist  
+                      LEFT JOIN sspd_pctdist_emp distem  ON distem.sspd_pctdist_id = dist.sspd_pctdist_id
+                      LEFT JOIN sspd_pctdist_costcenter distcc ON distcc.sspd_pctdist_emp_id = distem.sspd_pctdist_emp_id
+                      WHERE dist.isactive = 'Y'
+                      AND dist.processed = 'Y'
+                      AND dist.c_period_id = V_PERIOD_ID
+                      AND distem.c_bpartner_id = V_EMPLOYEE_ID                  
+                      AND distcc.c_costcenter_id = V_COSTCENTER_ID; 
+
+                    END IF;
+                    /* ************************************************************** */
+                    /*   INICIO EL EMPLEADO TRABAJO EN 2 SUCURSALE, SACAR PORCENTAJE  */
+
+                    /* ************************************************************** */
+
+                    /* *************************************************** */
+                    /*   INICIO GUARDAR EN LA TABLA DETALLES DE NOVEDADES  */
+                    /* *************************************************** */  
+                    IF(V_TOPAY > 0) THEN
+
+                      IF(V_PERCENTAGE_CC > 0) THEN
+                       V_VALUE:= ( (V_TOPAY * V_PERCENTAGE_CC ) / 100); 
+                      ELSE 
+                       V_VALUE:= V_TOPAY;   
+                      END IF;                  
+
+                      INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,c_costcenter_id)
+                      VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID,V_CONFIG_NEWS_ID,V_VALUE,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION), spev_get_costcenter(V_EMPLOYEE_ID));
+
+                    END IF;             
+                    /* *************************************************** */
+                    /*    FIN GUARDAR EN LA TABLA DETALLES DE NOVEDADES    */
+                    /* *************************************************** */  
+
+                  END IF;
+     
+                END LOOP;              
+                /* ********************************************************************* */
+                /*    FIN ITERAR SOBRE LOS EMPLEADOS QUE PERTENEZCAN A LA ORGANIZACION   */
+                /*                   Y QUE SEAN DE LOCAL                                 */
+                /* ********************************************************************* */              
+
+              END IF;
+              /* ******************************* */
+              /*   FIN CONTADOR EMPLEADO LOCAL   */
+              /* ******************************* */ 
+
+              -- SE HACE EL UPDATE EN LA TABLA TEMPORAL DEL IAUDITOR PROCESSED = 'Y'
+              UPDATE spev_temp_auditor
+              SET processed = 'Y'
+              WHERE to_char(start_date,'yyyy-MM-dd') = to_char((current_date - interval '1 month'), 'yyyy-MM-01')
+              AND to_char(end_date,'yyyy-MM-dd') = to_char(date_trunc('month',(current_date - interval '1 month'))+'1month'::interval-'0day'::interval,'yyyy-MM-dd')
+              AND ad_org_id = V_AD_ORG_ID_PRIMARY;
+
+            END IF;
+            /* *********************************************** */
+            /*   FIN SI EL PORCENTAJE DE LA PLANTILLA ES > 0   */
+            /* *********************************************** */            
+
+        END LOOP; 
+        /* ************************************************************************************* */
+        /*    FIN SOBRE LA TABLA TEMPORAL DE LOS PORCENTAJES DE LAS PLANTILLAS POR ORGANIZACION  */
+        /* ************************************************************************************* */       
+
+    END LOOP;
+    /* ***************************************************************************** */
+    /*    FIN BUSCAR TODAS LAS ORGANIZACIONES, CENTRO DE COSTOS QUE ESTEN ACTIVAS    */
+    /* ***************************************************************************** */
+
+  END IF;
+END SPEV_CHECKLISTBONUS
+]]></body>
+    </function>
+  </database>

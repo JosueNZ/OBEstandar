@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GETPRODPRICELISTSALES">
+    <function name="SESCR_GETPRODPRICELISTSALES" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_Product_ID VARCHAR2(32);
+V_Pricestd   NUMBER(10,4); --OBTG:NUMBER--
+
+BEGIN
+
+V_Product_ID:=p_product_id;
+
+SELECT 
+coalesce((
+select 
+mpp.pricestd
+from m_productprice mpp
+join (
+	m_pricelist_version mpv 
+	join m_pricelist mpl on mpl.m_pricelist_id = mpv.m_pricelist_id
+) on mpv.m_pricelist_version_id = mpp.m_pricelist_version_id
+where mpl.issopricelist = 'Y'
+and mpp.m_product_id = V_Product_ID
+and to_char(mpv.validfrom,'dd/MM/yyyy') = sescr_getmaxdateofpricelist(mpp.m_product_id)
+
+),0)
+into V_Pricestd
+from dual;
+return V_Pricestd;
+END SESCR_GETPRODPRICELISTSALES
+]]></body>
+    </function>
+  </database>

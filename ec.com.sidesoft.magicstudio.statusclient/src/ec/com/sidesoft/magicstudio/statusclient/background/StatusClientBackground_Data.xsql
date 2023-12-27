@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="StatusClientBackgroundData" package="ec.com.sidesoft.magicstudio.statusclient.background">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+		select u.ad_user_id as user_id, 
+		u.name as name_user, 
+		c.dateordered as order_date, 
+		c.created as order_create_date,
+		c.c_order_id as quote_amount,
+		q.quote_status as quote_status,
+		q.alert_status as alert_status,
+		q.ad_org_id as org_id,
+		u.ad_client_id as client_id,
+		o.c_bpartner_id as bpartner_id
+		from c_order c 
+		left join opcrm_opportunities o on o.opcrm_opportunities_id = c.em_smspr_opportunities_id 
+		left join ad_user u on o.em_smspr_ad_user_id = u.ad_user_id
+		left join smsc_quotestatus q on c.em_smspr_quotestatus_id = q.smsc_quotestatus_id
+		where c.docstatus in ('UE','CA')
+		and c.em_smspr_opportunities_id is not null 
+		and o.em_smspr_ad_user_id = ?
+		order by order_create_date DESC
+		]]> 
+        </Sql>
+        <Parameter name="ad_user_id"/>
+   </SqlMethod>
+   <SqlMethod name="selectContacts" type="preparedStatement" return="multiple" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+    <![CDATA[
+    	select u.ad_user_id as user_id,
+		u.name as name_user, 
+		count(c.c_order_id) as quote_amount,
+		u.ad_client_id as client_id,
+		u.ad_org_id as org_id
+		from c_order c
+		left join opcrm_opportunities o on o.opcrm_opportunities_id = c.em_smspr_opportunities_id
+		left join ad_user u on o.em_smspr_ad_user_id = u.ad_user_id 
+		where c.docstatus in ('UE','CA')
+		and c.em_smspr_opportunities_id is not null
+		group by user_id, org_id
+		]]>
+    </Sql>
+  </SqlMethod>
+   <SqlMethod name="countOpportunities" type="preparedStatement" return="String" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+    	select count(o.em_smspr_ad_user_id) as count_opportunities from opcrm_opportunities o  
+		where  o.em_smspr_ad_user_id = ? 
+    </Sql>
+          <Parameter name="ad_user_id"/>
+  </SqlMethod>
+</SqlClass>
+

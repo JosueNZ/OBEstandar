@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_RETURNTAX">
+    <function name="SESCR_RETURNTAX" type="VARCHAR">
+      <parameter name="v_fecha" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_Resultado character varying(2);
+BEGIN
+  select coalesce( 
+  (select to_char(e.rate) from c_tax e where  e.rate <> 0  and e.istaxdeductable ='Y' 
+and validfrom = (select max(validfrom) from c_tax e where e.rate <> 0  and e.istaxdeductable ='Y' and validfrom <= v_fecha)),'')
+into V_Resultado
+from dual;
+  RETURN V_Resultado;
+END SESCR_RETURNTAX
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="AccumulatedByTransactionSubreport" pageWidth="595" pageHeight="842" columnWidth="595" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="03312614-a1bb-4069-a9bd-f72d8d825f0f">
+	<property name="ireport.zoom" value="1.331000000000001"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="AD_ORG_ID" class="java.lang.String"/>
+	<parameter name="MOVEMENT_TYPE" class="java.lang.String"/>
+	<parameter name="M_WAREHOUSE_ID" class="java.lang.String"/>
+	<parameter name="DATE_FROM" class="java.util.Date"/>
+	<parameter name="DATE_TO" class="java.util.Date"/>
+	<parameter name="M_PRODUCT_CATEGORY_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT categoria, SUM(cantidad) AS cantidad, SUM(costo_total) AS costo_total FROM
+    (SELECT
+        --Detalle
+        t.documentno AS numero_documento
+        ,d.name AS tipo_documento
+        ,t.docstatus AS estado_documento
+        ,to_char(t.movementdate, 'DD/MM/YYYY') AS fecha_movimiento
+        ,p.value || ' - ' ||p.name AS producto
+        ,pc.name AS categoria
+        ,UPPER(u.name) AS unidad_medida
+        ,t.movementqty AS cantidad
+        ,CASE WHEN t.transactioncost IS NULL THEN 0 ELSE (t.transactioncost/t.movementqty) END AS costo_unitario
+        ,CASE WHEN t.transactioncost IS NULL THEN 0 ELSE t.transactioncost END AS costo_total
+    FROM
+        (SELECT
+            --Extra
+            i.ad_org_id
+            ,i.movementtype
+            ,i.m_warehouse_id
+            --Detalle
+            ,i.documentno
+            ,i.c_doctype_id
+            ,CASE WHEN i.docstatus='CO' THEN 'COMPLETADO' ELSE 'BORRADOR' END AS docstatus
+            ,i.movementdate
+            ,il.m_product_id
+            ,il.c_uom_id
+            ,il.movementqty
+            ,t.transactioncost
+        FROM
+            m_inoutline AS il JOIN m_inout AS i ON il.m_inout_id=i.m_inout_id
+            LEFT JOIN m_transaction AS t ON t.m_inoutline_id=il.m_inoutline_id
+
+        UNION
+
+        SELECT
+            --Extra
+            m.ad_org_id
+            ,'M+' AS movementtype
+            ,w.m_warehouse_id
+            --Detalle
+            ,m.em_ssin_documentno AS documentno
+            ,m.em_ssin_doctype_id AS c_doctype_id
+            ,CASE WHEN m.processed='Y' THEN 'COMPLETADO' ELSE 'BORRADOR' END AS docstatus
+            ,m.movementdate
+            ,ml.m_product_id
+            ,ml.c_uom_id
+            ,ml.movementqty
+            ,t.transactioncost
+        FROM
+            (m_movementline AS ml JOIN m_movement AS m ON ml.m_movement_id=m.m_movement_id)
+            LEFT JOIN (m_locator AS l JOIN m_warehouse AS w ON l.m_warehouse_id=w.m_warehouse_id) ON l.m_locator_id=ml.m_locator_id
+            LEFT JOIN m_transaction AS t ON t.m_movementline_id=ml.m_movementline_id
+
+        UNION
+
+        SELECT
+            --Extra
+            i.ad_org_id
+            ,'I+' AS movementtype
+            ,i.m_warehouse_id
+            --Detalle
+            ,i.em_ssin_documentno AS documentno
+            ,i.em_ssin_doctype_id AS c_doctype_id
+            ,CASE WHEN i.processed='Y' THEN 'COMPLETADO' ELSE 'BORRADOR' END AS docstatus
+            ,i.movementdate
+            ,il.m_product_id
+            ,il.c_uom_id
+            ,il.qtycount AS movementqty
+            ,t.transactioncost
+        FROM
+            m_inventoryline AS il JOIN m_inventory AS i ON il.m_inventory_id=i.m_inventory_id
+            LEFT JOIN m_transaction AS t ON t.m_inventoryline_id=il.m_inventoryline_id) AS t
+        LEFT JOIN (m_product AS p
+            JOIN m_product_category AS pc ON pc.m_product_category_id=p.m_product_category_id
+            JOIN c_uom AS u ON u.c_uom_id=p.c_uom_id
+        ) ON p.m_product_id=t.m_product_id
+        LEFT JOIN m_warehouse AS w ON w.m_warehouse_id=t.m_warehouse_id
+        LEFT JOIN c_doctype AS d ON d.c_doctype_id=t.c_doctype_id
+        LEFT JOIN ad_org AS o ON o.ad_org_id=t.ad_org_id
+    WHERE
+        (t.ad_org_id=$P{AD_ORG_ID} OR $P{AD_ORG_ID}='0')
+        AND t.movementtype ILIKE $P{MOVEMENT_TYPE}
+        AND w.m_warehouse_id=$P{M_WAREHOUSE_ID}
+        AND (t.movementdate BETWEEN $P{DATE_FROM} AND $P{DATE_TO})
+        AND (pc.m_product_category_id=$P{M_PRODUCT_CATEGORY_ID} OR $P{M_PRODUCT_CATEGORY_ID} IS NULL)
+) AS tmp
+GROUP BY categoria
+ORDER BY categoria ASC]]>
+	</queryString>
+	<field name="categoria" class="java.lang.String"/>
+	<field name="cantidad" class="java.math.BigDecimal"/>
+	<field name="costo_total" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="1" splitType="Stretch">
+			<line>
+				<reportElement x="232" y="0" width="335" height="1" uuid="333ad4e5-34c9-4f7c-a27d-495eedb87509"/>
+			</line>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="417" y="0" width="50" height="12" uuid="be3f0716-90c8-48e8-a662-948d4053d40e"/>
+				<box rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cantidad}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="517" y="0" width="50" height="12" uuid="69c8fa4f-187c-431e-b0f3-4182ed4b9cae"/>
+				<box rightPadding="5">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{costo_total}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement stretchType="RelativeToBandHeight" x="467" y="0" width="50" height="12" uuid="656da50c-9e5a-46a0-ac85-5df8e4528cbe"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="6" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[""]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="232" y="0" width="185" height="12" uuid="21042677-8842-48a7-add4-3b6fd756816c"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{categoria}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="0" width="232" height="12" uuid="a39120f9-3cbb-4a2a-b67a-b45162b46e3a"/>
+				<textFieldExpression><![CDATA[""]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="1" splitType="Stretch">
+			<line>
+				<reportElement x="232" y="0" width="335" height="1" uuid="5a124d9a-e3fe-4f79-805c-eeaaa7ce6670"/>
+			</line>
+		</band>
+	</summary>
+</jasperReport>

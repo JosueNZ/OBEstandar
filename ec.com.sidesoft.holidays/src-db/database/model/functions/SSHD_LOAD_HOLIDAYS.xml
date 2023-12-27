@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSHD_LOAD_HOLIDAYS">
+    <function name="SSHD_LOAD_HOLIDAYS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;  
+  Cur_holidays RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_sshd_holidays_period_ID VARCHAR2(32);
+
+  v_get_uuid VARCHAR2(32);
+  v_Payroll_ID VARCHAR2(32);
+  v_TypeofIncome VARCHAR2(60);
+  
+  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_year VARCHAR2(10):='';
+
+  
+BEGIN
+
+ --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+      v_sshd_holidays_period_ID := Cur_Parameter.Record_ID;      
+    END LOOP; 
+
+  -- Get Parameter  
+
+   delete from sshd_holidays_period_line where sshd_holidays_period_id =v_sshd_holidays_period_ID and automatic_holidays='Y';
+
+   select y.year,hp.ad_client_id,hp.ad_org_id,hp.created into v_year,v_Client_ID,v_Org_ID,v_User_ID from sshd_holidays_period hp left join c_year y on hp.c_year_id=y.c_year_id where sshd_holidays_period_id =v_sshd_holidays_period_ID;
+
+
+    --*** PROCESO CARGAR LINEAS 
+    FOR Cur_holidays IN
+	(
+	 select cast((value||'-'||v_year) as date) as fecha,name,description from sshd_holidays_standards
+	)
+    LOOP
+       
+        v_get_uuid := get_uuid();      
+        INSERT INTO sshd_holidays_period_line(sshd_holidays_period_line_id, ad_client_id, ad_org_id, isactive,created, createdby, updated, updatedby, value, name, description,sshd_holidays_period_id, automatic_holidays)
+        values (v_get_uuid,v_Client_ID,v_Org_ID,'Y',now(),v_User_ID,now(),v_User_ID,Cur_holidays.fecha,Cur_holidays.name,Cur_holidays.description,v_sshd_holidays_period_ID,'Y');
+        v_n_insertions:=v_n_insertions+1;
+    END LOOP;
+
+     v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+
+
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSHD_LOAD_HOLIDAYS
+]]></body>
+    </function>
+  </database>

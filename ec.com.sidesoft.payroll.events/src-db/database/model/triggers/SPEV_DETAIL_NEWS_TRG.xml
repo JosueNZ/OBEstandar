@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPEV_DETAIL_NEWS_TRG">
+    <trigger name="SPEV_DETAIL_NEWS_TRG" table="SPEV_DETAIL_NEWS" fires="after" insert="false" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+   V_STATE VARCHAR2(60); 
+   
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (DELETING) THEN
+
+    RAISE_APPLICATION_ERROR(-20000, '@SPEV_Not_deleted@'); 
+    
+  END IF;
+
+  IF (UPDATING) THEN
+
+    V_STATE:= :OLD.TYPE;
+  
+    IF (V_STATE = 'PR' and :NEW.TYPE = 'PR' ) THEN
+      RAISE_APPLICATION_ERROR(-20000, '@SPEV_is_processed@');
+    END IF; 
+    
+  END IF; 
+  
+  END SPEV_DETAIL_NEWS_TRG
+]]></body>
+    </trigger>
+  </database>

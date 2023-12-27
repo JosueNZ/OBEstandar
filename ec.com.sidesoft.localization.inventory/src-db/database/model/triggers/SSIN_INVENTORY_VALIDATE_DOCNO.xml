@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSIN_INVENTORY_VALIDATE_DOCNO">
+    <trigger name="SSIN_INVENTORY_VALIDATE_DOCNO" table="M_INVENTORY" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  IF(INSERTING OR UPDATING) THEN
+
+    IF (:NEW.documentno like '%<%' or :NEW.documentno like '%>%') THEN
+      RAISE_APPLICATION_ERROR(-20000, :NEW.documentno || ' - ' || '@contiene caracteres no válidos (''<'' ó ''>'')@') ;
+    END IF;
+
+  END IF;
+
+END SSIN_INVENTORY_VALIDATE_DOCNO
+]]></body>
+    </trigger>
+  </database>

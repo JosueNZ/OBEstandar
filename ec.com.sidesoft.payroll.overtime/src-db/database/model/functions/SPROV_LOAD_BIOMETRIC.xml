@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_LOAD_BIOMETRIC">
+    <function name="SPROV_LOAD_BIOMETRIC" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2013 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): Ing Diego Armando Guallasamin Columba
+************************************************************************/
+  -- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Record_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32):='0';
+  v_DocAction VARCHAR2(60);
+  v_DocStatus VARCHAR2(60);
+  v_deparment_id VARCHAR2(32);
+  v_datemovement DATE;
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_sprov_overtime_id VARCHAR2(32);
+  v_sspr_shift_id VARCHAR2(32);
+  v_exit DATE;
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_valbio RECORD;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+  v_ResultStr:='PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, i.AD_Client_ID, i.AD_Org_ID,
+        p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo) LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_User_ID:=Cur_Parameter.AD_User_ID;
+      v_client_id := Cur_Parameter.AD_Client_ID;
+      v_org_id := Cur_Parameter.AD_Org_ID;
+    END LOOP; -- Get Parameter
+
+    select sshr_department_id, datemovement, sprov_overtime_id
+    into v_deparment_id, v_datemovement, v_sprov_overtime_id
+    from sprov_overtime
+    where sprov_overtime_id = v_Record_ID;
+
+    delete 
+    from sprov_overtime_line
+    where sprov_overtime_id = v_Record_ID;
+
+   For Cur_valbio in (
+	select coalesce(b.em_sprbi_area_id,'ND') as area, b.name as employee, a.c_bpartner_id, a.exithour_a
+        from sprbi_biometric a
+	left join c_bpartner b on b.c_bpartner_id = a.c_bpartner_id
+	where a.datemovement = v_datemovement
+	and b.em_sshr_department_id = v_deparment_id
+	and a.state = 'CO'
+	and a.exithour_a is not null
+	and b.em_sspr_extra_hours = 'N'
+   )
+   Loop
+
+	If(Cur_valbio.area = 'ND') Then
+		RAISE_APPLICATION_ERROR(-20000, 'Empleado: ' ||  Cur_valbio.employee || ' no tiene configurado el campo area');
+	Else
+		select sspr_shift_id
+		into v_sspr_shift_id
+		from sspr_contract
+		where c_bpartner_id = Cur_valbio.c_bpartner_id
+		and startdate = (select max(startdate)
+				from sspr_contract
+				where c_bpartner_id = Cur_valbio.c_bpartner_id);
+
+		If(v_sspr_shift_id is null or v_sspr_shift_id = '')Then
+			RAISE_APPLICATION_ERROR(-20000, 'Empleado: ' ||  Cur_valbio.employee || ' no tiene configurado el campo turno');
+		Else
+			select exit
+			into v_exit
+			from sspr_shift
+			where sspr_shift_id = v_sspr_shift_id;
+		
+		End If;
+
+		insert into sprov_overtime_line(sprov_overtime_line_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby,
+						sprov_overtime_id, c_bpartner_id, exit_shift2, exit_marking2, authorized_time)
+		values(get_uuid(), v_client_id, v_org_id, 'Y', now(), v_User_ID, now(), v_User_ID,
+		       v_sprov_overtime_id, Cur_valbio.c_bpartner_id, v_exit, Cur_valbio.exithour_a, Cur_valbio.exithour_a);
+
+	End If;
+
+   End Loop;
+        
+  END; --BODY
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', v_Result, v_Message) ;
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('Load biometric error: ' || v_ResultStr);
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr);
+END SPROV_LOAD_BIOMETRIC
+]]></body>
+    </function>
+  </database>

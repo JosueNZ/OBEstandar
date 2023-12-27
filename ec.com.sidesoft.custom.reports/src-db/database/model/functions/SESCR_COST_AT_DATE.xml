@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_COST_AT_DATE">
+    <function name="SESCR_COST_AT_DATE" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_date" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_isbom 	VARCHAR2(32);
+v_result NUMBER:=0; --OBTG:NUMBER--
+
+BEGIN
+
+	SELECT isbom INTO v_isbom FROM m_product WHERE m_product_id =p_product_id;
+
+	IF(v_isbom = 'Y') THEN
+
+	   SELECT COALESCE(sum(mc.cost*mb.bomqty),0) INTO v_result
+	   FROM m_product_bom mb
+	   INNER JOIN m_costing mc ON mc.m_product_id = mb.m_productbom_id
+	   WHERE mc.datefrom<=TO_DATE(p_date) AND mc.dateto>=TO_DATE(p_date)
+	   AND mb.m_product_id = p_product_id;
+
+
+	ELSE
+
+	   SELECT COALESCE(cost,0) INTO v_result
+	   FROM m_product mp
+	   INNER JOIN m_costing mc ON mc.m_product_id = mp.m_product_id
+	   WHERE mc.datefrom<=TO_DATE(p_date) AND mc.dateto>=TO_DATE(p_date)
+	   AND mp.m_product_id = p_product_id;
+	   
+	END IF;
+
+	RETURN COALESCE(v_result,0);
+END SESCR_COST_AT_DATE
+]]></body>
+    </function>
+  </database>

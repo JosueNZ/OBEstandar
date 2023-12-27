@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_PROCESSED_INVOICE">
+    <function name="SPEV_PROCESSED_INVOICE" type="NULL">
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2009 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): RODNEY XAVIER JÁCOME TERAN.
+************************************************************************/
+v_Sql VARCHAR2(2000);
+v_spev_config_news_id VARCHAR2(32);
+v_Conceptsubtype  VARCHAR2(32);
+v_sspr_concept_id VARCHAR2(32);
+v_spev_maintenance_news_id  VARCHAR2(32);
+v_name_fuction  VARCHAR2(60);
+
+
+TYPE RECORD IS REF CURSOR;
+  Cur_Invoice RECORD;
+
+BEGIN
+v_name_fuction:='spev_processed_invoice';
+
+	FOR Cur_Invoice IN
+			(
+			SELECT  
+				inv.c_invoice_id as "c_invoice_id"
+				,bpar.c_bpartner_id as "c_bpartner_id"
+				,inv.documentno as "documentno"
+				,inv.ad_client_id
+				,inv.ad_org_id
+				,inv.createdby as "user"
+				,inv.dateinvoiced as "dateinvoiced"
+				,psch.Outstandingamt as "value"
+			FROM c_invoice  inv
+				INNER JOIN c_bpartner bpar on bpar.c_bpartner_id = inv.c_bpartner_id 
+									and bpar.isemployee = 'Y' 
+									and bpar.isactive  ='Y' 
+				INNER JOIN  FIN_Payment_Schedule psch on psch.c_invoice_id = inv.c_invoice_id 
+									and psch.Outstandingamt > 0
+			WHERE inv.docstatus = 'CO'
+				AND issotrx ='Y'
+				AND coalesce(em_spev_processed,'N') = 'N'
+			)
+	LOOP
+	/***********Consulta la configuración de novedades*********/
+	
+		SELECT 	
+			conf.spev_config_news_id,Conceptsubtype
+			,spev_maintenance_news_id,conf.sspr_concept_id 
+			
+			INTO 	v_spev_config_news_id,v_Conceptsubtype
+				,v_spev_maintenance_news_id,v_sspr_concept_id
+		FROM spev_config_news conf
+			INNER JOIN sspr_concept conc on conf.sspr_concept_id = conc.sspr_concept_id
+		WHERE TRIM(UPPER(function)) = UPPER(v_name_fuction);
+		
+	/********FIN Consulta la configuración de novedades********/
+
+	/********Insertar en la ventana de Detalle de novedades********/
+
+		INSERT INTO spev_detail_news(
+			spev_detail_news_id, ad_client_id--1
+			, ad_org_id, isactive--2
+			, created, createdby--3
+			,  updated, updatedby--4
+			, date_detail, doumentno--5
+			, c_bpartner_id, spev_config_news_id--6
+			,  value, sspr_concept_id--7
+			,  concept_type, type--8
+			, process, spev_maintenance_news_id--9
+			,C_Period_ID, c_costcenter_id
+		)
+		VALUES (
+			get_uuid(), Cur_Invoice.ad_client_id--1
+			, Cur_Invoice.ad_org_id, 'Y'--2
+			,now() ,  Cur_Invoice.user--3
+			, now(), Cur_Invoice.user--4
+			, Cur_Invoice.dateinvoiced, Cur_Invoice.documentno--5
+			, Cur_Invoice.c_bpartner_id, v_spev_config_news_id--6
+			, Cur_Invoice.value, v_sspr_concept_id--7
+			, v_Conceptsubtype, 'BR'--8
+			, 'AU', v_spev_maintenance_news_id--9
+			,spev_get_period(Cur_Invoice.dateinvoiced,v_name_fuction)
+			,spev_get_costcenter(Cur_Invoice.c_bpartner_id) 
+
+		);
+			
+	/********FIN Insertar en la ventana de Detalle de novedades********/
+
+
+	/********Actualiza la factura a procesada********/
+
+		UPDATE c_invoice SET 
+					em_spev_processed = 'Y'
+		WHERE c_invoice_id =Cur_Invoice.c_invoice_id;
+		
+	/********FIN Actualiza la factura a procesada********/
+
+	END LOOP; --    Cur_Invoice
+
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('spev_processed_invoice exception') ;
+  RAISE;
+END SPEV_PROCESSED_INVOICE
+]]></body>
+    </function>
+  </database>

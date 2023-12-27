@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSCA_FE_COMPLEMENTS">
+    <function name="SSCA_FE_COMPLEMENTS" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+
+v_c_order_id         VARCHAR2(32);      
+v_EM_EEI_Email_To         VARCHAR2(500);      
+v_aux  NUMBER;
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+Cur_invlines          RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    END IF;
+  END LOOP;
+  -- Determinar si la factura tiene un pedido relacionado en la cabecera
+  SELECT c_order_id --, COALESCE(EM_EEI_Email_To, '')
+  INTO v_c_order_id --, v_EM_EEI_Email_To
+  FROM c_invoice 
+  where c_invoice_id = p_record_id;
+
+    IF( LENGTH(v_c_order_id) > 0) THEN -- existe pedido relacionado a la factura
+        SELECT EM_EEI_Email_To INTO v_EM_EEI_Email_To
+        FROM c_order WHERE c_order_id = v_c_order_id;
+    END IF;
+
+    IF( LENGTH(v_c_order_id) = 0) THEN -- no existe pedido relacionado a la factura - busque en las lineas el primer pedido y tome ese email, 
+
+        v_aux = 0;
+        v_EM_EEI_Email_To = '';
+        FOR Cur_invlines IN (
+
+                SELECT o.EM_EEI_Email_To
+                FROM c_invoiceline il
+                INNER JOIN c_orderline ol on ol.c_orderline_id = il.c_orderline_id
+                INNER JOIN c_order o on o.c_order_id = ol.c_order_id
+                WHERE il.c_OrderLine_id IS NOT NULL
+                AND il.c_invoice_id = p_record_id
+                ORDER BY il.line ASC
+                 
+            ) LOOP
+
+            IF ( v_aux = 0 ) THEN
+                v_EM_EEI_Email_To = Cur_invlines.EM_EEI_Email_To;
+            END IF;
+            v_aux = v_aux + 1;
+        END LOOP;
+
+        IF ( v_EM_EEI_Email_To = '' OR v_EM_EEI_Email_To IS NULL ) THEN
+            -- No encontro emails relacionados a conciliaciones, tomar email del tercero (pestaña cliente)
+            SELECT COALESCE(EM_EEI_Email, '') INTO v_EM_EEI_Email_To
+            FROM C_BPARTNER  
+            WHERE C_BPARTNER_ID = (SELECT C_BPARTNER_ID FROM C_INVOICE WHERE C_INVOICE_ID = p_record_id ); 
+
+        END IF;
+
+    END IF;
+
+    IF ( v_EM_EEI_Email_To != '' OR v_EM_EEI_Email_To IS NOT NULL ) THEN
+
+        UPDATE c_invoice SET EM_EEI_Email_To = v_EM_EEI_Email_To
+        where c_invoice_id = p_record_id;
+
+    END IF;
+END SSCA_FE_COMPLEMENTS
+]]></body>
+    </function>
+  </database>

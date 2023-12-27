@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSOREL_SCHEDULEDETAIL_TRG">
+    <trigger name="SSOREL_SCHEDULEDETAIL_TRG" table="FIN_PAYMENT_SCHEDULEDETAIL" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+v_payment_schedule_order VARCHAR(60);
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+          
+   SELECT  fps.fin_payment_schedule_id 
+     INTO v_payment_schedule_order
+    FROM FIN_Payment_Schedule ps  
+  	 INNER JOIN c_invoice ci on ci.c_invoice_id  = ps.c_invoice_id 
+  	 INNER JOIN  c_order co on co.c_order_id = ci.c_order_id 
+  	 INNER JOIN  fin_payment_schedule fps on fps.c_order_id = co.c_order_id 
+    WHERE ps.FIN_Payment_Schedule_id = :NEW.fin_payment_schedule_invoice
+     AND fps.duedate = (select max(fps1.duedate) 
+                          from fin_payment_schedule fps1 
+                         where  fps1.c_order_id = fps.c_order_id );
+                         
+      IF v_payment_schedule_order IS NOT NULL THEN 
+         :NEW.fin_payment_schedule_order = v_payment_schedule_order;
+      END IF;
+      
+  END IF;
+
+  END SSOREL_SCHEDULEDETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

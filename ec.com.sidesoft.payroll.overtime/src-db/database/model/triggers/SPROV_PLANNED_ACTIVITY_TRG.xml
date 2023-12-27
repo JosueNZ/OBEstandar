@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPROV_PLANNED_ACTIVITY_TRG">
+    <trigger name="SPROV_PLANNED_ACTIVITY_TRG" table="SPROV_PLANNED_ACTIVITY" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[        V_Status VARCHAR2(60);
+    BEGIN
+        IF (DELETING) THEN
+            SELECT p.status INTO V_Status FROM sprov_employee AS e JOIN sprov_period AS p ON p.sprov_period_id=e.sprov_period_id WHERE sprov_employee_id=:OLD.sprov_employee_id;
+            IF (V_Status = '1') THEN
+                RAISE_APPLICATION_ERROR(-20000, '@SPROV_Processed@') ;
+            END IF;
+        END IF;
+        RETURN OLD;
+    END SPROV_PLANNED_ACTIVITY_TRG
+]]></body>
+    </trigger>
+  </database>

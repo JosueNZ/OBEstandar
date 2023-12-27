@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSCA_ORDER">
+    <function name="SSCA_ORDER" type="VARCHAR">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+	v_ResultStr		VARCHAR2(2000) := '';
+	v_Message		TEXT := ''; --OBTG:VARCHAR2--
+	-- Variables
+	Cur				RECORD;
+	vInoutID		VARCHAR2(32);
+	vOrder			RECORD;
+	vRecord			RECORD;
+	vOrderLine		RECORD;
+	vDocAction		VARCHAR2(60);
+BEGIN
+	-- Begin Get Parameters
+	FOR Cur IN (
+		SELECT *
+		FROM ad_ep_instance_para
+		WHERE ad_ep_instance_id = PInstance_ID
+	) LOOP
+		IF Cur.ParameterName = 'Record_ID' THEN
+			vInoutID := Cur.P_String;
+		ELSEIF Cur.ParameterName = 'DocAction' THEN
+			vDocAction := Cur.P_String;
+		END IF;	
+	END LOOP;
+	-- Finish Get Parameter
+	
+	--<<BEGIN_PROCESS>>
+	SELECT * INTO vRecord FROM m_inout WHERE m_inout_id = vInoutID;
+
+	IF vRecord.c_order_id IS NOT NULL THEN
+
+		SELECT * INTO vOrder FROM c_order WHERE c_order_id = vRecord.c_order_id;
+	
+		IF vOrder.c_order_id is not null AND TRUNC(TO_DATE(vOrder.dateordered)) < TRUNC(now()) 
+		AND TO_CHAR(vOrder.dateordered,'MM/yyyy') <> TO_CHAR(now(),'MM/yyyy') THEN
+			UPDATE m_inout set MovementDate = TRUNC(now()) , DateAcct = TRUNC(now())  
+			WHERE m_inout_id = vInoutID;
+		END IF;
+		
+	END IF;
+
+	--<<FINISH_PROCESS>>
+		
+	RETURN v_ResultStr;
+END SSCA_ORDER
+]]></body>
+    </function>
+  </database>
