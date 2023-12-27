@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRS_LINEDISPLAYED_TRG">
+    <trigger name="SSRS_LINEDISPLAYED_TRG" table="SSRS_RESUPPLYLINE" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2008-2013 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+  v_DocStatus VARCHAR(60);
+  v_ReqStatus VARCHAR(60);
+  v_OrderedQty NUMBER;
+  v_productname m_product.name%TYPE;
+  v_isgeneric   CHAR(1);
+  v_needbydate DATE;
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+  IF INSERTING THEN
+    SELECT DocStatus, :new.ReqStatus, 0 INTO v_DocStatus, v_ReqStatus, v_OrderedQty
+    FROM ssrs_resupply
+    WHERE ssrs_resupply_id = :new.ssrs_resupply_id;
+  ELSE
+    SELECT DocStatus, :old.ReqStatus, :old.OrderedQty INTO v_DocStatus, v_ReqStatus, v_OrderedQty
+    FROM ssrs_resupply
+    WHERE ssrs_resupply_id = :old.ssrs_resupply_id;
+  END IF;
+
+  IF (v_DocStatus = 'CL') THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20527@');
+  END IF;
+
+  IF (v_DocStatus = 'CO' AND INSERTING) THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20525@');
+  END IF;
+  
+  IF (v_DocStatus = 'CO' AND DELETING) THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20501@');
+  END IF;
+
+  IF (v_ReqStatus = 'P') THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20526@');
+  END IF;
+
+  --IF (v_ReqStatus <> 'O') THEN
+   -- RAISE_APPLICATION_ERROR(-20000, '@20520@');
+  --END IF;
+
+  IF (DELETING AND v_OrderedQty <> 0 )THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20521@');
+  END IF;
+
+  IF UPDATING THEN
+    IF ((COALESCE(:old.ssrs_resupply_id, '0') <> COALESCE(:new.ssrs_resupply_id,'0'))
+       OR (COALESCE(:old.M_Product_ID, '-1') <> COALESCE(:new.M_Product_ID, '-1'))
+       OR (COALESCE(:old.QuantityOrder, -1) <> COALESCE(:new.QuantityOrder, -1 ))
+       OR (COALESCE(:old.C_UOM_ID, '0') <> COALESCE(:new.C_UOM_ID, '0' ))
+       OR (COALESCE(:old.M_Product_UOM_ID, '0') <> COALESCE(:new.M_Product_UOM_ID, '0' ))
+       OR (COALESCE(:old.Qty, -1) <> COALESCE(:new.Qty, -1))
+       OR (COALESCE(:old.Value, '-1') <> COALESCE(:new.Value, '-1'))
+       OR (COALESCE(:old.Description, '-1') <> COALESCE(:new.Description, '-1')))THEN
+      IF (v_DocStatus = 'CO') THEN
+        RAISE_APPLICATION_ERROR(-20000, '@20522@');
+      ELSIF (v_OrderedQty <> 0 ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@20523@');
+      END IF;
+    END IF;
+  END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+    IF (:NEW.m_product_id IS NOT NULL) THEN
+      SELECT isgeneric, name INTO v_isgeneric, v_productname
+      FROM m_product
+      WHERE m_product_id = :NEW.m_product_id;
+      IF (v_isgeneric = 'Y') THEN
+        RAISE_APPLICATION_ERROR(-20000, '@CannotUseGenericProduct@');
+      END IF;
+    END IF;
+  END IF;
+END SSRS_LINEDISPLAYED_TRG
+]]></body>
+    </trigger>
+  </database>

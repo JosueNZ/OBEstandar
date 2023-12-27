@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRS_RESUPPLYLINE_TRG">
+    <trigger name="SSRS_RESUPPLYLINE_TRG" table="SSRS_RESUPPLYLINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_needbydate DATE;
+  
+BEGIN
+
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+  
+  IF (INSERTING ) THEN
+
+	Select needbydate 
+	Into v_needbydate
+	From ssrs_resupply
+	Where ssrs_resupply_id = :new.ssrs_resupply_id;
+
+	:new.needbydate := v_needbydate;
+
+  END IF;
+  IF (UPDATING) THEN
+
+	Select needbydate 
+	Into v_needbydate
+	From ssrs_resupply
+	Where ssrs_resupply_id = :old.ssrs_resupply_id;
+
+	:new.needbydate := v_needbydate;
+
+  END IF;
+      
+  END SSRS_RESUPPLYLINE_TRG
+]]></body>
+    </trigger>
+  </database>

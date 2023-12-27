@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SCNR_UPDATEFIELDELEC">
+    <function name="SCNR_UPDATEFIELDELEC" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Params RECORD;
+
+  v_Query VARCHAR2(2000);
+  v_InvoiceID VARCHAR2(32);
+
+  v_Count  NUMBER;
+  v_Issotrx VARCHAR2(1);
+  v_isRef VARCHAR2(1);
+  v_RefInvoiceID VARCHAR2(32);
+  V_Result VARCHAR2(20000);
+
+  p_record_id  VARCHAR2(32);
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF  (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    END IF;
+  END LOOP;
+
+  SELECT ISSOTRX 
+  INTO v_Issotrx
+  FROM C_INVOICE 
+  WHERE C_INVOICE_ID = p_record_id;
+
+IF (v_Issotrx='N') THEN 
+ 
+	SELECT COALESCE((SELECT
+		COUNT(*) AS ref_count
+	FROM AD_MODULE WHERE JAVAPACKAGE = 'com.sidesoft.localization.ecuador.withholdings'
+	),0)
+	INTO v_Count 
+	FROM DUAL;
+
+	IF v_Count>0 THEN
+
+		v_Query:='';
+
+		v_Query:= 'SELECT EM_Scnr_Isref_Inv, EM_Scnr_Invoice_ID FROM C_INVOICE WHERE C_INVOICE_ID =''' || p_record_id || '''';
+		EXECUTE IMMEDIATE  v_Query INTO v_isRef, v_RefInvoiceID;
+		
+		IF COALESCE(v_isRef,'N') = 'Y' AND COALESCE(v_RefInvoiceID,'ND')<>'ND' THEN
+
+			v_Query:='';
+			v_Query:= 'update c_invoice set EM_Sswh_Creditnote = ''' ||
+			 v_isRef || '''' || ',em_sswh_creditnotereference=''' ||
+			 v_RefInvoiceID || ''''
+			|| ' WHERE C_INVOICE_ID=''' || p_record_id || '''' ;
+
+			EXECUTE IMMEDIATE v_Query ;
+			
+		ElSE
+
+			v_Query:='';
+			v_Query:= 'update c_invoice set EM_Sswh_Creditnote = ''' ||
+			 'N' || '''' || ',em_sswh_creditnotereference=null WHERE C_INVOICE_ID=''' || p_record_id || '''' ;
+			EXECUTE IMMEDIATE v_Query ;
+
+		END IF;
+	END IF; 
+	
+ELSIF (v_Issotrx='Y') THEN
+
+		SELECT COALESCE((SELECT
+			COUNT(*) AS ref_count
+		FROM AD_MODULE WHERE JAVAPACKAGE = 'ec.cusoft.facturaec'
+		),0)
+		INTO v_Count 
+		FROM DUAL;
+
+		IF (v_Count>0) THEN
+
+			v_Query:= 'SELECT EM_Scnr_Isref_Inv, EM_Scnr_Invoice_ID FROM C_INVOICE WHERE C_INVOICE_ID =''' || p_record_id || '''';
+			EXECUTE IMMEDIATE  v_Query INTO v_isRef, v_RefInvoiceID;
+
+			IF COALESCE(v_isRef,'N') = 'Y' AND COALESCE(v_RefInvoiceID,'ND')<>'ND' THEN
+
+				v_Query:= 'update c_invoice set EM_Eei_Is_Inv_Ref = ''' ||
+				v_isRef || '''' || ',EM_Eei_Ref_Inv_ID=''' ||
+				v_RefInvoiceID || '''' ||
+				' WHERE C_INVOICE_ID=''' || p_record_id || '''' ;
+				EXECUTE IMMEDIATE v_Query;
+			ELSE
+				v_Query:= 'update c_invoice set EM_Eei_Is_Inv_Ref = ''' ||
+				'N' || '''' || ',EM_Eei_Ref_Inv_ID=null WHERE C_INVOICE_ID=''' || p_record_id || '''' ;
+				EXECUTE IMMEDIATE v_Query;
+			END IF;
+		
+		END IF;
+
+		
+END IF;
+END SCNR_UPDATEFIELDELEC
+]]></body>
+    </function>
+  </database>

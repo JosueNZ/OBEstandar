@@ -1,0 +1,535 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION CSWAF_FORMULARY_PROCESS">
+    <function name="CSWAF_FORMULARY_PROCESS" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Record_ID VARCHAR2(32);
+  v_Result NUMBER:=0; -- OBTG:NUMBER
+  v_AD_User_ID VARCHAR2(32);
+  v_AD_Org_ID VARCHAR2(32);
+  v_AD_Client_ID VARCHAR2(32);
+  v_EvolutionSalaryID  VARCHAR2(32);
+
+TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Form103 RECORD;
+  Cur_Form104 RECORD;
+  Cur_FormAux RECORD;
+  Cur_NewQuery RECORD;
+
+  Cur_Formulary103 RECORD;
+  Cur_Formulary104 RECORD;
+
+   v_Line NUMBER:=0; -- OBTG:NUMBER
+
+
+   v_Sswh_FormularyCodes_ID VARCHAR(32); -- OBTG:VARCHAR2
+   v_ProcessID VARCHAR(32); -- OBTG:VARCHAR2
+   v_Status VARCHAR(60); -- OBTG:VARCHAR2
+   v_Process VARCHAR(60); -- OBTG:VARCHAR2
+   v_CodeFather VARCHAR(60); -- OBTG:VARCHAR2
+   v_CodeSon VARCHAR(60); -- OBTG:VARCHAR2
+   v_Formula VARCHAR(2000); -- OBTG:VARCHAR2
+   v_FormType VARCHAR(60); -- OBTG:VARCHAR2
+   v_MSG VARCHAR(60); -- OBTG:VARCHAR2
+   v_StartDate DATE;
+   v_EndDate DATE;
+
+   v_Count NUMBER:=0; -- OBTG:NUMBER
+   v_AmountUpd NUMBER; -- OBTG:NUMBER
+
+   --- New Variables F104
+
+   v_AmountFather NUMBER; -- OBTG:NUMBER
+   v_CodeFather2  VARCHAR(60); -- OBTG:VARCHAR2
+   v_FormulaFather2 VARCHAR(2000); -- OBTG:VARCHAR2
+   v_AmountFather2 NUMBER; -- OBTG:NUMBER
+   v_FormulaSon VARCHAR(2000); -- OBTG:VARCHAR2
+   v_AmountSon NUMBER; -- OBTG:NUMBER
+   v_processFormularyID   VARCHAR(32); -- OBTG:VARCHAR2
+   v_importeimponible NUMBER; -- OBTG:NUMBER
+   
+  BEGIN
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+   BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_USER_ID,
+        i.AD_ORG_ID,
+        i.AD_CLIENT_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_AD_User_ID:=Cur_Parameter.AD_User_ID;
+      v_AD_Org_ID:=Cur_Parameter.AD_Org_ID;
+      v_AD_Client_ID:=Cur_Parameter.AD_Client_ID;
+     END LOOP; -- Get Parameter
+    DBMS_OUTPUT.PUT_LINE('  Record_ID=' || v_Record_ID) ;
+    v_ResultStr:='CheckRestriction';
+
+
+	SELECT
+	COALESCE((SELECT COUNT(*) 
+	FROM sswh_formulary_codes 
+	where isactive = 'Y'),0)
+	INTO v_Count
+	FROM DUAL;
+
+	IF (v_Count=0) THEN
+		v_Message:='@Sswh_SetupFormError@';
+	 AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0,v_Message) ;
+	ELSIF (v_Count>1) THEN
+		v_Message:='@Sswh_ActiveFormCodeError@';
+	 AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0,v_Message) ;
+	END IF;
+
+	SELECT
+	COALESCE((SELECT sswh_formulary_codes_id 
+	FROM sswh_formulary_codes 
+	where isactive = 'Y'),'ND')
+	INTO v_Sswh_FormularyCodes_ID
+	FROM DUAL;
+
+	v_Count:=0;
+
+	SELECT
+	COALESCE((SELECT formulary_type
+	FROM SSWH_FORMULARY
+	WHERE SSWH_FORMULARY_ID = v_Record_ID),TO_CHAR('ND'))
+	INTO  v_FormType
+	FROM DUAL;
+	
+	SELECT
+	COALESCE((SELECT COUNT(*)
+	FROM sswh_form_codesline103
+	where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID),0)
+	INTO v_Count
+	FROM DUAL;
+
+	IF (v_Count=0 and v_FormType='F103') THEN
+		v_Message:='@Sswh_ErrorSetupForm103@';
+	 AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0,v_Message) ;
+	END IF;
+
+
+	v_Count:=0;
+
+
+	SELECT
+	COALESCE((SELECT COUNT(*)
+	FROM sswh_form_codesline104
+	where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID),0)
+	INTO v_Count
+	FROM DUAL;
+
+	IF (v_Count=0 and v_FormType='F104') THEN
+		v_Message:='@Sswh_ErrorSetupForm104@';
+	 AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0,v_Message) ;
+	END IF;
+
+	--Obtener parametros para iniciar el proceso
+	SELECT
+	COALESCE((SELECT STARTDATE
+	FROM SSWH_FORMULARY
+	WHERE SSWH_FORMULARY_ID = v_Record_ID), null)
+	INTO v_StartDate
+	FROM DUAL;
+
+
+	SELECT
+	COALESCE((SELECT ENDDATE
+	FROM SSWH_FORMULARY
+	WHERE SSWH_FORMULARY_ID = v_Record_ID),null)
+	INTO v_Enddate
+	FROM DUAL;
+
+	SELECT
+	COALESCE((SELECT status
+	FROM SSWH_FORMULARY
+	WHERE SSWH_FORMULARY_ID = v_Record_ID),TO_CHAR('ND'))
+	INTO v_Status
+	FROM DUAL;
+
+	SELECT
+	COALESCE((SELECT PROCESS
+	FROM SSWH_FORMULARY
+	WHERE SSWH_FORMULARY_ID = v_Record_ID),TO_CHAR('ND'))
+	INTO  v_Process
+	FROM DUAL;
+
+
+
+	v_processFormularyID:=get_uuid();
+	
+	IF (v_Status='DR' AND v_Process='SSWH_GT') THEN
+
+		-- Elimina los archivos de la tabla temporal y las lineas del formulario
+		delete from sswh_form_aux where process_id = v_Record_ID;
+		delete from sswh_formularyline where sswh_formulary_id = v_Record_ID;
+
+		-- Secuencial
+		v_Line:=10;
+
+		-- ID Process
+		v_ProcessID := v_Record_ID;
+
+		-- Recorre la lista de la vista sswh_withholdingpurchase_nats - Datos del Formulario 103
+
+		IF (v_FormType='F103') THEN
+
+			-- Procesar y guardar datos en tablas temporales cswaf_execute_form_sql
+			CSWAF_EXECUTE_FORM_SQL(v_Record_ID, to_char('0'),to_char('0'),v_processFormularyID,v_Sswh_FormularyCodes_ID);
+
+
+			-- Cursor para el Formulario 103
+			
+			FOR Cur_Form103 IN(
+
+				select 
+				form103.code_father,
+				form103.amount_father,
+				form103.son_code,
+				form103.amount_son,
+				form103.line 
+				from cswaf_form_codes_value form103 
+				where process = v_processFormularyID
+			)
+			LOOP
+
+				-- v_CodeFather, v_CodeSon, v_Formula 
+
+				SELECT 
+				COALESCE((SELECT trim(father_code)
+				FROM sswh_form_codesline103
+				where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID
+				AND  father_code= Cur_Form103.code_father),'ND')
+				INTO v_CodeFather
+				FROM DUAL;
+
+				SELECT 
+				COALESCE((SELECT trim(son_code)
+				FROM sswh_form_codesline103
+				where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID
+				AND  father_code= Cur_Form103.code_father),'ND')
+				INTO v_CodeSon
+				FROM DUAL;
+
+				SELECT 
+				COALESCE((SELECT formula
+				FROM sswh_form_codesline103
+				where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID
+				AND  father_code= Cur_Form103.code_father),to_char(' '))
+				INTO v_Formula
+				FROM DUAL;
+
+				IF (v_CodeFather<>'ND') THEN
+
+					INSERT INTO sswh_form_aux(sswh_form_aux_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby,
+					father_code, baseamount,
+					son_code,taxamount, formula, grandfather_code, gf_amount, line,process_id)
+					values(get_uuid(),v_AD_Client_ID , v_AD_Org_ID, 'Y',
+					now(), v_AD_User_ID, now(), v_AD_User_ID,
+					coalesce(Cur_Form103.code_father,'0'), coalesce(Cur_Form103.amount_father,0),
+					(case when v_CodeSon='ND' then to_char('') else to_char(v_CodeSon) end), coalesce(Cur_Form103.amount_son,0), v_Formula, null, 0, Cur_Form103.Line, v_ProcessID  );
+					v_Line:= v_Line+10;
+
+				else 
+					INSERT INTO sswh_form_aux(sswh_form_aux_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby,
+					father_code, baseamount,
+					son_code,taxamount, formula, grandfather_code, gf_amount, line,process_id)
+					values(get_uuid(),v_AD_Client_ID , v_AD_Org_ID, 'Y',
+					now(), v_AD_User_ID, now(), v_AD_User_ID,
+					coalesce(Cur_Form103.code_father,'0'), 0,
+					(case when v_CodeSon='ND' then to_char('') else to_char(v_CodeSon) end), 0, v_Formula, null, 0, Cur_Form103.Line, v_ProcessID  );
+					v_Line:= v_Line+10;
+				END IF;
+
+			END LOOP;
+
+			-- Fin Cursor para el Formulario 103
+
+			-- Actualizar Tabla Auxiliar Campo Padre - Total
+
+			For Cur_Form103 IN(
+				select father_code, formula from sswh_form_codesline103 
+				where coalesce(to_char(formula),to_char('ND')) <>'ND' 
+				and Sswh_Formulary_Codes_ID = v_Sswh_FormularyCodes_ID
+			)LOOP
+
+
+			v_AmountUpd:= sswh_get_amount_form(v_Sswh_FormularyCodes_ID, Cur_Form103.father_code
+			, 'F', '103',v_ProcessID);
+
+			update sswh_form_aux  set baseamount = v_AmountUpd
+			where process_id = v_ProcessID and father_code = Cur_Form103.father_code;
+			END LOOP;
+
+			-- Actualizar Tabla Auxiliar Campo Hijo - Total
+
+			For Cur_Form103 IN(
+				select son_code, formula_son from sswh_form_codesline103 
+				where coalesce(to_char(formula),to_char('ND')) <>'ND' 
+				and Sswh_Formulary_Codes_ID = v_Sswh_FormularyCodes_ID
+			)LOOP
+
+
+				v_AmountUpd:= sswh_get_amount_form(v_Sswh_FormularyCodes_ID, Cur_Form103.son_code
+				, 'S', '103',v_ProcessID);
+
+				update sswh_form_aux  set taxamount = v_AmountUpd
+				where process_id = v_ProcessID and son_code = Cur_Form103.son_code;
+
+			END LOOP;	
+
+			-- Inserta todas las lineas de la tabla temporal a la tabla formulary lines.		
+
+			INSERT INTO sswh_formularyline(sswh_formularyline_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby, sswh_formulary_id,
+					father_code, baseamount,
+					son_code,taxamount, grandfather_code, gf_amount, line,status)
+			select get_uuid() as sswh_formularyline_id
+			, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby, process_id as sswh_formulary_id
+					,father_code, baseamount,
+					son_code,taxamount, grandfather_code, gf_amount, line, to_char('DR') as status
+			from sswh_form_aux where process_id = v_Record_ID;
+
+			UPDATE SSWH_FORMULARY SET PROCESS='SSWH_PR' WHERE SSWH_FORMULARY_ID = v_Record_ID;
+
+
+		END IF;
+
+
+		-- Recorre la lista de la vista sswh_salesdet_f104_v - Datos del Formulario 104
+
+		IF (v_FormType='F104') THEN
+
+			-- Procesar y guardar datos en tablas temporales
+
+			CSWAF_EXECUTE_FORM_SQL(v_Record_ID, to_char('0'),to_char('0'),v_processFormularyID,v_Sswh_FormularyCodes_ID);
+
+
+			-- Cursor para el Formulario 104
+
+			FOR Cur_Form104 IN(
+
+
+				select
+				form104.father_code as code_father,
+				form104.formula,
+				form104.grandfather_code as code_father2,
+				form104.formula_gf as formula_f2,
+				form104.son_code,
+				form104.formula_son as formula_son,
+				form104.line,
+				coalesce((select code from cswaf_form104_data cf1 where cf1.code = form104.father_code and process = v_processFormularyID),'ND') as codigo1,
+				coalesce((select code from cswaf_form104_data cf2 where cf2.code = form104.grandfather_code and process = v_processFormularyID),'ND') as codigo2,
+				coalesce((select code from cswaf_form104_data cf3 where cf3.code = form104.son_code and process = v_processFormularyID),'ND') as codigo3,
+				coalesce((select amount from cswaf_form104_data cf1 where cf1.code = form104.father_code and process = v_processFormularyID),0) as amount1,
+				coalesce((select amount from cswaf_form104_data cf2 where cf2.code = form104.grandfather_code and process = v_processFormularyID),0) as amount2,
+				coalesce((select amount from cswaf_form104_data cf3 where cf3.code = form104.son_code and process = v_processFormularyID),0) as amount3,				
+				coalesce((select form104.formula from cswaf_form104_data cf1 where cf1.code = form104.father_code and process = v_processFormularyID),'ND') as formula1,
+				coalesce((select form104.formula_gf from cswaf_form104_data cf1 where cf1.code = form104.grandfather_code and process = v_processFormularyID),'ND') as formula2,
+				coalesce((select form104.formula_son from cswaf_form104_data cf1 where cf1.code = form104.son_code and process = v_processFormularyID),'ND') as formula3
+				from sswh_form_codesline104 form104
+				where sswh_formulary_codes_id = v_Sswh_FormularyCodes_ID
+				and isactive='Y'			
+			)
+			LOOP
+
+
+				-- Valida código padre 
+				v_CodeFather:= Cur_Form104.codigo1;
+				v_AmountFather:= Cur_Form104.amount1;
+				v_Formula:= Cur_Form104.formula1;
+
+				-- Valida código padre 2
+				v_CodeFather2:= Cur_Form104.codigo2 ;
+				v_AmountFather2:= Cur_Form104.amount2;
+				v_FormulaFather2:= Cur_Form104.formula2;
+
+				-- Valida código HIJO
+				v_CodeSon:= Cur_Form104.codigo3 ;
+				v_AmountSon:= Cur_Form104.amount3;
+				v_FormulaSon:= Cur_Form104.formula3;
+
+				-- v_CodeFather, v_CodeSon, v_Formula 
+
+				IF (COALESCE(TO_CHAR(v_CodeFather),TO_CHAR('ND'))<>'ND' OR COALESCE(TO_CHAR(v_CodeFather2),TO_CHAR('ND'))<>'ND'  OR COALESCE(TO_CHAR(v_CodeSon),TO_CHAR('ND'))<>'ND' ) THEN
+
+					INSERT INTO sswh_form_aux(sswh_form_aux_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby,
+					father_code, baseamount,formula,
+					son_code,taxamount, formula_son,
+					grandfather_code, gf_amount, formula_gf,
+					line,process_id)
+					values(get_uuid(),v_AD_Client_ID , v_AD_Org_ID, 'Y',
+					now(), v_AD_User_ID, now(), v_AD_User_ID,
+					(case when v_CodeFather='ND' then to_char('') else to_char(v_CodeFather) end),
+					coalesce(v_AmountFather,0),v_Formula,
+					(case when v_CodeSon='ND' then to_char('') else to_char(v_CodeSon) end), 
+					coalesce(v_AmountSon,0), v_FormulaSon, 
+					(case when v_CodeFather2='ND' then to_char('') else to_char(v_CodeFather2) end),
+					 Coalesce(v_AmountFather2,0), v_FormulaFather2, 
+					 Cur_Form104.Line, v_ProcessID  );
+					v_Line:= v_Line+10;
+
+				else 
+
+					INSERT INTO sswh_form_aux(sswh_form_aux_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby,
+					father_code, baseamount,formula,
+					son_code,taxamount, formula_son,
+					grandfather_code, gf_amount, formula_gf,
+					line,process_id)
+					values(get_uuid(),v_AD_Client_ID , v_AD_Org_ID, 'Y',
+					now(), v_AD_User_ID, now(), v_AD_User_ID,
+					(case when coalesce(to_char(Cur_Form104.code_father),to_char('ND'))='ND' then to_char('') else to_char(Cur_Form104.code_father) end),
+					0,coalesce(to_char(Cur_Form104.formula),to_char('')) ,
+					(case when coalesce(to_char(Cur_Form104.son_code),to_char('ND'))='ND' then to_char('') else to_char(Cur_Form104.son_code) end), 
+					0, coalesce(to_char(Cur_Form104.formula_son),to_char('')), 
+					(case when coalesce(to_char(Cur_Form104.code_father2),to_char('ND'))='ND' then to_char('') else to_char(Cur_Form104.code_father2) end),
+					 0, coalesce(to_char(Cur_Form104.formula_f2),to_char('')), 
+					 Cur_Form104.Line, v_ProcessID  );
+
+					v_Line:= v_Line+10;
+
+				END IF;
+
+				v_CodeFather:='ND';
+				v_AmountFather:=0;
+				v_Formula:='ND';
+				v_CodeFather2:='ND';
+				v_AmountFather2:=0;
+				v_FormulaFather2:='ND';
+				v_CodeSon:='ND';
+				v_AmountSon:=0;
+				v_FormulaSon:='ND';
+
+
+			END LOOP;
+
+			-- Fin Cursor para el Formulario 104
+
+			-- Actualizar Tabla Auxiliar Campo Padre - Total
+
+
+
+			For Cur_Form104 IN(
+				select father_code, formula from sswh_form_codesline104 
+				where coalesce(to_char(formula),to_char('ND')) <>'ND' 
+				and Sswh_Formulary_Codes_ID = v_Sswh_FormularyCodes_ID
+			)LOOP
+
+
+			v_AmountUpd:= sswh_get_amount_form(v_Sswh_FormularyCodes_ID, Cur_Form104.father_code
+			, 'F', '104',v_ProcessID);
+
+			update sswh_form_aux  set baseamount = v_AmountUpd
+			where process_id = v_ProcessID and father_code = Cur_Form104.father_code;
+			END LOOP;
+
+			-- Actualizar Tabla Auxiliar Campo Father 2 - Total
+
+			For Cur_Form104 IN(
+				select grandfather_code, formula_gf from sswh_form_codesline104 
+				where coalesce(to_char(formula_gf),to_char('ND')) <>'ND' 
+				and Sswh_Formulary_Codes_ID = v_Sswh_FormularyCodes_ID
+			)LOOP
+
+
+				v_AmountUpd:= sswh_get_amount_form(v_Sswh_FormularyCodes_ID, Cur_Form104.grandfather_code
+				, 'F2', '104',v_ProcessID);
+
+				update sswh_form_aux  set gf_amount = v_AmountUpd
+				where process_id = v_ProcessID and grandfather_code = Cur_Form104.grandfather_code;
+
+			END LOOP;
+
+
+			-- Actualizar Tabla Auxiliar Campo Hijo - Total
+
+			For Cur_Form104 IN(
+				select son_code, formula_son from sswh_form_codesline104 
+				where coalesce(to_char(formula_son),to_char('ND')) <>'ND' 
+				and Sswh_Formulary_Codes_ID = v_Sswh_FormularyCodes_ID
+			)LOOP
+
+
+				v_AmountUpd:= sswh_get_amount_form(v_Sswh_FormularyCodes_ID, Cur_Form104.son_code
+				, 'S', '104',v_ProcessID);
+
+				update sswh_form_aux  set taxamount = v_AmountUpd
+				where process_id = v_ProcessID and son_code = Cur_Form104.son_code;
+
+			END LOOP;	
+
+			-- Inserta todas las lineas de la tabla temporal a la tabla formulary lines.		
+
+			INSERT INTO sswh_formularyline(sswh_formularyline_id, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby, sswh_formulary_id,
+					father_code, baseamount,
+					son_code,taxamount, grandfather_code, gf_amount, line,status)
+			select get_uuid() as sswh_formularyline_id
+			, ad_client_id, ad_org_id, isactive,
+					created,createdby, updated, updatedby, process_id as sswh_formulary_id
+					,father_code, baseamount,
+					son_code,taxamount, grandfather_code, gf_amount, line, to_char('DR') as status
+			from sswh_form_aux where process_id = v_Record_ID;
+
+			UPDATE SSWH_FORMULARY SET PROCESS='SSWH_PR' WHERE SSWH_FORMULARY_ID = v_Record_ID;
+
+
+
+
+		END IF;
+
+		delete from cswaf_form_codes_value where process = v_processFormularyID;
+		delete from cswaf_form104_data where process = v_processFormularyID;	
+		delete from cswaf_salesdet_f104  where process = v_processFormularyID;	
+
+	ELSE
+		-- Cambia el estado de Generar a Procesar
+
+		IF (v_Process='SSWH_PR') THEN
+			UPDATE SSWH_FORMULARY SET PROCESS='CO',UNPROCESS='UP',STATUS ='CO'  WHERE SSWH_FORMULARY_ID = v_Record_ID;
+			UPDATE SSWH_FORMULARYLINE SET STATUS = 'CO' WHERE SSWH_FORMULARY_ID = v_Record_ID;
+		END IF;
+
+	END IF;
+
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+   ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END CSWAF_FORMULARY_PROCESS
+]]></body>
+    </function>
+  </database>

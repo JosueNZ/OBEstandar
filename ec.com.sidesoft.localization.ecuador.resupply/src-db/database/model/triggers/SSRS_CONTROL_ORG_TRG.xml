@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRS_CONTROL_ORG_TRG">
+    <trigger name="SSRS_CONTROL_ORG_TRG" table="M_MOVEMENT" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_count	NUMBER:=0;
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+   IF (UPDATING) THEN
+
+	IF (:NEW.ad_org_id <> :OLD.ad_org_id) THEN
+		SELECT count(*) INTO v_count FROM m_movementline WHERE m_movement_id = :NEW.m_movement_id;
+
+		IF COALESCE(v_count,0) THEN
+			RAISE_APPLICATION_ERROR(-20000, 'No se puede cambiar la organización si existen líneas relacionadas.') ;
+		END IF;
+	END IF;
+      
+  END IF;  /* END TG UPDATE */  
+  END SSRS_CONTROL_ORG_TRG
+]]></body>
+    </trigger>
+  </database>

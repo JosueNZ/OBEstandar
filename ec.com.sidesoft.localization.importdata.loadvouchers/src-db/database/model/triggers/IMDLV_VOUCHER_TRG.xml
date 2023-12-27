@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER IMDLV_VOUCHER_TRG">
+    <trigger name="IMDLV_VOUCHER_TRG" table="IMDLV_VOUCHERPURCHLINE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+v_DateNull DATE := TO_DATE('31-12-9999','DD-MM-YYYY');
+v_ImportData VARCHAR(32);
+v_FileID VARCHAR(32);
+v_TableID VARCHAR(32);
+
+v_FileName 	VARCHAR(60);
+V_NewFileName	VARCHAR(60);
+v_CountFiles NUMBER;
+
+v_Status VARCHAR(60);
+v_statusTrx VARCHAR(60);
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+ IF (INSERTING) THEN
+   v_ImportData:=:new.imdlv_voucher_purchase_id;
+   
+   
+  -- RAISE_APPLICATION_ERROR(-20000, '@20501@');
+
+   
+   select coalesce((select docstatus from imdlv_voucher_purchase
+   where imdlv_voucher_purchase_id = v_ImportData),'ND')
+   into v_Status
+   FROM DUAL;
+   
+   IF (v_Status='PR') THEN
+    	RAISE_APPLICATION_ERROR(-20000, '@20501@');
+   END IF;
+   
+ END IF;
+ 
+ IF (DELETING) THEN
+   v_ImportData:=:old.imdlv_voucher_purchase_id;
+   v_statusTrx:=:old.isprocess;
+   
+   select coalesce((select docstatus from imdlv_voucher_purchase
+   where imdlv_voucher_purchase_id = v_ImportData),'ND')
+   into v_Status
+   FROM DUAL;
+   
+   IF (v_Status='PR' OR v_statusTrx='Y') THEN
+    	RAISE_APPLICATION_ERROR(-20000, '@20501@');
+   END IF;
+  
+
+ END IF;
+ 
+ 
+END IMDLV_VOUCHER_TRG
+]]></body>
+    </trigger>
+  </database>

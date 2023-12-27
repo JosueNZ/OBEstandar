@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptWS_DifferenceWithholdings" pageWidth="878" pageHeight="595" orientation="Landscape" columnWidth="838" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="0.9090909090909113"/>
+	<property name="ireport.x" value="19"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="AD_ORG_ID" class="java.lang.String"/>
+	<parameter name="STARTDATE" class="java.util.Date"/>
+	<parameter name="ENDDATE" class="java.util.Date"/>
+	<queryString>
+		<![CDATA[select
+to_char(fecha,'dd/MM/yyyy') as "fecha"
+,tercero as "tercero"
+,documento as "documento"
+,total_renta as "total_renta"
+,total_iva as "total_iva"
+,renta as "renta"
+,iva as "iva"
+,(total_renta-renta) as "dif_renta"
+,(total_iva-iva) as "dif_iva"
+,ad_org_id as "organization"
+from
+(select
+sw.withholdingdate as fecha
+,CBP.NAME as tercero
+,sw.documentno as documento
+,totalwhrentalamt as total_renta
+,totalwhivaamt as total_iva
+,sum(swl.whrentalamt) as renta
+,sum(swl.whivaamt) as iva
+,sw.ad_org_id
+from ssws_withholdingsale  sw
+join ssws_withholdingsaleline swl on sw.ssws_withholdingsale_id = swl.ssws_withholdingsale_id
+join c_invoice ci on ci.c_invoice_id = sw.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = sw.c_bpartner_id
+where (sw.ad_org_id = $P{AD_ORG_ID} or $P{AD_ORG_ID} is null)
+and (date(sw.withholdingdate) between $P{STARTDATE} and $P{ENDDATE})
+group by
+sw.withholdingdate
+,cbp.name
+,sw.documentno
+,totalwhrentalamt
+,totalwhivaamt
+,sw.ad_org_id
+) rep]]>
+	</queryString>
+	<field name="fecha" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="documento" class="java.lang.String"/>
+	<field name="total_renta" class="java.math.BigDecimal"/>
+	<field name="total_iva" class="java.math.BigDecimal"/>
+	<field name="renta" class="java.math.BigDecimal"/>
+	<field name="iva" class="java.math.BigDecimal"/>
+	<field name="dif_renta" class="java.math.BigDecimal"/>
+	<field name="dif_iva" class="java.math.BigDecimal"/>
+	<field name="organization" class="java.lang.String"/>
+	<variable name="TotalRentaLinea" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{total_renta}]]></variableExpression>
+	</variable>
+	<variable name="TotalIvaLineas" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{total_iva}]]></variableExpression>
+	</variable>
+	<variable name="TotalRentaCabecera" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{renta}]]></variableExpression>
+	</variable>
+	<variable name="TotalIvaCabecera" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{iva}]]></variableExpression>
+	</variable>
+	<variable name="TotalRentaDif" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dif_renta}]]></variableExpression>
+	</variable>
+	<variable name="TotalIvaDif" class="java.math.BigDecimal" calculation="Sum"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="124" splitType="Stretch">
+			<image>
+				<reportElement x="0" y="0" width="74" height="80"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organization})]]></imageExpression>
+			</image>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="229" y="103" width="129" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.util.Date"><![CDATA[$P{STARTDATE}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="74" y="103" width="155" height="20"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha desde: ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="439" y="103" width="80" height="20"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha hasta: ]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="519" y="103" width="80" height="21"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.util.Date"><![CDATA[$P{ENDDATE}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="74" y="22" width="605" height="44"/>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Diferencias de Retenciones (Cabecera vs Líneas)]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="42" splitType="Stretch">
+			<staticText>
+				<reportElement x="74" y="0" width="155" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tercero]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="74" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="229" y="0" width="129" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Documento]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="358" y="0" width="81" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total
+Ret. IVA
+Lineas]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="439" y="0" width="80" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total
+Ret. Renta
+Lineas]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="519" y="0" width="80" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total
+Ret. IVA
+Cabecera]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="758" y="0" width="80" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dif. Retención
+IVA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="679" y="0" width="79" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dif. Retención
+Renta]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="599" y="0" width="80" height="42"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total
+Ret. Renta
+Cabecera]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="74" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="74" y="0" width="155" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="229" y="0" width="129" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["  "+$F{documento}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="358" y="0" width="81" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{total_renta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="439" y="0" width="80" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{total_iva}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="519" y="0" width="80" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{renta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="679" y="0" width="79" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{dif_renta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="758" y="0" width="80" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{dif_iva}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="599" y="0" width="80" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{iva}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch">
+			<textField>
+				<reportElement x="358" y="0" width="81" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalRentaLinea}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="439" y="0" width="80" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalIvaLineas}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="519" y="0" width="80" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalRentaCabecera}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="679" y="0" width="79" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalRentaDif}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="758" y="0" width="80" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalIvaDif}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="599" y="0" width="80" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{TotalIvaCabecera}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

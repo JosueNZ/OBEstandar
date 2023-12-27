@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION CSWAF_EXECUTE_FORM_SQL">
+    <function name="CSWAF_EXECUTE_FORM_SQL" type="NULL">
+      <parameter name="p_formularyid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_process" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_formulary_codes" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_strStartDate DATE;
+  v_strendDate  DATE;
+  v_SqlText VARCHAR2(20000);
+
+    --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parametersql RECORD;
+  v_processID VARCHAR(32);
+
+    V_ORG  VARCHAR(100);
+    V_CLIENT  VARCHAR(100);
+    v_formType VARCHAR(60);
+
+BEGIN
+
+--Obtener parametros para iniciar el proceso
+SELECT
+COALESCE((SELECT STARTDATE
+FROM SSWH_FORMULARY
+WHERE SSWH_FORMULARY_ID = p_formularyID), null)
+INTO v_strStartDate
+FROM DUAL;
+
+
+SELECT
+COALESCE((SELECT ENDDATE
+FROM SSWH_FORMULARY
+WHERE SSWH_FORMULARY_ID = p_formularyID),null)
+INTO v_strendDate
+FROM DUAL;
+
+
+
+SELECT
+COALESCE((SELECT FORMULARY_TYPE
+FROM SSWH_FORMULARY
+WHERE SSWH_FORMULARY_ID = p_formularyID),null)
+INTO v_formType
+FROM DUAL;
+
+
+v_processID:=p_process;
+
+V_ORG:= coalesce(p_org,to_char('ND'));
+
+--V_ORG:= (case when p_org <> to_char('ND') then '''' || p_org  || '''' else to_char('NULL') end) ;
+
+V_CLIENT:= coalesce(p_client,to_char('ND'));
+
+--V_CLIENT:= (case when p_client <> to_char('ND') then '''' || p_client  || '''' else to_char('NULL') end) ;
+
+
+FOR Cur_Parametersql in(
+	select replace(replace(replace(replace(replace(replace(replace(sqlscript,':p',v_processID),':sd', to_char(v_strStartDate)), ':edd', to_char(v_strendDate)),':og1' , V_ORG),
+	':client',V_CLIENT ),':formid', p_formularyID),':fmc',p_formulary_codes) AS sqlscript, LINE,DESCRIPTION
+    from cswaf_scripts_form  where isactive ='Y'
+    and form_type = v_formType
+    order by line asc 
+)LOOP
+
+	v_SqlText:= (Cur_Parametersql.sqlscript);
+
+	-- RAISE NOTICE '%' , 'sCRIPT: ' || Cur_Parametersql.LINE || ' - ' || COALESCE( Cur_Parametersql.DESCRIPTION,'-');  --OBTG:-20000--
+	
+	EXECUTE IMMEDIATE v_SqlText;
+END LOOP;
+END CSWAF_EXECUTE_FORM_SQL
+]]></body>
+    </function>
+  </database>

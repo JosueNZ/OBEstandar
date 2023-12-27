@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER IMDLV_HEADER2_TRG">
+    <trigger name="IMDLV_HEADER2_TRG" table="C_FILE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+v_DateNull DATE := TO_DATE('31-12-9999','DD-MM-YYYY');
+v_ImportData VARCHAR(32);
+v_FileID VARCHAR(32);
+v_TableID VARCHAR(32);
+
+v_FileName 	VARCHAR(60);
+V_NewFileName	VARCHAR(60);
+v_CountFiles NUMBER;
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+ IF (INSERTING) THEN
+   v_ImportData:=:NEW.ad_record_id;
+   V_NewFileName:=:new.name;
+    v_TableID:=:new.ad_table_id;   
+   v_CountFiles:=0;
+   if ( v_TableID=  '094B879B858745BA878EFC56ECFEC067') then
+
+	   SELECT COALESCE((SELECT count(*) FROM C_FILE WHERE AD_RECORD_ID = v_ImportData
+
+					   ),0)
+	   INTO v_CountFiles
+	   FROM DUAL;
+
+	   update  imdlv_voucher_purchase set filenamedata =V_NewFileName 
+	   where filenamedata is null and
+	   imdlv_voucher_purchase_id = v_ImportData ;
+	end if;
+	
+ END IF;
+ 
+ IF (DELETING) THEN
+   v_ImportData:=:old.ad_record_id;
+   v_FileID:=:old.c_file_id;
+   v_TableID:=:old.ad_table_id;
+   
+   if ( v_TableID=  '094B879B858745BA878EFC56ECFEC067') then
+	   v_CountFiles:=0;
+	   SELECT COALESCE((SELECT count(*) FROM C_FILE 
+						WHERE AD_RECORD_ID = v_ImportData
+						and c_file_id <> v_FileID
+					   ),0)
+	   INTO v_CountFiles
+	   FROM DUAL;
+
+		IF (v_CountFiles=0) THEN
+			update  imdlv_voucher_purchase set filenamedata =null
+			where   imdlv_voucher_purchase_id = v_ImportData ;
+		END IF;
+		IF (v_CountFiles=1) THEN
+			SELECT COALESCE((SELECT NAME FROM C_FILE 
+						WHERE AD_RECORD_ID = v_ImportData
+						and c_file_id <> v_FileID
+					   ),null)
+			INTO V_NewFileName
+			from dual;
+
+			update  imdlv_voucher_purchase set filenamedata =V_NewFileName
+			where   imdlv_voucher_purchase_id = v_ImportData ;
+		END IF;
+	END IF;
+
+ END IF;
+ 
+ 
+END IMDLV_HEADER2_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SWHP_UPDATE_MOVLINES">
+    <function name="SWHP_UPDATE_MOVLINES" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Record_ID VARCHAR2(32);
+  -- Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    -- Lines to create
+    Cur_MovementLine RECORD;
+    -- Parameter Variables
+    v_AD_User_ID VARCHAR2(32) ;
+    v_LocatorFrom  VARCHAR2(32);
+    v_LocatorTo VARCHAR2(32) ;
+    v_ClientID varchar2(32) ;
+    v_OrgID varchar2(32) ;
+    v_Processed VARCHAR2(60) ;
+    v_MovementLine_ID VARCHAR2(32) ;
+    v_LineNo NUMBER(10) ;
+    END_PROCESS BOOLEAN:=false;
+  BEGIN
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  BEGIN 
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        i.CreatedBy AS AD_User_ID
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_AD_User_ID:=Cur_Parameter.AD_User_ID;
+      IF(Cur_Parameter.ParameterName='M_LocatorFrom') THEN
+        v_LocatorFrom:=Cur_Parameter.P_String;
+        DBMS_OUTPUT.PUT_LINE(' M_LocatorFrom=' || v_LocatorFrom) ;
+      ELSIF(Cur_Parameter.ParameterName='M_LocatorTo') THEN
+        v_LocatorTo:=Cur_Parameter.P_String;
+        DBMS_OUTPUT.PUT_LINE(' M_LocatorTo=' || v_LocatorTo) ;
+      ELSE
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;
+    END LOOP; -- Get Parameter
+    DBMS_OUTPUT.PUT_LINE('  Record_ID=' || v_Record_ID) ;
+
+    
+    UPDATE M_MovementLine SET m_locatorto_id=(select em_swhp_m_locator_id from m_movement where m_movement_id=v_Record_ID) where M_Movement_id=v_Record_ID;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SWHP_UPDATE_MOVLINES
+]]></body>
+    </function>
+  </database>

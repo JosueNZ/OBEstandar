@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWS_CHCK_PAIDINVOICE_TRG">
+    <trigger name="SSWS_CHCK_PAIDINVOICE_TRG" table="SSWS_WITHHOLDINGSALE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_Countline NUMBER;
+        
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+    
+    IF (UPDATING OR INSERTING) THEN  
+
+		IF(:new.paidinvoice = 'N')THEN
+			:New.C_Glitem_ID:=null;
+		ELSE
+			IF(:New.C_Glitem_ID is null and :New.generate_advance_payment = 'N' )THEN
+			RAISE_APPLICATION_ERROR(-20000, 'Necesita escoger un concepto contable cuando está activo el check de factura pagada.') ;
+			END IF;
+		END IF;
+
+	END IF;
+    
+END SSWS_CHCK_PAIDINVOICE_TRG
+]]></body>
+    </trigger>
+  </database>

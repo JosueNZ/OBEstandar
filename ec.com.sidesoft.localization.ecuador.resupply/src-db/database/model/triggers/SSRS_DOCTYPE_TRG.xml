@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRS_DOCTYPE_TRG">
+    <trigger name="SSRS_DOCTYPE_TRG" table="M_MOVEMENT" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+v_Doctype       VARCHAR2(32);
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+    
+    IF (TG_OP IN ('INSERT') AND :NEW.em_ssrs_c_doctype_id IS NULL)  THEN    
+      
+      --Add Doctype when is null
+      SELECT c_doctype_id INTO v_Doctype FROM c_doctype 
+      WHERE ad_table_id = '323' AND ad_org_id IN (:NEW.ad_org_id,'0')
+      LIMIT 1;
+
+      IF v_Doctype IS NOT NULL THEN
+        :NEW.em_ssrs_c_doctype_id := v_Doctype;
+      END IF; 
+
+    END IF; 
+
+    END SSRS_DOCTYPE_TRG
+]]></body>
+    </trigger>
+  </database>

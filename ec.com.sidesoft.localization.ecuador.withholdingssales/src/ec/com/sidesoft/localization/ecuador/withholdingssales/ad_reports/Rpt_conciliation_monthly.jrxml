@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_conciliation_monthly" pageWidth="1116" pageHeight="595" orientation="Landscape" columnWidth="1076" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="C_Year_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_Period_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Fin_Financial_Account_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Bank_Balance" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Initial_Balance" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+rep.*,case when $P{Initial_Balance} is not null then to_number($P{Initial_Balance} ) else
+coalesce(
+(select startingbalance
+from fin_reconciliation frc
+where dateto =
+((select enddate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}))
+and fin_financial_account_id = $P{Fin_Financial_Account_ID})
+,0) end as saldo_inicial
+from
+(select Fin_Financial_Account_ID,dateacct,dateto,name,GenericAccountNo,
+mes_anio,DIA,DCTO_Y_NRO,CTE_ING_EGR,CONCEPTO,BENEFICIARIO, INGRESOS,
+EGREROS,ESTADO,DEP_NO_CONCILIADO, CHQ_NO_CONCILIADO,Startingbalance,
+c_period_id,c_year_id,fecha_desde,fecha_hasta,
+to_number($P{Bank_Balance}) as saldo,
+( SELECT pe.startdate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as startdate,
+( SELECT pe.enddate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as enddate,
+( SELECT (CASE
+              WHEN to_char(pe.startdate, 'mm'::text) = '01'::text THEN 'ENERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '02'::text THEN 'FEBRERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '03'::text THEN 'MARZO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '04'::text THEN 'ABRIL'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '05'::text THEN 'MAYO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '06'::text THEN 'JUNIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '07'::text THEN 'JULIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '08'::text THEN 'AGOSTO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '09'::text THEN 'SEPTIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '10'::text THEN 'OCTUBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '11'::text THEN 'NOVIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '12'::text THEN 'DICIEMBRE'::text
+              ELSE NULL::text
+              END || ' DEL '::text) || to_char(pe.startdate, 'yyyy'::text) AS mes_aniog
+   FROM c_period pe where pe.c_period_id = $P{C_Period_ID})  as mes_aniop
+, description
+from ssws_reconciliation_v
+where c_year_id = $P{C_Year_ID}
+and c_period_id = $P{C_Period_ID}
+and Fin_Financial_Account_ID = $P{Fin_Financial_Account_ID}
+and estado = 'CONCILIADO'
+union all
+select Fin_Financial_Account_ID,dateacct,dateto,name,GenericAccountNo,
+mes_anio,DIA,DCTO_Y_NRO,CTE_ING_EGR,CONCEPTO,BENEFICIARIO, INGRESOS,
+EGREROS,ESTADO,DEP_NO_CONCILIADO, CHQ_NO_CONCILIADO,Startingbalance,
+c_period_id,c_year_id,fecha_desde,fecha_hasta,
+to_number($P{Bank_Balance}) as saldo,
+( SELECT pe.startdate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as startdate,
+( SELECT pe.enddate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as enddate,
+( SELECT (CASE
+              WHEN to_char(pe.startdate, 'mm'::text) = '01'::text THEN 'ENERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '02'::text THEN 'FEBRERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '03'::text THEN 'MARZO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '04'::text THEN 'ABRIL'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '05'::text THEN 'MAYO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '06'::text THEN 'JUNIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '07'::text THEN 'JULIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '08'::text THEN 'AGOSTO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '09'::text THEN 'SEPTIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '10'::text THEN 'OCTUBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '11'::text THEN 'NOVIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '12'::text THEN 'DICIEMBRE'::text
+              ELSE NULL::text
+              END || ' DEL '::text) || to_char(pe.startdate, 'yyyy'::text) AS mes_aniog
+   FROM c_period pe where pe.c_period_id = $P{C_Period_ID})  as mes_aniop
+, description
+from ssws_reconciliation_v
+where Fin_Financial_Account_ID = $P{Fin_Financial_Account_ID}
+and estado in ('PAGO NO CONCILIADO','COBRO NO CONCILIADO')
+and dateacct <= (select enddate from c_period where c_period_id = $P{C_Period_ID})
+union all
+select Fin_Financial_Account_ID,dateacct,dateto,name,GenericAccountNo,
+mes_anio,DIA,DCTO_Y_NRO,CTE_ING_EGR,CONCEPTO,BENEFICIARIO, 0 as INGRESOS,
+0 as EGREROS,'NO CONCILIADO A LA FECHA' as ESTADO,INGRESOS as DEP_NO_CONCILIADO, EGREROS as CHQ_NO_CONCILIADO,Startingbalance,
+c_period_id,c_year_id,fecha_desde,fecha_hasta,
+to_number($P{Bank_Balance}) as saldo,
+( SELECT pe.startdate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as startdate,
+( SELECT pe.enddate FROM c_period pe where pe.c_period_id = $P{C_Period_ID}) as enddate,
+( SELECT (CASE
+              WHEN to_char(pe.startdate, 'mm'::text) = '01'::text THEN 'ENERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '02'::text THEN 'FEBRERO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '03'::text THEN 'MARZO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '04'::text THEN 'ABRIL'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '05'::text THEN 'MAYO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '06'::text THEN 'JUNIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '07'::text THEN 'JULIO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '08'::text THEN 'AGOSTO'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '09'::text THEN 'SEPTIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '10'::text THEN 'OCTUBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '11'::text THEN 'NOVIEMBRE'::text
+              WHEN to_char(pe.startdate, 'mm'::text) = '12'::text THEN 'DICIEMBRE'::text
+              ELSE NULL::text
+              END || ' DEL '::text) || to_char(pe.startdate, 'yyyy'::text) AS mes_aniog
+   FROM c_period pe where pe.c_period_id = $P{C_Period_ID})  as mes_aniop
+, description
+from ssws_reconciliation_v
+where Fin_Financial_Account_ID = $P{Fin_Financial_Account_ID}
+and estado = 'CONCILIADO'
+and fecha_hasta > (select enddate from c_period where c_period_id = $P{C_Period_ID})
+and dia <= (select enddate from c_period where c_period_id = $P{C_Period_ID})
+) rep
+order by DIA]]>
+	</queryString>
+	<field name="fin_financial_account_id" class="java.lang.String"/>
+	<field name="dateacct" class="java.sql.Timestamp"/>
+	<field name="dateto" class="java.sql.Timestamp"/>
+	<field name="name" class="java.lang.String"/>
+	<field name="genericaccountno" class="java.lang.String"/>
+	<field name="mes_anio" class="java.lang.String"/>
+	<field name="dia" class="java.sql.Timestamp"/>
+	<field name="dcto_y_nro" class="java.lang.String"/>
+	<field name="cte_ing_egr" class="java.lang.String"/>
+	<field name="concepto" class="java.lang.String"/>
+	<field name="beneficiario" class="java.lang.String"/>
+	<field name="ingresos" class="java.math.BigDecimal"/>
+	<field name="egreros" class="java.math.BigDecimal"/>
+	<field name="estado" class="java.lang.String"/>
+	<field name="dep_no_conciliado" class="java.math.BigDecimal"/>
+	<field name="chq_no_conciliado" class="java.math.BigDecimal"/>
+	<field name="startingbalance" class="java.math.BigDecimal"/>
+	<field name="c_period_id" class="java.lang.String"/>
+	<field name="c_year_id" class="java.lang.String"/>
+	<field name="fecha_desde" class="java.sql.Timestamp"/>
+	<field name="fecha_hasta" class="java.sql.Timestamp"/>
+	<field name="saldo" class="java.math.BigDecimal"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<field name="mes_aniop" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="saldo_inicial" class="java.math.BigDecimal"/>
+	<variable name="V_Ingresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{ingresos}]]></variableExpression>
+	</variable>
+	<variable name="V_Egresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{egreros}]]></variableExpression>
+	</variable>
+	<variable name="V_Saldo_FInal" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[( ((($F{saldo_inicial}).add($V{V_Ingresos})).subtract($V{V_Egresos})
+)!=null ? (($F{saldo_inicial}).add($V{V_Ingresos})).subtract($V{V_Egresos})
+ : 0 )]]></variableExpression>
+		<initialValueExpression><![CDATA[]]></initialValueExpression>
+	</variable>
+	<variable name="V_Diferencias" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[($F{saldo}).subtract($V{V_Saldo_FInal})]]></variableExpression>
+	</variable>
+	<variable name="V_DepNo_Conciliado" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dep_no_conciliado}]]></variableExpression>
+	</variable>
+	<variable name="V_ChNC" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[( $F{chq_no_conciliado}!=null ? $F{chq_no_conciliado} : 0.00 )]]></variableExpression>
+	</variable>
+	<variable name="V_Saldo_Libros" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[( ((($V{V_Saldo_FInal}).add($V{V_DepNo_Conciliado})).subtract($V{V_ChNC})
+)!=null ? ((($V{V_Saldo_FInal}).add($V{V_DepNo_Conciliado})).subtract($V{V_ChNC})
+) : 0 )]]></variableExpression>
+	</variable>
+	<title>
+		<band height="82" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="1076" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE DE CONCILIACIÓN MENSUAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="259" y="20" width="141" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Desde:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="500" y="20" width="100" height="20"/>
+				<box rightPadding="3"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Hasta:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="40" width="45" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cuenta No.:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="60" width="45" height="21"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Banco:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="400" y="40" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Mes y Año:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="45" y="40" width="355" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{genericaccountno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="45" y="60" width="355" height="21"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="400" y="20" width="100" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{startdate}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="600" y="20" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{enddate}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="500" y="40" width="200" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{mes_aniop}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement mode="Transparent" x="0" y="0" width="45" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dìa]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="45" y="0" width="114" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dcto. Y Nro.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="159" y="0" width="100" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cte./Ing./Egr.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="259" y="0" width="141" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Concepto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="400" y="0" width="100" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Beneficiario]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="500" y="0" width="100" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ingresos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="600" y="0" width="100" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Egresos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="700" y="0" width="110" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Dep. No. Conciliado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="810" y="0" width="103" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ch.GNC]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="913" y="0" width="163" height="21" backcolor="#000000"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Descripción cta. financiera]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="45" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{dia}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="159" y="0" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cte_ing_egr}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="259" y="0" width="141" height="20"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concepto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="500" y="0" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{ingresos}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="600" y="0" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{egreros}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="700" y="0" width="110" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{dep_no_conciliado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="810" y="0" width="103" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{chq_no_conciliado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="400" y="0" width="100" height="20"/>
+				<box leftPadding="2" rightPadding="2"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{beneficiario}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="45" y="0" width="114" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{dcto_y_nro}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="913" y="0" width="163" height="20"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{description}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="158">
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="500" y="0" width="100" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Number"><![CDATA[$V{V_Ingresos}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="600" y="0" width="100" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_Egresos}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="45" y="0" width="52" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Saldo Inicial:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="45" y="20" width="52" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Saldo Final:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="259" y="0" width="57" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Saldo Banco:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="259" y="20" width="57" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Diferencias:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="400" y="0" width="100" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sumas:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="400" y="20" width="100" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Saldo Libros:]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="97" y="20" width="62" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[($V{V_Saldo_FInal}!=null ? $V{V_Saldo_FInal} : 0 )]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="97" y="0" width="62" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[($F{saldo_inicial}!=null ? $F{saldo_inicial} : 0 )]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="500" y="20" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[($V{V_Saldo_Libros}!=null ? $V{V_Saldo_Libros} : 0 )]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="316" y="20" width="84" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[($V{V_Diferencias}!=null ? $V{V_Diferencias} : 0 )]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="289" y="108" width="100" height="20"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Elaborado Por]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="630" y="108" width="100" height="20"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Aprobado Por]]></text>
+			</staticText>
+			<line>
+				<reportElement x="289" y="107" width="100" height="1"/>
+			</line>
+			<line>
+				<reportElement x="630" y="107" width="100" height="1"/>
+			</line>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="810" y="0" width="103" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_ChNC}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="700" y="0" width="110" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{V_DepNo_Conciliado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="316" y="0" width="84" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{saldo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

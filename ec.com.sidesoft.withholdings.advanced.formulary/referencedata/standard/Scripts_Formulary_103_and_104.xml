@@ -1,0 +1,1665 @@
+<?xml version="1.0" encoding="UTF-8"?><ob:Openbravo xmlns:ob="http://www.openbravo.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cswaf_scripts_form id="02680603CE2F4869B5F40E53818EF3C8" identifier="cswaf_scripts_form (02680603CE2F4869B5F40E53818EF3C8)">
+    <id>02680603CE2F4869B5F40E53818EF3C8</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F2') as fieldtype,
+to_char('411') as codigo,
+case when length(to_char(
+					coalesce(sum((base_iva_doce)),0) ))&gt;0 then coalesce(SUM((base_iva_doce)),0) else 0.00 end base_iva_doce,
+to_char(':p') as process
+from cswaf_salesdet_f104 
+where  process = to_char(':p')</sqlscript>
+    <description>Codigo 411</description>
+    <line>40</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="02CEC68BF57E4527A3F5042964481F73" identifier="cswaf_scripts_form (02CEC68BF57E4527A3F5042964481F73)">
+    <id>02CEC68BF57E4527A3F5042964481F73</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('401') as codigo,
+COALESCE(sum(abs(base_iva_doce)),0) as amount,
+to_char(':p') as process
+from cswaf_salesdet_f104 
+where cod_tipo_comprobante = '18' 
+and process = ':p'</sqlscript>
+    <description>Codigo 401</description>
+    <line>30</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="02DCCDDC309F4E58970BCE7525D12638" identifier="cswaf_scripts_form (02DCCDDC309F4E58970BCE7525D12638)">
+    <id>02DCCDDC309F4E58970BCE7525D12638</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('609') as codigo,
+case when length(to_char(
+					sum(coalesce(valor,0)) ))&gt;0 then sum(coalesce(valor,0)) else 0 end AS valor
+,to_char(':p') as process
+from
+(
+select
+factura,cliente,cod_ret,valor
+from
+(
+
+select b.documentno as factura, c.name as cliente, e.em_sswh_code_103_104 cod_ret,
+(select sum(d1.WhIVAAmt) from ssws_withholdingsaleline d1 where  d1.ssws_withholdingsale_id= d.ssws_withholdingsale_id
+and d1.c_tax_id=d.c_tax_id )
+as valor
+from ssws_withholdingsale a
+left join c_invoice b on a.c_invoice_id = b.c_invoice_id
+left join c_bpartner c on b.c_bpartner_id = c.c_bpartner_id
+left join ssws_withholdingsaleline d on a.ssws_withholdingsale_id = d.ssws_withholdingsale_id
+left join c_tax e on d.c_tax_id = e.c_tax_id
+left join c_taxcategory f on e.c_taxcategory_id = f.c_taxcategory_id
+where  (a.posted ='Y')  and
+withholdingdate between to_date(':sd') and to_date(':edd') and
+d.isrental = 'N' and
+f.EM_Sswh_Withholdingtype = 'VA' and
+e.DocTaxAmount = 'D' and
+e.EM_Sswh_Iswithholdingsource ='Y' and
+e.IsWithholdingTax = 'Y'
+) rep_
+group by factura,cliente,cod_ret,valor
+) subrep2</sqlscript>
+    <description>Codigo 609</description>
+    <line>190</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="0698956DAD4047B4BD82067501854E4F" identifier="cswaf_scripts_form (0698956DAD4047B4BD82067501854E4F)">
+    <id>0698956DAD4047B4BD82067501854E4F</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('S') as fieldtype,
+to_char('421') as codigo,
+case when length(to_char(
+					sum(coalesce((monto_iva),0)) ))&gt;0 then sum(coalesce((monto_iva),0)) else 0 end as monto_iva
+,to_char(':p') as process
+from cswaf_salesdet_f104
+where  process = to_char(':p')</sqlscript>
+    <description>Codigo 421</description>
+    <line>60</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="16783F4138D84F7198C2F0A05CAC3D56" identifier="cswaf_scripts_form (16783F4138D84F7198C2F0A05CAC3D56)">
+    <id>16783F4138D84F7198C2F0A05CAC3D56</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F2') as fieldtype,
+to_char('444') as codigo,
+to_number(0) AS impuesto,
+to_char(':p') as process
+from dual</sqlscript>
+    <description>Codigo 444</description>
+    <line>90</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="23BA3D75892A4D8F8A2DE76DEABF36F2" identifier="cswaf_scripts_form (23BA3D75892A4D8F8A2DE76DEABF36F2)">
+    <id>23BA3D75892A4D8F8A2DE76DEABF36F2</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('725') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_30,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_30,0)),2) else 0 end AS valor
+,to_char(':p') as process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 725</description>
+    <line>220</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="254177EFB4BD46F8B6513AEFD608FE91" identifier="cswaf_scripts_form (254177EFB4BD46F8B6513AEFD608FE91)">
+    <id>254177EFB4BD46F8B6513AEFD608FE91</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('723') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_20,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_20,0)),2) else 0 end AS valor
+,to_char(':p') as process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 723</description>
+    <line>210</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="27A1EF5C17874FCBBC63C0E70BD5EC8A" identifier="27A1EF5C17874FCBBC63C0E70BD5EC8A">
+    <id>27A1EF5C17874FCBBC63C0E70BD5EC8A</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>INSERT INTO cswaf_form104_data (
+  cswaf_form104_data_id, ad_client_id, ad_org_id, isactive, created,
+  createdby, updated, updatedby, fieldtype, code,
+  amount, process
+)
+SELECT
+ get_uuid() cswaf_form104_data_id
+ , ':client' ad_client_id
+ , ':og1' ad_org_id
+ , 'Y' isactive
+ , NOW() created
+ , '100' createdby
+ , NOW() updated
+ , '100' updatedby
+ , 'F' fieldtype
+ , '402' codigo
+ , COALESCE(SUM(il.linenetamt),0) valor
+ , ':p' process
+FROM c_invoice i
+ JOIN c_invoiceline il ON il.c_invoice_id = i.c_invoice_id
+  AND il.EM_Ssam_Asset = 'Y'
+ JOIN c_tax ta ON ta.c_tax_id = il.c_tax_id
+    AND ta.rate = 12
+WHERE i.issotrx = 'Y' AND i.posted = 'Y' AND i.docstatus = 'CO'
+ AND i.dateinvoiced::DATE &gt;= ':sd'::DATE AND i.dateinvoiced::DATE &lt;= ':edd'::DATE</sqlscript>
+    <description>Codigo 402</description>
+    <line>270</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="2CE29DE22E1F4DA9BBCF2CA445451BCA" identifier="2CE29DE22E1F4DA9BBCF2CA445451BCA">
+    <id>2CE29DE22E1F4DA9BBCF2CA445451BCA</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('507') as codigo,
+case when length(to_char(
+					sum(coalesce(abs(a.base_iva_cero),0)) ))&gt;0 then sum(coalesce(abs(a.base_iva_cero),0)) else 0 end AS valor
+,to_char(':p') as process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  a.tipo_comprobante not in ('04')
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd') </sqlscript>
+    <description>Codigo 507 </description>
+    <line>160</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="4C4A876FBB0B494DBFEC4289510943C9" identifier="cswaf_scripts_form (4C4A876FBB0B494DBFEC4289510943C9)">
+    <id>4C4A876FBB0B494DBFEC4289510943C9</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F2') as fieldtype,
+to_char('413') as codigo,
+case when length(to_char(
+					sum(coalesce((base_iva_cero),0)) ))&gt;0 then sum(coalesce((base_iva_cero),0)) else 0 end as base_iva_cero
+,to_char(':p') as process
+from cswaf_salesdet_f104
+where process = to_char(':p')</sqlscript>
+    <description>Codigo 413</description>
+    <line>70</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="51E62940BA774E32BED01B0BEE1F7CE3" identifier="cswaf_scripts_form (51E62940BA774E32BED01B0BEE1F7CE3)">
+    <id>51E62940BA774E32BED01B0BEE1F7CE3</id>
+    <active>true</active>
+    <formType>F103</formType>
+    <sqlscript>INSERT INTO cswaf_form_codes_value(
+			  cswaf_form_codes_value_id,
+			  ad_org_id,
+			  ad_client_id,
+			  created,
+			  createdby,
+			  updated,
+			  updatedby,
+			  isactive,
+			  code_father,
+			  amount_father,
+			  son_code,
+			  amount_son,
+			  line,
+			  process
+			)
+			select
+			get_uuid() as cswaf_form_codes_value_id,
+			to_char(':og1') as ad_org_id,
+			to_char(':client') as ad_client_id,
+			created,
+			createdby,
+			updated,
+			updatedby,
+			isactive,
+			form103.father_code as code_father,
+			coalesce(sub.amount_father,0) as amount_father,
+			form103.son_code,
+			coalesce(sub.amount_son,0) as amount_son,
+			form103.line,
+			to_char(':p') as process
+			from sswh_form_codesline103 form103
+			left join (select codigo_ret as code_father, sum(base_imp) as amount_father,sum(valor_ret) as amount_son  
+			from sswh_withholdingpurchase_nats 
+			where dateacct between to_date(':sd') and to_date(':edd') 
+			group by  codigo_ret) sub on sub.code_father = form103.father_code
+			where sswh_formulary_codes_id = ':fmc'</sqlscript>
+    <description>Formulario 103</description>
+    <line>10</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="52E4B32C9A2B4468AAEFC796A10C0CFB" identifier="cswaf_scripts_form (52E4B32C9A2B4468AAEFC796A10C0CFB)">
+    <id>52E4B32C9A2B4468AAEFC796A10C0CFB</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+fieldtype
+,codigo 
+,case when length(to_char(
+					sum(coalesce(valor,0)) ))&gt;0 then sum(coalesce(valor,0)) else 0 end AS valor
+,to_char(':p') as process 
+from 
+
+(
+
+select 
+to_char('S') as fieldtype,
+to_char('526') as codigo,
+sum(a.monto_iva) as valor
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where  tipo_comprobante &lt;&gt; '04'
+and  a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+
+union all
+select 
+to_char('S') as fieldtype,
+to_char('526') as codigo,
+(sum(a.monto_iva))*-1
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where  tipo_comprobante = '04'
+and  a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+) subr
+group by fieldtype, codigo</sqlscript>
+    <description>Codigo 526</description>
+    <line>180</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="566C2CEDA95C43CDB13F26375BD350E6" identifier="cswaf_scripts_form (566C2CEDA95C43CDB13F26375BD350E6)">
+    <id>566C2CEDA95C43CDB13F26375BD350E6</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('113') as codigo,
+coalesce(count(*),0) as valor,
+to_Char(':p') as process
+FROM c_invoice ci
+join c_doctype cd on cd.c_doctype_id = ci.c_doctype_id
+where ci.issotrx='Y' 
+AND cd.em_sswh_implementautoriza = 'Y'
+AND cd.docbasetype = 'ARI'
+AND ci.docstatus='VO'
+and cd.issotrx='Y'	
+and ci.posted='Y'		
+and dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 113</description>
+    <line>120</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="579656B53E3D46789C9A0FDD4D315A97" identifier="cswaf_scripts_form (579656B53E3D46789C9A0FDD4D315A97)">
+    <id>579656B53E3D46789C9A0FDD4D315A97</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+fieldtype
+,codigo 
+,case when length(to_char(
+					sum(coalesce(valor,0)) ))&gt;0 then sum(coalesce(valor,0)) else 0 end AS valor,
+to_char(':p') as process 
+from 
+(
+
+select 
+to_char('S') as fieldtype,
+to_char('520') as codigo,
+sum(a.monto_iva) as valor
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante &lt;&gt; '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+
+union all
+select 
+to_char('S') as fieldtype,
+to_char('520') as codigo,
+(sum(a.monto_iva))*-1
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante = '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+) subr
+group by fieldtype, codigo </sqlscript>
+    <description>Codigo 520</description>
+    <line>150</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="7A30E4823BAA466997F06D5C8C67C476" identifier="cswaf_scripts_form (7A30E4823BAA466997F06D5C8C67C476)">
+    <id>7A30E4823BAA466997F06D5C8C67C476</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('403') as codigo,
+case when length(to_char(
+					coalesce(sum(abs(base_iva_cero)),0) ))&gt;0 then coalesce(sum(abs(base_iva_cero)),0) else 0.00 end as base_iva_cero
+,to_char(':p') as process
+from cswaf_salesdet_f104 
+where process = to_char(':p')</sqlscript>
+    <description>Codigo 403</description>
+    <line>50</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="7ED50376B7554820A4853D8D53182846" identifier="cswaf_scripts_form (7ED50376B7554820A4853D8D53182846)">
+    <id>7ED50376B7554820A4853D8D53182846</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('500') as codigo,
+            case when length(to_char(
+					sum(coalesce(abs(a.BASE_IVA_DOCE),0)) ))&gt;0 then sum(coalesce(abs(a.BASE_IVA_DOCE),0)) else 0 end AS valor,
+to_char(':p') as process
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante not in ('04')
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between  to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 500</description>
+    <line>130</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="8C31B16AEFAB4D2D89FAEDF88F9A5AB3" identifier="cswaf_scripts_form (8C31B16AEFAB4D2D89FAEDF88F9A5AB3)">
+    <id>8C31B16AEFAB4D2D89FAEDF88F9A5AB3</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_salesdet_f104 (
+cswaf_salesdet_f104_id,
+ad_org_id,
+ad_client_id,
+created,
+createdby,
+updated,
+updatedby,
+isactive,
+cod_tipo_comprobante,
+base_no_iva,
+base_iva_cero,
+base_iva_doce,
+monto_iva,
+process
+)
+ 
+select 
+get_uuid() as cswfc_salesdet_f104_id,
+to_char('0')  as ad_org_id,
+to_char('0')  as ad_cliente_id,
+now()  as created,
+to_char('100') as createdby,
+now()  as updated,
+to_char('100')  as updatedby,
+to_char('Y') as isactive,
+cod_tipo_comprobante,
+base_no_iva,
+base_iva_cero,
+base_iva_doce,
+monto_iva,
+to_char(':p') as process
+from  
+
+   (SELECT a.c_invoice_id,
+	CASE c.em_sswh_taxidtype
+  WHEN 'R' THEN '04'
+  WHEN 'P' THEN '06'
+  WHEN 'D' THEN '05'
+  WHEN 'C' THEN '07'
+  ELSE NULL
+	END AS tipo_identificador,
+	CASE c.em_sswh_taxidtype
+  WHEN 'C' THEN to_char('9999999999999')
+  ELSE c.taxid
+	END AS identif_cliente,
+	CASE c.em_sswh_taxidtype
+  WHEN 'C' THEN to_char('CF')
+  ELSE to_char(c.name)
+	END AS nombre_cliente,
+    '18' AS cod_tipo_comprobante,
+    g.name AS doctype,
+	CASE g.docbasetype
+  WHEN 'ARI' THEN 'FACTURA'
+  WHEN 'ARC' THEN 'NOTA CREDITO'
+  ELSE NULL
+	END AS basedoctype,
+    a.documentno,
+    count(DISTINCT a.c_invoice_id) AS count,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxundeductable
+ WHEN 'Y' THEN
+ CASE f.rate
+  WHEN 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_no_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE f.rate
+  WHEN 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_iva_cero,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE
+  WHEN f.rate &lt;&gt; 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_iva_doce,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE
+  WHEN f.rate &lt;&gt; 0 THEN e.taxamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.em_sswh_ats_iva
+ WHEN 'Y' THEN e.taxamt * (-1)
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_ret_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.em_sswh_ats_source
+ WHEN 'Y' THEN e.taxamt * (-1)
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_ret_renta,
+	CASE a.em_ssre_isrefund
+  WHEN 'Y' THEN
+  CASE
+ WHEN ref.m_product_id IS NULL THEN 0.00
+ ELSE sum(
+ CASE f.istaxdeductable
+  WHEN 'Y' THEN
+  CASE f.rate
+ 	WHEN 0 THEN e.taxbaseamt
+ 	ELSE 0.00
+  END
+  ELSE 0.00
+ END) + sum(
+ CASE f.istaxdeductable
+  WHEN 'Y' THEN
+  CASE
+ 	WHEN f.rate &lt;&gt; 0 THEN e.taxbaseamt
+ 	ELSE 0.00
+  END
+  ELSE 0.00
+ END)
+  END
+  ELSE 0.00
+	END *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS valor_reembolso,
+    a.dateacct,
+    a.posted
+   FROM c_invoice a
+     LEFT JOIN c_invoiceline al ON a.c_invoice_id = al.c_invoice_id
+     LEFT JOIN c_bpartner c ON a.c_bpartner_id = c.c_bpartner_id
+     LEFT JOIN c_invoicelinetax e ON al.c_invoiceline_id = e.c_invoiceline_id
+     LEFT JOIN c_tax f ON e.c_tax_id = f.c_tax_id
+     LEFT JOIN c_doctype g ON a.c_doctype_id = g.c_doctype_id
+     LEFT JOIN ssre_refund_configuration ref ON ref.m_product_id = al.m_product_id
+  WHERE a.issotrx = 'Y' AND a.processed = 'Y' AND a.docstatus &lt;&gt; 'VO' AND g.em_sswh_implementautoriza = 'Y' AND g.isreversal = 'N' AND g.docbasetype = 'ARI'
+  and a.dateacct between  to_date(':sd') and  to_date(':edd')
+  and a.posted='Y'
+  GROUP BY g.docbasetype, c.em_sswh_taxidtype, c.taxid, c.name, g.name, a.documentno, ref.m_product_id, a.c_invoice_id, a.em_ssre_isrefund, g.isreversal, a.dateacct, a.posted
+UNION ALL
+ SELECT a.c_invoice_id,
+	CASE c.em_sswh_taxidtype
+  WHEN 'R' THEN '04'
+  WHEN 'P' THEN '06'
+  WHEN 'D' THEN '05'
+  WHEN 'C' THEN '07'
+  ELSE NULL
+	END AS tipo_identificador,
+	CASE c.em_sswh_taxidtype
+  WHEN 'C' THEN to_char('9999999999999')
+  ELSE c.taxid
+	END AS identif_cliente,
+	CASE c.em_sswh_taxidtype
+  WHEN 'C' THEN to_char('CF')
+  ELSE to_char(c.name)
+	END AS nombre_cliente,
+    '04' AS cod_tipo_comprobante,
+    g.name AS doctype,
+	CASE g.docbasetype
+  WHEN 'ARI' THEN 'FACTURA'
+  WHEN 'ARC' THEN 'NOTA CREDITO'
+  ELSE NULL
+	END AS basedoctype,
+    a.documentno,
+    count(DISTINCT a.c_invoice_id) AS count,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxundeductable
+ WHEN 'Y' THEN
+ CASE f.rate
+  WHEN 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_no_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE f.rate
+  WHEN 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_iva_cero,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE
+  WHEN f.rate &lt;&gt; 0 THEN e.taxbaseamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS base_iva_doce,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.istaxdeductable
+ WHEN 'Y' THEN
+ CASE
+  WHEN f.rate &lt;&gt; 0 THEN e.taxamt
+  ELSE 0.00
+ END
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.em_sswh_ats_iva
+ WHEN 'Y' THEN e.taxamt
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_ret_iva,
+    sum(
+	CASE a.em_ssre_isrefund
+  WHEN 'N' THEN
+  CASE f.em_sswh_ats_source
+ WHEN 'Y' THEN e.taxamt
+ ELSE 0.00
+  END
+  ELSE 0.00
+	END) *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS monto_ret_renta,
+	CASE a.em_ssre_isrefund
+  WHEN 'Y' THEN
+  CASE
+ WHEN ref.m_product_id IS NULL THEN 0.00
+ ELSE sum(
+ CASE f.istaxdeductable
+  WHEN 'Y' THEN
+  CASE f.rate
+ 	WHEN 0 THEN e.taxbaseamt
+ 	ELSE 0.00
+  END
+  ELSE 0.00
+ END) + sum(
+ CASE f.istaxdeductable
+  WHEN 'Y' THEN
+  CASE
+ 	WHEN f.rate &lt;&gt; 0 THEN e.taxbaseamt
+ 	ELSE 0.00
+  END
+  ELSE 0.00
+ END)
+  END
+  ELSE 0.00
+	END *
+	CASE
+  WHEN g.isreversal = 'Y' THEN (-1)
+  ELSE 1
+	END AS valor_reembolso,
+    a.dateacct,
+    a.posted
+   FROM c_invoice a
+     LEFT JOIN c_invoiceline al ON a.c_invoice_id = al.c_invoice_id
+     LEFT JOIN c_bpartner c ON a.c_bpartner_id = c.c_bpartner_id
+     LEFT JOIN c_invoicelinetax e ON al.c_invoiceline_id = e.c_invoiceline_id
+     LEFT JOIN c_tax f ON e.c_tax_id = f.c_tax_id
+     LEFT JOIN c_doctype g ON a.c_doctype_id = g.c_doctype_id
+     LEFT JOIN ssre_refund_configuration ref ON ref.m_product_id = al.m_product_id
+  WHERE a.issotrx = 'Y' AND a.processed = 'Y' AND a.docstatus &lt;&gt; 'VO' AND g.em_sswh_implementautoriza = 'Y' AND (g.isreversal = 'Y' OR (g.docbasetype in ('ARC', 'ARI_RM')) )
+  and a.dateacct between to_date(':sd') and  to_date(':edd')
+  and a.posted='Y'
+  GROUP BY g.docbasetype, c.em_sswh_taxidtype, c.taxid, c.name, g.name, a.documentno, ref.m_product_id, a.c_invoice_id, a.em_ssre_isrefund, g.isreversal, a.dateacct, a.posted
+  ORDER BY 6) form104</sqlscript>
+    <description>total Facturas(Base imponible, impuestos, etc..)</description>
+    <line>20</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="9B408105D96846469B9A365A257C9853" identifier="cswaf_scripts_form (9B408105D96846469B9A365A257C9853)">
+    <id>9B408105D96846469B9A365A257C9853</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('111') as codigo,
+coalesce(count(*) ,0) as contar
+,to_char(':p') as process
+FROM c_invoice ci
+join c_doctype cd on cd.c_doctype_id = ci.c_doctype_id
+where ci.issotrx='Y' 
+AND cd.em_sswh_implementautoriza = 'Y'
+AND cd.docbasetype = 'ARI'
+AND ci.docstatus='CO'
+and cd.issotrx='Y'
+and posted='Y'
+and dateacct between to_date(':sd') and to_date(':edd')
+</sqlscript>
+    <description>Codigo 111</description>
+    <line>110</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="9C6DE7C4B55A43278CCF94D4A4C93D3B" identifier="9C6DE7C4B55A43278CCF94D4A4C93D3B">
+    <id>9C6DE7C4B55A43278CCF94D4A4C93D3B</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>INSERT INTO cswaf_form104_data (
+  cswaf_form104_data_id, ad_client_id, ad_org_id, isactive, created,
+  createdby, updated, updatedby, fieldtype, code,
+  amount, process
+)
+SELECT
+ get_uuid() cswaf_form104_data_id
+ , ':client' ad_client_id
+ , ':og1' ad_org_id
+ , 'Y' isactive
+ , NOW() created
+ , '100' createdby
+ , NOW() updated
+ , '100' updatedby
+ , 'F' fieldtype
+ , '404' codigo
+ , COALESCE(SUM(il.linenetamt),0) valor
+ , ':p' process
+FROM c_invoice i
+ JOIN c_invoiceline il ON il.c_invoice_id = i.c_invoice_id
+  AND il.EM_Ssam_Asset = 'Y'
+ JOIN c_tax ta ON ta.c_tax_id = il.c_tax_id
+    AND ta.rate = 0
+WHERE i.issotrx = 'Y' AND i.posted = 'Y' AND i.docstatus = 'CO'
+ AND i.dateinvoiced::DATE &gt;= ':sd'::DATE AND i.dateinvoiced::DATE &lt;= ':edd'::DATE</sqlscript>
+    <description>Codigo 404</description>
+    <line>280</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="B1FD9E41ED7C4317984C6CAFF3759824" identifier="B1FD9E41ED7C4317984C6CAFF3759824">
+    <id>B1FD9E41ED7C4317984C6CAFF3759824</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+fieldtype
+,codigo 
+,case when length(to_char(
+					sum(coalesce(valor,0)) ))&gt;0 then sum(coalesce(valor,0)) else 0 end AS valor
+,to_Char(':p') as process 
+from 
+
+(
+
+select 
+to_char('F2') as fieldtype,
+to_char('517') as codigo,
+sum((coalesce(abs(a.base_iva_cero),0))) as valor
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante &lt;&gt; '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd') 
+
+union all
+select 
+to_char('F2') as fieldtype,
+to_char('517') as codigo,
+(sum(coalesce(abs(a.base_iva_cero),0)))*-1 as valor
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante = '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+) subr
+group by fieldtype, codigo </sqlscript>
+    <description>Codigo 517</description>
+    <line>170</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="B787AA32A25E4552B1B8D01DFD3F6F29" identifier="cswaf_scripts_form (B787AA32A25E4552B1B8D01DFD3F6F29)">
+    <id>B787AA32A25E4552B1B8D01DFD3F6F29</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('731') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_100,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_100,0)),2) else 0 end AS valor
+,to_char(':p') as process 
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 731</description>
+    <line>250</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="C4706D3916F144CCBB1018704EAE23B0" identifier="cswaf_scripts_form (C4706D3916F144CCBB1018704EAE23B0)">
+    <id>C4706D3916F144CCBB1018704EAE23B0</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('727') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_50,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_50,0)),2) else 0 end AS valor
+,to_char(':p') as process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 727</description>
+    <line>230</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="C833089F28BC4F0FB515E9A4751B713D" identifier="cswaf_scripts_form (C833089F28BC4F0FB515E9A4751B713D)">
+    <id>C833089F28BC4F0FB515E9A4751B713D</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('S') as fieldtype,
+to_char('454') as codigo,
+            case when length(to_char(
+					sum(coalesce(impuesto.impuesto,0)) ))&gt;0 then sum(coalesce(impuesto.impuesto,0)) else 0 end AS impuesto,
+to_char(':p') as process
+   FROM ( SELECT ci.c_invoice_id,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE NULL
+		END) + sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS importe_bruto,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END +
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END +
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS importe_imponible,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS impuesto,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END) AS basecero,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END) AS base12,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS iva
+	   FROM c_invoice ci
+	     JOIN c_invoiceline cil ON cil.c_invoice_id = ci.c_invoice_id
+	     JOIN c_invoicelinetax cilt ON cilt.c_invoice_id = ci.c_invoice_id AND cil.c_invoiceline_id = cilt.c_invoiceline_id
+	     JOIN c_tax ct ON ct.c_tax_id = cilt.c_tax_id
+	     join c_doctype cd on cd.c_doctype_id = ci.c_doctype_id
+	     where ci.issotrx='Y' 
+	     AND cd.em_sswh_implementautoriza = 'Y'
+	     AND cd.docbasetype = 'ARI'
+	     AND ci.docstatus='VO'
+	     AND ci.EM_Ssre_Isrefund ='Y'
+	     AND ci.dateacct between to_date(':sd') and to_date(':edd')
+	     and ci.posted='Y'
+	  GROUP BY ci.c_invoice_id, ci.ad_client_id, ci.ad_org_id, ci.isactive, ci.created, ci.createdby, ci.updated, ci.updatedby
+	  ,ci.docstatus, ci.c_doctype_id
+
+	  ) impuesto</sqlscript>
+    <description>Codigo 454</description>
+    <line>100</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="D9B1C1A0C4FA455FB3F49E904CA1057B" identifier="cswaf_scripts_form (D9B1C1A0C4FA455FB3F49E904CA1057B)">
+    <id>D9B1C1A0C4FA455FB3F49E904CA1057B</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('799') as codigo,
+to_number(0) AS impuesto,
+to_char(':p') as process
+from dual</sqlscript>
+    <description>Codigo 799</description>
+    <line>260</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="DC4FD4065A654A878FF2817E26D064B6" identifier="cswaf_scripts_form (DC4FD4065A654A878FF2817E26D064B6)">
+    <id>DC4FD4065A654A878FF2817E26D064B6</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('721') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_10,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_10,0)),2) else 0 end AS valor
+,to_char(':p') AS process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 721</description>
+    <line>200</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="EC6BDDC57362437BA261153A7DEF6025" identifier="cswaf_scripts_form (EC6BDDC57362437BA261153A7DEF6025)">
+    <id>EC6BDDC57362437BA261153A7DEF6025</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('729') as codigo,
+case when length(to_char(
+					round(sum(coalesce(a.ret_iva_70,0)),2) ))&gt;0 then round(sum(coalesce(a.ret_iva_70,0)),2) else 0 end AS valor
+,to_char(':p') as process
+from sswh_purchasedetail_nats a
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+where 
+a.posted='Y'
+and ci.dateacct between to_date(':sd') and to_date(':edd')</sqlscript>
+    <description>Codigo 729</description>
+    <line>240</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="F786F031C81349C4B7E81C4A31795884" identifier="cswaf_scripts_form (F786F031C81349C4B7E81C4A31795884)">
+    <id>F786F031C81349C4B7E81C4A31795884</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+to_char('F') as fieldtype,
+to_char('434') as codigo,
+case when length(to_char(
+					sum(coalesce(impuesto.importe_imponible,0)) ))&gt;0 then sum(coalesce(impuesto.importe_imponible,0)) else 0 end AS importe_imponible,
+to_char(':p') as process
+   FROM ( SELECT ci.c_invoice_id,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE NULL
+		END) + sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS importe_bruto,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END +
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END +
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS importe_imponible,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS impuesto,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate = 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END) AS basecero,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxbaseamt
+		    ELSE 0
+		END) AS base12,
+	    sum(
+		CASE
+		    WHEN ct.istaxdeductable = 'Y' AND ct.rate &lt;&gt; 0 THEN cilt.taxamt
+		    ELSE 0
+		END) AS iva
+	   FROM c_invoice ci
+	     JOIN c_invoiceline cil ON cil.c_invoice_id = ci.c_invoice_id
+	     JOIN c_invoicelinetax cilt ON cilt.c_invoice_id = ci.c_invoice_id AND cil.c_invoiceline_id = cilt.c_invoiceline_id
+	     JOIN c_tax ct ON ct.c_tax_id = cilt.c_tax_id
+	     join c_doctype cd on cd.c_doctype_id = ci.c_doctype_id
+	     where ci.issotrx='Y' 
+	     AND cd.em_sswh_implementautoriza = 'Y'
+	     AND cd.docbasetype = 'ARI'
+	     AND ci.docstatus='CO'
+	     AND ci.EM_Ssre_Isrefund ='Y'
+	     and ci.posted='Y'
+	     and  ci.dateacct between to_date(':sd') and to_date(':edd')
+
+	  GROUP BY ci.c_invoice_id, ci.ad_client_id, ci.ad_org_id, ci.isactive, ci.created, ci.createdby, ci.updated, ci.updatedby
+	  ,ci.docstatus, ci.c_doctype_id
+	  ) impuesto
+</sqlscript>
+    <description>Codigo 434</description>
+    <line>80</line>
+  </cswaf_scripts_form>
+  <cswaf_scripts_form id="FD90839454BB418FA7ED2F42D7EC091A" identifier="cswaf_scripts_form (FD90839454BB418FA7ED2F42D7EC091A)">
+    <id>FD90839454BB418FA7ED2F42D7EC091A</id>
+    <active>true</active>
+    <formType>F104</formType>
+    <sqlscript>insert into cswaf_form104_data(
+  cswaf_form104_data_id,
+  ad_client_id,
+  ad_org_id,
+  isactive,
+  created,
+  createdby,
+  updated,
+  updatedby,
+  fieldtype,
+  code,
+  amount,
+  process
+) 
+select 
+get_uuid() as cswaf_form104_data_id,
+to_char(':client') as  ad_client_id,
+to_char(':og1') as  ad_org_id,
+to_char('Y') as isactive,
+now() as created,
+to_char('100') as createdby,
+now() as updated,
+to_char('100') as updatedby,
+fieldtype
+,codigo 
+,case when length(to_char(
+			sum(coalesce(valor,0)) ))&gt;0 then sum(coalesce(valor,0)) else 0 end AS valors
+,to_char(':p') as process
+from 
+
+(
+
+select 
+to_char('F2') as fieldtype,
+to_char('510') as codigo,
+sum((coalesce(abs(a.BASE_IVA_DOCE),0))) as valor
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante &lt;&gt; '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+
+union all
+select 
+to_char('F2') as fieldtype,
+to_char('510') as codigo,
+(sum((coalesce(abs(a.BASE_IVA_DOCE),0))))*-1
+from sswh_purchasedetail_nats a
+left join (
+select sum(base_bienes) as base_bienes,sum(base_servicios) as base_servicios,codigo_compra
+from sswh_purchase_detprod_nats group by codigo_compra) b on a.codigo_compra = b.codigo_compra
+join c_invoice ci on ci.c_invoice_id = a.c_invoice_id
+join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+where  tipo_comprobante = '04'
+and  a.posted='Y'
+and cbp.em_sswh_taxidtype &lt;&gt; 'P'
+and ci.dateacct between to_date(':sd') and to_date(':edd')
+) subr
+group by fieldtype, codigo </sqlscript>
+    <description>Codigo 510</description>
+    <line>140</line>
+  </cswaf_scripts_form>
+</ob:Openbravo>

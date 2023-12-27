@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SWHP_INSERT_MOVEMENTLINES_TRG">
+    <trigger name="SWHP_INSERT_MOVEMENTLINES_TRG" table="M_MOVEMENTLINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[ 
+   v_identifier VARCHAR(32);
+ 
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;
+   
+    IF  (INSERTING and :NEW.m_locatorto_id is null) THEN
+        :NEW.m_locatorto_id=(select em_swhp_m_locator_id from m_movement where m_movement_id=:NEW.m_movement_id);
+    END IF;
+
+  
+   IF  (:NEW.m_locatorto_id is null AND :NEW.m_movement_id is null ) THEN
+	RAISE EXCEPTION 'SELECCIONE MOVIDO A EN CABECERA O LINEAS';
+  
+    END IF; 
+
+    END SWHP_INSERT_MOVEMENTLINES_TRG
+]]></body>
+    </trigger>
+  </database>

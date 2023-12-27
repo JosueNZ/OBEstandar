@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER ECSCAP_VALIDATE_DPTNO_TRG">
+    <trigger name="ECSCAP_VALIDATE_DPTNO_TRG" table="FIN_PAYMENT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_Contar NUMBER;
+v_receipt char(1);
+ v_DepositNo character varying(30);
+
+ 
+BEGIN
+   
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING OR INSERTING) THEN
+
+	v_DepositNo:= coalesce(:new.em_ecscap_deposit,'');
+
+	IF (v_DepositNo<>'') THEN
+		select coalesce((select count(*)  from FIN_FINACC_TRANSACTION where FIN_PAYMENT_ID = :NEW.FIN_PAYMENT_ID),0) as contar 
+		INTO v_Contar
+		from dual;
+
+		IF (v_Contar=0) THEN
+			select coalesce((select count(*)  from FIN_PAYMENT where em_ecscap_deposit = v_DepositNo and FIN_PAYMENT_ID <> :NEW.FIN_PAYMENT_ID ),0) as contar 
+			INTO v_Contar
+			from dual;
+
+			IF (v_Contar>0) THEN
+
+				RAISE_APPLICATION_ERROR(-20000, '@ECSCAP_ErrorDespositNo@');
+			
+			END IF;
+			
+		
+		END IF;
+	END IF;
+
+  END IF;
+END ECSCAP_VALIDATE_DPTNO_TRG
+]]></body>
+    </trigger>
+  </database>

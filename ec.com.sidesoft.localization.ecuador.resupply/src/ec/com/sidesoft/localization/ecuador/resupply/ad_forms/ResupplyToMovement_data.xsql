@@ -1,0 +1,794 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public   License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2008-2012 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="ResupplyToMovementData" package="ec.com.sidesoft.localization.ecuador.resupply.ad_forms">
+  <SqlClassComment></SqlClassComment>
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT '' AS M_REQUISITIONLINE_ID, '' AS REQQTY, '' AS MATCHEDQTY, '' AS QTYTOORDER, 
+          '' AS M_PRICELIST_ID, '' AS NEEDBYDATE, '' AS PRICELIST, '' AS PRICE,
+          '' AS M_PRODUCT_ID, '' AS M_ATTRIBUTESETINSTANCE_ID, '' AS VENDOR_ID, '' AS VENDOR, 
+          '' AS PRODUCT, '' AS ATTRIBUTE, ''  AS REQUESTER, '' AS PRICELISTID, '' AS VENDORPRICELIST,
+          '' AS LOCKEDBY, '' AS LOCKQTY, '' AS LOCKPRICE, '' AS AD_ORG_ID, '' AS ORG, 
+          '' AS InvoiceRule, '' AS DeliveryRule, '' AS FreightCostRule, '' AS DeliveryViaRule,
+          '' AS PaymentRulePO, '' AS PO_PaymentTerm_ID, '' AS DESCRIPTION, '' AS C_UOM_ID, '' AS QUANTITYORDER, '' AS M_PRODUCT_UOM_ID,
+          '' AS PRICELIMIT, '' AS PRICEACTUAL, '' AS DISCOUNT, '' AS TAX, '' AS C_ORDERLINE_ID,
+          '' AS PADRE, '' AS ID, '' AS NAME, '' AS PRICESTD, '' AS TO_CLOSE, '' AS UOMNAME, '' AS SECUOMNAME, '' AS PO_PAYMENTMETHOD_ID,
+          '' as GROSS_UNIT, '' AS GROSS_AMT,
+          '' AS SSRS_RESUPPLYLINE_ID,
+          '' AS SSRS_RESUPPLY_ID,
+          '' AS DOCUMENTNO,
+          '' AS ADORGNAME,
+          '' AS PRODUCTCOD,
+          '' AS MPRODUCTID,
+          '' AS M_LOCATOR_ID,
+          '' AS AD_ORG_ID_VAL,
+          '' AS AD_ORG_ID_GROUP,
+          '' AS EM_SSRS_M_LOCATORTRN_ID,
+          '' AS EM_SSRS_M_LOCATORRCP_ID,
+          '' AS CERO,
+          '' AS STOCKACT,
+          '' AS STOCKRES,
+          '' AS EM_SSRS_M_WAREHOUSE_ID,
+          '' AS M_LOCATOR_ID_VAL2,
+          '' AS GUARANTEEDATE,
+          '' AS M_LOCATOR_ID_VAL1,
+          '' AS M_STORAGE_DETAIL_ID,
+          '' AS STOCKDIS,
+          '' AS LINE,
+          '' AS ORDEREDQTY,
+          '' AS LOCKQTYCONVERSION,
+          '' AS AD_ORG_ID_REQ,
+          '' AS CER0CONVERSION,
+          '' AS ORG_DOCTYPEFROM,
+          '' AS ORG_DOCTYPETO,
+          '' AS ORG_DOCTYPEFROMREQ,
+          '' AS ORG_DOCTYPETOREQ,
+          '' AS EM_SSRS_C_DOCTYPEFROM_ID,
+          '' AS EM_SSRS_C_DOCTYPETO_ID,
+          '' AS DOCNOSEQUENCE_ID_FROM_SEND,
+          '' AS DOCNOSEQUENCE_ID_TO_SEND,
+          '' AS DOCNOSEQUENCE_ID_FROM_RECEPTION,
+          '' AS DOCNOSEQUENCE_ID_TO_RECEPTION
+        FROM DUAL
+      ]]></Sql>
+    <Field name="rownum" value="count"/>
+  </SqlMethod>
+  <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+  <SqlMethod name="selectLines" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+         SELECT SSRS_RESUPPLYLINE_ID, 
+                SSRS_RESUPPLY.DOCUMENTNO,
+                AD_ORG.NAME AS ADORGNAME,
+                ROUND((SSRS_RESUPPLYLINE.QTY - SSRS_RESUPPLYLINE.ORDEREDQTY) / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS QTYTOORDER,
+                C_UOM1.NAME AS SECUOMNAME, 
+                C_UOM.NAME AS UOMNAME,
+                M_PRODUCT.VALUE AS PRODUCTCOD,
+                SSRS_RESUPPLYLINE.NEEDBYDATE,
+                AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID)), ?) AS VENDOR,
+                AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(SSRS_RESUPPLYLINE.M_PRODUCT_ID), ?) AS PRODUCT,
+                AD_COLUMN_IDENTIFIER(to_char('AD_User'), to_char(SSRS_RESUPPLY.AD_USER_ID), ?) AS REQUESTER
+         FROM SSRS_RESUPPLY 
+               inner join SSRS_RESUPPLYLINE on SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID
+               LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SSRS_RESUPPLYLINE.C_UOM_ID
+               LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID
+               LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID 
+               LEFT JOIN AD_ORG ON SSRS_RESUPPLY.AD_ORG_ID = AD_ORG.AD_ORG_ID    
+               LEFT JOIN C_UOM_CONVERSION ON C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SSRS_RESUPPLYLINE.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID
+               LEFT JOIN M_PRODUCT ON SSRS_RESUPPLYLINE.M_PRODUCT_ID = M_PRODUCT.M_PRODUCT_ID                     
+        WHERE SSRS_RESUPPLY.ISACTIVE = 'Y'
+          AND SSRS_RESUPPLYLINE.ISACTIVE = 'Y'
+          AND SSRS_RESUPPLY.DOCSTATUS = 'CO'
+          AND SSRS_RESUPPLYLINE.REQSTATUS = 'O'
+          AND SSRS_RESUPPLYLINE.QTY > SSRS_RESUPPLYLINE.ORDEREDQTY
+          AND (SSRS_RESUPPLYLINE.LOCKEDBY IS NULL OR COALESCE (SSRS_RESUPPLYLINE.LOCKDATE, TO_DATE('01-01-1900', 'DD-MM-YYYY')) < (now()-3))
+          AND SSRS_RESUPPLY.AD_CLIENT_ID IN ('1')
+          AND SSRS_RESUPPLY.AD_ORG_ID IN ('1')
+          AND 1=1 
+        ORDER BY SSRS_RESUPPLY.DOCUMENTNO,SSRS_RESUPPLYLINE.LINE,SSRS_RESUPPLYLINE.NEEDBYDATE, SSRS_RESUPPLYLINE.M_PRODUCT_ID, SSRS_RESUPPLYLINE.M_ATTRIBUTESETINSTANCE_ID
+      ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="adUserClient" type="replace" optional="true" after="AND SSRS_RESUPPLY.AD_CLIENT_ID IN (" text="'1'"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND SSRS_RESUPPLY.AD_ORG_ID IN (" text="'1'"/>
+    <Parameter name="parDateFrom" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLYLINE.NEEDBYDATE >= TO_DATE(?)]]></Parameter>
+    <Parameter name="parDateTo" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLYLINE.NEEDBYDATE < TO_DATE(?)]]></Parameter>
+    <Parameter name="parProduct" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLYLINE.M_PRODUCT_ID = TO_CHAR(?)]]></Parameter>
+    <Parameter name="parRequester" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLY.AD_USER_ID = TO_CHAR(?)]]></Parameter>
+    <Parameter name="parVendorInc" optional="true" after="AND 1=1"><![CDATA[ AND (COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID,'-1') = TO_CHAR(?) OR (SSRS_RESUPPLYLINE.C_BPARTNER_ID IS NULL AND SSRS_RESUPPLY.C_BPARTNER_ID IS NULL))]]></Parameter>
+    <Parameter name="parVendor" optional="true" after="AND 1=1"><![CDATA[ AND COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID,'-1') = TO_CHAR(?)]]></Parameter>
+    <Parameter name="parDocumentNoFrom" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLY.DOCUMENTNO >= TO_CHAR(?)]]></Parameter>
+    <Parameter name="parDocumentNoTo" optional="true" after="AND 1=1"><![CDATA[ AND SSRS_RESUPPLY.DOCUMENTNO <= TO_CHAR(?)]]></Parameter>
+  </SqlMethod>
+  <SqlMethod name="selectSelected" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID, 
+                 SSRS_RESUPPLYLINE.NEEDBYDATE, 
+                 SSRS_RESUPPLY.DOCUMENTNO,
+                 SSRS_RESUPPLY.AD_ORG_ID,
+                 AD_ORG.NAME AS ADORGNAME,
+                 AD_ORG.NAME AS ADORGNAME,
+                 M_PRODUCT.VALUE AS PRODUCTCOD,
+                 QUANTITYORDER, 
+                 ROUND(SSRS_RESUPPLYLINE.QTY / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS REQQTY,
+                 ROUND(SSRS_RESUPPLYLINE.ORDEREDQTY / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS MATCHEDQTY,
+                 ROUND(COALESCE(LOCKQTY, QTY-ORDEREDQTY) / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS LOCKQTY,
+                 C_UOM1.NAME AS SECUOMNAME, 
+                 C_UOM.NAME AS UOMNAME,
+                 COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID, '-1') AS VENDOR_ID,
+                 AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID)), ?) AS VENDOR,
+                 AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(SSRS_RESUPPLYLINE.M_PRODUCT_ID), ?) AS PRODUCT,
+                 AD_COLUMN_IDENTIFIER(to_char('M_AttributeSetInstance'), to_char(SSRS_RESUPPLYLINE.M_ATTRIBUTESETINSTANCE_ID), ?) AS ATTRIBUTE,
+                 TO_NUMBER(CASE WHEN STOCKACT IS NULL THEN 0 ELSE STOCKACT END) AS STOCKACT,
+                 TO_NUMBER(CASE WHEN STOCKRES IS NULL THEN 0 ELSE STOCKRES END) AS STOCKRES,
+                 TRUNC((TO_NUMBER(CASE WHEN STOCKACT IS NULL THEN 0 ELSE STOCKACT END) + TO_NUMBER(CASE WHEN STOCKRES IS NULL THEN 0 ELSE STOCKRES END))  
+                 / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),0) AS STOCKDIS,
+                 SSRS_RESUPPLYLINE.LINE
+        FROM SSRS_RESUPPLY 
+                 inner join SSRS_RESUPPLYLINE on SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID 
+                 LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SSRS_RESUPPLYLINE.C_UOM_ID
+                 LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID
+                 LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID
+                 LEFT JOIN AD_ORG ON SSRS_RESUPPLY.AD_ORG_ID = AD_ORG.AD_ORG_ID    
+                 LEFT JOIN C_UOM_CONVERSION ON C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SSRS_RESUPPLYLINE.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID
+                 LEFT JOIN M_PRODUCT ON SSRS_RESUPPLYLINE.M_PRODUCT_ID = M_PRODUCT.M_PRODUCT_ID
+                 LEFT JOIN (SELECT M_LOCATOR.M_WAREHOUSE_ID,M_STORAGE_DETAIL.M_PRODUCT_ID,
+                               SUM(M_STORAGE_DETAIL.QTYONHAND) AS STOCKACT,
+                               SUM(M_STORAGE_DETAIL.PREQTYONHAND) AS STOCKRES
+                            FROM M_LOCATOR 
+                            LEFT JOIN M_STORAGE_DETAIL ON M_STORAGE_DETAIL.M_LOCATOR_ID = M_LOCATOR.M_LOCATOR_ID 
+                            LEFT JOIN M_ATTRIBUTESETINSTANCE ON M_ATTRIBUTESETINSTANCE.M_ATTRIBUTESETINSTANCE_ID = M_STORAGE_DETAIL.M_ATTRIBUTESETINSTANCE_ID
+                            GROUP BY M_LOCATOR.M_WAREHOUSE_ID, M_STORAGE_DETAIL.M_PRODUCT_ID) STOCK ON STOCK.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID 
+                                                                                                    AND STOCK.M_WAREHOUSE_ID =  M_PRODUCT.EM_SSRS_M_WAREHOUSE_ID          
+        WHERE SSRS_RESUPPLY.ISACTIVE = 'Y'
+                  AND SSRS_RESUPPLYLINE.ISACTIVE = 'Y'
+                  AND SSRS_RESUPPLY.DOCSTATUS = 'CO'
+                  AND SSRS_RESUPPLYLINE.REQSTATUS = 'O'
+                  AND SSRS_RESUPPLYLINE.LOCKEDBY = ?
+                  AND SSRS_RESUPPLYLINE.LOCKDATE >= (now()-3)
+                  AND SSRS_RESUPPLY.AD_CLIENT_ID IN ('1')
+                  AND SSRS_RESUPPLY.AD_ORG_ID IN ('1')                  
+        ORDER BY SSRS_RESUPPLY.AD_ORG_ID,SSRS_RESUPPLY.DOCUMENTNO,SSRS_RESUPPLYLINE.LINE
+        ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="adUserId"/>
+   <Parameter name="adUserClient" type="replace" optional="true" after="AND SSRS_RESUPPLY.AD_CLIENT_ID IN (" text="'1'"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND SSRS_RESUPPLY.AD_ORG_ID IN (" text="'1'"/>
+  </SqlMethod>
+  <SqlMethod name="linesToOrder" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+       SELECT SSRS_RESUPPLYLINE.M_PRODUCT_ID, 
+              M_PRODUCT.M_ATTRIBUTESETINSTANCE_ID, 
+              SSRS_RESUPPLYLINE.LOCKQTY,
+              SSRS_RESUPPLYLINE.ORDEREDQTY,
+              SSRS_RESUPPLYLINE.ORDEREDQTY * 0 AS CERO, 
+              SSRS_RESUPPLYLINE.DESCRIPTION, 
+              SSRS_RESUPPLYLINE.C_UOM_ID,
+              SSRS_RESUPPLYLINE.QUANTITYORDER, 
+              SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID,
+              SSRS_RESUPPLYLINE_ID, 
+              '' AS C_ORDERLINE_ID,
+              CASE WHEN SSRS_RESUPPLYLINE.ORDEREDQTY IS NULL OR SSRS_RESUPPLYLINE.ORDEREDQTY <= 0 THEN 'N' ELSE 'Y' END AS TO_CLOSE,
+              SSRS_RESUPPLYLINE.needbydate,
+              M_PRODUCT.M_LOCATOR_ID,
+              SSRS_RESUPPLY.AD_ORG_ID AS AD_ORG_ID_VAL,
+              AD_ORG.EM_SSRS_M_LOCATORTRN_ID,
+              AD_ORG.EM_SSRS_M_LOCATORRCP_ID,
+              M_PRODUCT.EM_SSRS_M_WAREHOUSE_ID,
+              SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID,
+              SSRS_RESUPPLY.SSRS_RESUPPLY_ID,
+              SSRS_RESUPPLYLINE.LOCKQTYCONVERSION,
+              SSRS_RESUPPLYLINE.LOCKQTYCONVERSION * 0 AS CER0CONVERSION
+        FROM SSRS_RESUPPLYLINE 
+        INNER JOIN SSRS_RESUPPLY ON SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID
+        INNER JOIN M_PRODUCT ON M_PRODUCT.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID
+        INNER JOIN AD_ORG ON AD_ORG.AD_ORG_ID = SSRS_RESUPPLY.AD_ORG_ID
+        WHERE SSRS_RESUPPLY.AD_ORG_ID = ?
+              AND 1=1
+       ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="adOrgId"/> 
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="AND 1=1" text=" AND SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID IN"/>
+     
+  </SqlMethod>
+  
+  <SqlMethod name="linesToOrderHead" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+       SELECT SSRS_RESUPPLY.AD_ORG_ID AS AD_ORG_ID_GROUP,SSRS_RESUPPLY.AD_ORG_ID_REQ,SSRS_RESUPPLY.SSRS_RESUPPLY_ID
+       FROM SSRS_RESUPPLYLINE 
+            INNER JOIN SSRS_RESUPPLY ON SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID
+       WHERE 1=1
+       GROUP BY SSRS_RESUPPLY.AD_ORG_ID,SSRS_RESUPPLY.AD_ORG_ID_REQ,SSRS_RESUPPLY.SSRS_RESUPPLY_ID
+       ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="parRequisitionLinesHead" optional="true" type="argument" after="WHERE 1=1" text=" AND SSRS_RESUPPLYLINE_ID IN"/>
+  </SqlMethod>
+  
+  <SqlMethod name="selectVendor" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT DISTINCT COALESCE(M_REQUISITIONLINE.C_BPARTNER_ID, M_REQUISITION.C_BPARTNER_ID) AS VENDOR_ID
+      FROM M_REQUISITIONLINE, M_REQUISITION
+      WHERE M_REQUISITION.M_REQUISITION_ID = M_REQUISITIONLINE.M_REQUISITION_ID
+        AND COALESCE(M_REQUISITIONLINE.C_BPARTNER_ID, M_REQUISITION.C_BPARTNER_ID) IS NOT NULL
+        AND 1=1
+      ]]></Sql>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="AND 1=1" text="AND M_RequisitionLine_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectPriceList" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT DISTINCT COALESCE(M_REQUISITIONLINE.M_PRICELIST_ID, M_REQUISITION.M_PRICELIST_ID) AS M_PRICELIST_ID,
+          AD_COLUMN_IDENTIFIER(to_char('M_PriceList'), to_char(COALESCE(M_REQUISITIONLINE.M_PRICELIST_ID, M_REQUISITION.M_PRICELIST_ID)), ?) AS PRICELISTID
+        FROM M_REQUISITIONLINE, M_REQUISITION
+        WHERE M_REQUISITION.M_REQUISITION_ID = M_REQUISITIONLINE.M_REQUISITION_ID
+          AND 1=1
+          ]]></Sql>
+    <Parameter name="language"/>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="AND 1=1" text="AND M_RequisitionLine_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectOrg" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT DISTINCT AD_ORG_ID,
+          AD_COLUMN_IDENTIFIER(to_char('AD_Org'), to_char(AD_ORG_ID), ?) AS ORG
+        FROM SSRS_RESUPPLYLINE
+        WHERE 1=1
+          ]]></Sql>
+    <Parameter name="language"/>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="WHERE 1=1" text="AND SSRS_RESUPPLYLINE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectNoPrice" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT DISTINCT M_PRODUCT_ID,
+          AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(M_REQUISITIONLINE.M_PRODUCT_ID), ?) AS PRODUCT
+        FROM M_REQUISITIONLINE
+        WHERE NOT EXISTS ( SELECT 1 FROM M_PRODUCTPRICE
+                           WHERE M_REQUISITIONLINE.M_PRODUCT_ID = M_PRODUCTPRICE.M_PRODUCT_ID
+                           AND M_PRODUCTPRICE.M_PRICELIST_VERSION_ID = ? )
+          AND LOCKPRICE IS NULL
+          AND 1=1
+          ]]></Sql>
+    <Parameter name="language"/>
+    <Parameter name="pricelistversion"/>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="AND 1=1" text=" AND M_RequisitionLine_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectWarehouseDouble" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_ORG.AD_ORG_ID AS PADRE, M_WAREHOUSE.M_WAREHOUSE_ID AS ID, M_WAREHOUSE.NAME AS NAME
+        FROM M_WAREHOUSE, AD_ORG
+        WHERE (AD_ISORGINCLUDED(M_WAREHOUSE.AD_ORG_ID, AD_ORG.AD_ORG_ID, ?) <> -1
+          OR AD_ISORGINCLUDED(AD_ORG.AD_ORG_ID, M_WAREHOUSE.AD_ORG_ID, ?) <> -1)
+          AND AD_ORG.AD_ORG_ID IN ('1')
+          AND M_WAREHOUSE.AD_CLIENT_ID IN ('1')
+        ORDER BY PADRE, NAME
+      ]]></Sql>
+    <Parameter name="clientid"/>
+    <Parameter name="clientid"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND AD_ORG.AD_ORG_ID IN (" text="'1'"/>
+    <Parameter name="adclient" optional="true" type="replace" after="AND M_WAREHOUSE.AD_CLIENT_ID IN (" text="'1'"/>
+  </SqlMethod>
+  <SqlMethod name="selectVendorData" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT p.InvoiceRule, p.DeliveryRule, DeliveryViaRule,
+        p.PaymentRulePO, p.PO_PaymentTerm_ID, p.PO_PaymentMethod_ID
+      FROM C_BPartner p
+      WHERE p.C_BPartner_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="bPartnerDescription" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(?), to_char(?)) AS VENDOR
+        FROM DUAL
+        ]]></Sql>
+    <Parameter name="partnerid"/>
+    <Parameter name="language"/>
+  </SqlMethod>
+  <SqlMethod name="mProductDescription" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(?), to_char(?)) AS PRODUCT
+        FROM DUAL
+        ]]></Sql>
+    <Parameter name="productid"/>
+    <Parameter name="language"/>
+  </SqlMethod>
+  <SqlMethod name="getPricelistVersion" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT M_GET_PRICELIST_VERSION(?, to_date(?)) AS PRICELISTID
+        FROM DUAL
+        ]]></Sql>
+    <Parameter name="pricelist"/>
+    <Parameter name="orderdate"/>
+  </SqlMethod>
+  <SqlMethod name="treeOrg" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_TREE_ORG_ID FROM AD_CLIENTINFO
+        WHERE AD_CLIENT_ID = ?
+        ]]></Sql>
+    <Parameter name="client"/>
+  </SqlMethod>
+  <SqlMethod name="cDoctypeTarget" type="preparedStatement" connection="true" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_GET_DOCTYPE(?, ?, 'POO', null) FROM DUAL
+      ]]>
+    </Sql>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+  </SqlMethod>
+  <SqlMethod name="cBPartnerLocationId" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT MAX(C_BPARTNER_LOCATION_ID) FROM C_BPARTNER_LOCATION
+        WHERE C_BPARTNER_ID = ?
+        AND C_BPartner_Location.IsActive='Y'
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="billto" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT MAX(C_BPARTNER_LOCATION_ID) FROM C_BPARTNER_LOCATION
+        WHERE  C_BPartner_Location.IsBillTo='Y'
+        AND C_BPartner_Location.IsActive='Y'
+        AND C_BPARTNER_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="selectCurrency" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT C_CURRENCY_ID
+        FROM M_PRICELIST
+        WHERE  M_PRICELIST_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="mPricelistId"/>
+  </SqlMethod>
+  <SqlMethod name="unlock" type="preparedStatement" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET LOCKEDBY = null,
+            LOCKPRICE = null,
+            LOCKQTY = null,
+            LOCKDATE = null,
+            LOCKCAUSE = null
+        WHERE SSRS_RESUPPLYLINE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="requisitionlines" type="replace" optional="true" after="SSRS_RESUPPLYLINE_ID IN " text="('1')"/>
+  </SqlMethod>
+  <SqlMethod name="lock" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET LOCKEDBY = ?,
+            LOCKDATE = now(),
+            LOCKQTY = null,
+            LOCKPRICE = null,
+            LOCKCAUSE = 'M'
+        WHERE SSRS_RESUPPLYLINE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="userId"/>
+    <Parameter name="requisitionlines" type="replace" optional="true" after="SSRS_RESUPPLYLINE_ID IN " text="('1')"/>
+    
+  </SqlMethod>
+  <SqlMethod name="updateLock" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET LOCKQTY = to_number(?) *(SELECT  C_UOM_CONVERSION.MULTIPLYRATE 
+                                                  FROM SSRS_RESUPPLYLINE SR
+                                                  LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SR.C_UOM_ID
+                                                  LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SR.M_PRODUCT_UOM_ID
+                                                  LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID
+                                                  LEFT JOIN C_UOM_CONVERSION ON ( C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SR.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID)
+                                                  WHERE SR.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID
+                                                        AND SR.SSRS_RESUPPLYLINE_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID ),
+            LOCKQTYCONVERSION = to_number(?),                                     
+            LOCKPRICE = to_number(?)
+        WHERE SSRS_RESUPPLYLINE_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="lockQty"/>
+    <Parameter name="lockQtyconversion"/>
+    <Parameter name="lockPrice"/>
+    <Parameter name="ssrsResupplylineId"/>
+  </SqlMethod>
+  <SqlMethod name="insertCMovement" type="preparedStatement" connection="true" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+       INSERT INTO M_MOVEMENT(M_MOVEMENT_ID,AD_CLIENT_ID,AD_ORG_ID,CREATED,CREATEDBY,UPDATED,UPDATEDBY
+       ,NAME,DESCRIPTION,MOVEMENTDATE,POSTED,PROCESSED,PROCESSING,MOVE_FROMTO_LOCATOR,DOCUMENTNO,EM_SSRS_RESUPPLY_ID,
+       EM_SSRS_ISRESUPPLY,EM_SSRS_TYPERESUPPLY,EM_SSRS_C_DOCTYPE_ID)
+       VALUES(?,?,?,now(),?,now(),?,'Reaprovisionamiento','Reaprovisionamiento',TO_DATE(?),'N','N','N','N',?,?,?,?,?)
+       ]]>
+    </Sql>
+    <Parameter name="m_movement_id"/>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+    <Parameter name="user"/>
+    <Parameter name="user"/>
+    <Parameter name="movementdate"/>
+    <Parameter name="documentNo"/>
+    <Parameter name="emSsrsResupplyId"/>
+    <Parameter name="emSsrsIsResupply"/>
+    <Parameter name="emSsrsTypeResupply"/>
+    <Parameter name="emSsrsCDoctypeId"/>
+   </SqlMethod>
+  <SqlMethod name="insertCOrderline" type="preparedStatement" connection="true" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        INSERT INTO M_MOVEMENTLINE(M_MOVEMENTLINE_ID,AD_CLIENT_ID,AD_ORG_ID,CREATED,CREATEDBY,UPDATED,UPDATEDBY,
+        M_MOVEMENT_ID,M_LOCATOR_ID,M_LOCATORTO_ID,M_PRODUCT_ID,LINE,MOVEMENTQTY,M_ATTRIBUTESETINSTANCE_ID,C_UOM_ID,M_PRODUCT_UOM_ID,
+        QUANTITYORDER,EM_SSRS_RESUPPLY_ID)
+        VALUES(?,?,?,now(),?,now(),?,
+               ?,?,?,?,TO_NUMBER(?),TO_NUMBER(?),?,?,?,TO_NUMBER(?),?)
+        ]]>
+    </Sql>
+    <Parameter name="cOrderlineId"/>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+    <Parameter name="user"/>
+    <Parameter name="user"/>
+    <Parameter name="cOrderId"/>
+    <Parameter name="mLocatorId"/>
+    <Parameter name="mLocatorToId"/>
+    <Parameter name="mProductId"/>
+    <Parameter name="line"/>
+    <Parameter name="movementQty"/>
+    <Parameter name="mAttributeSetInstanceId"/>
+    <Parameter name="cUomId"/>
+    <Parameter name="mProductcUomId"/>
+    <Parameter name="quantityOrder"/>
+    <Parameter name="emSsrsResupplyId"/>
+  </SqlMethod>
+  <SqlMethod name="insertRequisitionOrder" type="preparedStatement" connection="true" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        INSERT INTO M_REQUISITIONORDER (M_REQUISITIONORDER_ID, AD_CLIENT_ID, AD_ORG_ID, CREATED, CREATEDBY, UPDATED, UPDATEDBY, ISACTIVE,
+        M_REQUISITIONLINE_ID, C_ORDERLINE_ID, QTY)
+        VALUES (?,?,?,now(),?,now(),?,'Y',
+        ?,?,TO_NUMBER(?))
+      ]]>
+    </Sql>
+    <Parameter name="mRequisitionOrderId"/>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+    <Parameter name="user"/>
+    <Parameter name="user"/>
+    <Parameter name="mRequisitionLineId"/>
+    <Parameter name="cOrderLineId"/>
+    <Parameter name="qty"/>
+  </SqlMethod>
+  <SqlMethod name="cOrderPost0" connection="true" type="callableStatement" return="object" object="ResupplyToMovementData">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql><![CDATA[
+        CALL C_Order_Post(?)
+      ]]></Sql>
+      <Parameter name="adPinstanceId"></Parameter>
+   </SqlMethod>
+  <SqlMethod name="resupplyStatus" connection="true" type="callableStatement" return="object" object="ResupplyToMovementData">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql><![CDATA[
+        CALL ssrs_resupplyline_status(null, ?, ?)
+      ]]></Sql>
+      <Parameter name="requisitionLineId"></Parameter>
+      <Parameter name="userId"></Parameter>
+   </SqlMethod>
+   <SqlMethod name="deleteResupply" type="preparedStatement" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET ISACTIVE = 'N'
+        WHERE SSRS_RESUPPLYLINE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="requisitionlinesdelete" type="replace" optional="true" after="SSRS_RESUPPLYLINE_ID IN " text="('1')"/>
+  </SqlMethod>
+  <SqlMethod name="updateOrderedQty" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET ORDEREDQTY =  COALESCE(TO_NUMBER(?)) *(SELECT  C_UOM_CONVERSION.MULTIPLYRATE 
+                                                  FROM SSRS_RESUPPLYLINE SR
+                                                  LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SR.C_UOM_ID
+                                                  LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SR.M_PRODUCT_UOM_ID
+                                                  LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID
+                                                  LEFT JOIN C_UOM_CONVERSION ON ( C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SR.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID)
+                                                  WHERE SR.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID
+                                                        AND SR.SSRS_RESUPPLYLINE_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID ),
+         REQSTATUS = 'C',
+         Updated = TO_DATE(NOW()),
+         UpdatedBy = ?
+        WHERE SSRS_RESUPPLYLINE_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="OrderedQty"/>
+    <Parameter name="updatedBy"/>
+    <Parameter name="ssrsResupplylineId"/>
+  </SqlMethod>
+  <SqlMethod name="stockStorageDetail" type="preparedStatement"  return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+       SELECT * FROM (SELECT M_STORAGE_DETAIL.M_STORAGE_DETAIL_ID,
+       M_LOCATOR.M_LOCATOR_ID AS M_LOCATOR_ID_VAL1,
+       M_STORAGE_DETAIL.M_ATTRIBUTESETINSTANCE_ID,
+       M_STORAGE_DETAIL.M_LOCATOR_ID AS M_LOCATOR_ID_VAL2, 
+       M_STORAGE_DETAIL.M_PRODUCT_ID,  
+       M_STORAGE_DETAIL.C_UOM_ID, 
+       (SUM(M_STORAGE_DETAIL.QTYONHAND) + SUM(M_STORAGE_DETAIL.PREQTYONHAND)) AS STOCKDIS,
+       M_ATTRIBUTESETINSTANCE.GUARANTEEDATE
+       FROM M_LOCATOR 
+       LEFT JOIN M_STORAGE_DETAIL ON M_STORAGE_DETAIL.M_LOCATOR_ID = M_LOCATOR.M_LOCATOR_ID 
+                 AND M_STORAGE_DETAIL.M_PRODUCT_ID = ?
+       LEFT JOIN M_ATTRIBUTESETINSTANCE ON M_ATTRIBUTESETINSTANCE.M_ATTRIBUTESETINSTANCE_ID = M_STORAGE_DETAIL.M_ATTRIBUTESETINSTANCE_ID
+       WHERE M_LOCATOR.M_WAREHOUSE_ID = ?
+       GROUP BY M_STORAGE_DETAIL.M_STORAGE_DETAIL_ID, M_LOCATOR.M_LOCATOR_ID, M_STORAGE_DETAIL.M_ATTRIBUTESETINSTANCE_ID,M_STORAGE_DETAIL.M_LOCATOR_ID , M_STORAGE_DETAIL.M_PRODUCT_ID,  M_STORAGE_DETAIL.C_UOM_ID,M_ATTRIBUTESETINSTANCE.GUARANTEEDATE
+       ORDER BY M_ATTRIBUTESETINSTANCE.GUARANTEEDATE) RESUPPLY WHERE STOCKDIS > 0
+      ]]>
+    </Sql>
+    <Parameter name="mProductId"/>
+    <Parameter name="mWarehouseId"/>
+  </SqlMethod>
+   <SqlMethod name="codSsrsResupplyId" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT SSRS_RESUPPLY_ID
+        FROM SSRS_RESUPPLYLINE
+        WHERE 1=1
+          ]]></Sql>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="WHERE 1=1" text="AND SSRS_RESUPPLYLINE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectSelectedValidation" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT SSRS_RESUPPLY.SSRS_RESUPPLY_ID,
+        SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID, 
+                 SSRS_RESUPPLYLINE.NEEDBYDATE, 
+                 SSRS_RESUPPLY.DOCUMENTNO,
+                 SSRS_RESUPPLY.AD_ORG_ID,
+                 AD_ORG.NAME AS ADORGNAME,
+                 AD_ORG.NAME AS ADORGNAME,
+                 M_PRODUCT.VALUE AS PRODUCTCOD,
+                 QUANTITYORDER, 
+                 ROUND(SSRS_RESUPPLYLINE.QTY / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS REQQTY,
+                 ROUND(SSRS_RESUPPLYLINE.ORDEREDQTY / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS MATCHEDQTY,
+                 ROUND(COALESCE(LOCKQTY, QTY-ORDEREDQTY) / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+                 ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),C_UOM.STDPRECISION) AS LOCKQTY,
+                 C_UOM1.NAME AS SECUOMNAME, 
+                 C_UOM.NAME AS UOMNAME,
+                 COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID, '-1') AS VENDOR_ID,
+                 AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(COALESCE(SSRS_RESUPPLYLINE.C_BPARTNER_ID, SSRS_RESUPPLY.C_BPARTNER_ID)), ?) AS VENDOR,
+                 AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(SSRS_RESUPPLYLINE.M_PRODUCT_ID), ?) AS PRODUCT,
+                 AD_COLUMN_IDENTIFIER(to_char('M_AttributeSetInstance'), to_char(SSRS_RESUPPLYLINE.M_ATTRIBUTESETINSTANCE_ID), ?) AS ATTRIBUTE
+        FROM SSRS_RESUPPLY 
+                 inner join SSRS_RESUPPLYLINE on SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID 
+                 LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SSRS_RESUPPLYLINE.C_UOM_ID
+                 LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID
+                 LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID
+                 LEFT JOIN AD_ORG ON SSRS_RESUPPLY.AD_ORG_ID = AD_ORG.AD_ORG_ID    
+                 LEFT JOIN C_UOM_CONVERSION ON C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SSRS_RESUPPLYLINE.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID
+                 LEFT JOIN M_PRODUCT ON SSRS_RESUPPLYLINE.M_PRODUCT_ID = M_PRODUCT.M_PRODUCT_ID
+        WHERE SSRS_RESUPPLY.ISACTIVE = 'Y'
+                  AND SSRS_RESUPPLYLINE.ISACTIVE = 'Y'
+                  AND SSRS_RESUPPLY.DOCSTATUS = 'CO'
+                  AND SSRS_RESUPPLYLINE.REQSTATUS = 'O'
+                  AND SSRS_RESUPPLYLINE.LOCKEDBY = ?
+                  AND SSRS_RESUPPLYLINE.LOCKDATE >= (now()-3)
+                  AND SSRS_RESUPPLY.AD_CLIENT_ID IN ('1')
+                  AND SSRS_RESUPPLY.AD_ORG_ID IN ('1')                  
+        ORDER BY SSRS_RESUPPLY.AD_ORG_ID
+        ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="adUserId"/>
+   <Parameter name="adUserClient" type="replace" optional="true" after="AND SSRS_RESUPPLY.AD_CLIENT_ID IN (" text="'1'"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND SSRS_RESUPPLY.AD_ORG_ID IN (" text="'1'"/>
+  </SqlMethod>
+  <SqlMethod name="lockvalidation" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE SSRS_RESUPPLYLINE
+        SET LOCKEDBY = ?,
+            LOCKDATE = now(),
+            LOCKQTY = null,
+            LOCKPRICE = null,
+            LOCKCAUSE = 'M'
+        WHERE SSRS_RESUPPLY_ID = ?
+            AND SSRS_RESUPPLYLINE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="userId"/>
+    <Parameter name="requisition"/>
+    <Parameter name="requisitionlines" type="replace" optional="true" after="AND SSRS_RESUPPLYLINE_ID IN " text="('1')"/>
+  </SqlMethod>
+  <SqlMethod name="updateStockReserve" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE M_STORAGE_DETAIL
+        SET PREQTYONHAND = TO_NUMBER(?)
+        WHERE M_STORAGE_DETAIL_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="preQtyonHand"/>
+    <Parameter name="mStorageDetailId"/>
+  </SqlMethod>
+   <SqlMethod name="linesToOrderValidate" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+       SELECT SSRS_RESUPPLY.SSRS_RESUPPLY_ID,
+              SSRS_RESUPPLY.DOCUMENTNO,
+              SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID,
+              SSRS_RESUPPLYLINE.M_PRODUCT_ID, 
+              M_PRODUCT.M_ATTRIBUTESETINSTANCE_ID, 
+              SSRS_RESUPPLYLINE.LOCKQTY,
+              SSRS_RESUPPLYLINE.ORDEREDQTY * 0 AS CERO, 
+              SSRS_RESUPPLYLINE.DESCRIPTION, 
+              SSRS_RESUPPLYLINE.C_UOM_ID,
+              SSRS_RESUPPLYLINE.QUANTITYORDER, 
+              SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID,
+              SSRS_RESUPPLYLINE_ID, 
+              '' AS C_ORDERLINE_ID,
+              CASE WHEN SSRS_RESUPPLYLINE.LOCKQTY < (SSRS_RESUPPLYLINE.QTY - SSRS_RESUPPLYLINE.ORDEREDQTY) THEN 'N' ELSE 'Y' END AS TO_CLOSE,
+              SSRS_RESUPPLYLINE.needbydate,
+              M_PRODUCT.M_LOCATOR_ID,
+              SSRS_RESUPPLY.AD_ORG_ID AS AD_ORG_ID_VAL,
+              AD_ORG.EM_SSRS_M_LOCATORTRN_ID,
+              AD_ORG.EM_SSRS_M_LOCATORRCP_ID,
+              M_PRODUCT.EM_SSRS_M_WAREHOUSE_ID,
+              TO_NUMBER(CASE WHEN STOCKACT IS NULL THEN 0 ELSE STOCKACT END) AS STOCKACT,
+              TO_NUMBER(CASE WHEN STOCKRES IS NULL THEN 0 ELSE STOCKRES END) AS STOCKRES,
+              TRUNC((TO_NUMBER(CASE WHEN STOCKACT IS NULL THEN 0 ELSE STOCKACT END) + TO_NUMBER(CASE WHEN STOCKRES IS NULL THEN 0 ELSE STOCKRES END))  
+              / TO_NUMBER(CASE WHEN C_UOM_CONVERSION.MULTIPLYRATE = 0 OR C_UOM_CONVERSION.MULTIPLYRATE IS NULL THEN 1
+              ELSE C_UOM_CONVERSION.MULTIPLYRATE END ),0) AS STOCKDIS,
+              SSRS_RESUPPLYLINE.LINE,
+              AD_ORG.EM_SSRS_C_DOCTYPEFROM_ID AS ORG_DOCTYPEFROM, 
+              AD_ORG.EM_SSRS_C_DOCTYPETO_ID AS ORG_DOCTYPETO,
+              ORG_REQ.EM_SSRS_C_DOCTYPEFROM_ID AS ORG_DOCTYPEFROMREQ,
+              ORG_REQ.EM_SSRS_C_DOCTYPETO_ID  AS ORG_DOCTYPETOREQ,
+              C_DOCTYPE1.DOCNOSEQUENCE_ID AS DOCNOSEQUENCE_ID_FROM_SEND,
+              C_DOCTYPE2.DOCNOSEQUENCE_ID AS DOCNOSEQUENCE_ID_TO_SEND,
+              C_DOCTYPE3.DOCNOSEQUENCE_ID AS DOCNOSEQUENCE_ID_FROM_RECEPTION,
+              C_DOCTYPE4.DOCNOSEQUENCE_ID AS DOCNOSEQUENCE_ID_TO_RECEPTION
+        FROM SSRS_RESUPPLYLINE 
+        INNER JOIN SSRS_RESUPPLY ON SSRS_RESUPPLY.SSRS_RESUPPLY_ID = SSRS_RESUPPLYLINE.SSRS_RESUPPLY_ID
+        INNER JOIN M_PRODUCT ON M_PRODUCT.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID
+        INNER JOIN AD_ORG ON AD_ORG.AD_ORG_ID = SSRS_RESUPPLY.AD_ORG_ID
+        INNER JOIN AD_ORG  ORG_REQ ON ORG_REQ.AD_ORG_ID = SSRS_RESUPPLY.AD_ORG_ID_REQ
+        LEFT JOIN C_UOM ON C_UOM.C_UOM_ID = SSRS_RESUPPLYLINE.C_UOM_ID
+        LEFT JOIN M_PRODUCT_UOM ON M_PRODUCT_UOM.M_PRODUCT_UOM_ID = SSRS_RESUPPLYLINE.M_PRODUCT_UOM_ID
+        LEFT JOIN C_UOM C_UOM1 ON M_PRODUCT_UOM.C_UOM_ID = C_UOM1.C_UOM_ID
+        LEFT JOIN C_UOM_CONVERSION ON C_UOM1.C_UOM_ID  = C_UOM_CONVERSION.C_UOM_ID AND SSRS_RESUPPLYLINE.C_UOM_ID = C_UOM_CONVERSION.C_UOM_TO_ID
+        LEFT JOIN C_DOCTYPE C_DOCTYPE1 ON C_DOCTYPE1.C_DOCTYPE_ID = ORG_REQ.EM_SSRS_C_DOCTYPEFROM_ID
+        LEFT JOIN C_DOCTYPE C_DOCTYPE2 ON C_DOCTYPE2.C_DOCTYPE_ID = ORG_REQ.EM_SSRS_C_DOCTYPETO_ID
+        LEFT JOIN C_DOCTYPE C_DOCTYPE3 ON C_DOCTYPE3.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPEFROM_ID
+        LEFT JOIN C_DOCTYPE C_DOCTYPE4 ON C_DOCTYPE4.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPETO_ID
+        LEFT JOIN (SELECT M_LOCATOR.M_WAREHOUSE_ID,M_STORAGE_DETAIL.M_PRODUCT_ID,
+                               SUM(M_STORAGE_DETAIL.QTYONHAND) AS STOCKACT,
+                               SUM(M_STORAGE_DETAIL.PREQTYONHAND) AS STOCKRES
+                            FROM M_LOCATOR 
+                            LEFT JOIN M_STORAGE_DETAIL ON M_STORAGE_DETAIL.M_LOCATOR_ID = M_LOCATOR.M_LOCATOR_ID 
+                            LEFT JOIN M_ATTRIBUTESETINSTANCE ON M_ATTRIBUTESETINSTANCE.M_ATTRIBUTESETINSTANCE_ID = M_STORAGE_DETAIL.M_ATTRIBUTESETINSTANCE_ID
+                            GROUP BY M_LOCATOR.M_WAREHOUSE_ID, M_STORAGE_DETAIL.M_PRODUCT_ID) STOCK ON STOCK.M_PRODUCT_ID = SSRS_RESUPPLYLINE.M_PRODUCT_ID 
+                                                                                                    AND STOCK.M_WAREHOUSE_ID =  M_PRODUCT.EM_SSRS_M_WAREHOUSE_ID
+        WHERE 1=1
+       ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="parRequisitionLines" optional="true" type="argument" after="WHERE 1=1" text="AND SSRS_RESUPPLYLINE.SSRS_RESUPPLYLINE_ID IN"/>
+
+  </SqlMethod>
+  <SqlMethod name="Documenttransactionsend" type="preparedStatement" connection="true" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_ORG.EM_SSRS_C_DOCTYPEFROM_ID
+        FROM AD_ORG 
+            LEFT JOIN C_DOCTYPE ON C_DOCTYPE.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPEFROM_ID
+            LEFT JOIN C_DOCTYPE C_DOCTYPETO ON C_DOCTYPETO.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPETO_ID
+            LEFT JOIN AD_SEQUENCE ON AD_SEQUENCE.AD_SEQUENCE_ID = C_DOCTYPE.DOCNOSEQUENCE_ID
+        WHERE AD_ORG.AD_ORG_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="adOrgId"/>
+  </SqlMethod>
+  <SqlMethod name="Documenttransactionreception" type="preparedStatement" connection="true" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_ORG.EM_SSRS_C_DOCTYPETO_ID
+        FROM AD_ORG 
+            LEFT JOIN C_DOCTYPE ON C_DOCTYPE.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPEFROM_ID
+            LEFT JOIN C_DOCTYPE C_DOCTYPETO ON C_DOCTYPETO.C_DOCTYPE_ID = AD_ORG.EM_SSRS_C_DOCTYPETO_ID
+            LEFT JOIN AD_SEQUENCE ON AD_SEQUENCE.AD_SEQUENCE_ID = C_DOCTYPE.DOCNOSEQUENCE_ID
+        WHERE AD_ORG.AD_ORG_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="adOrgId"/>
+  </SqlMethod>
+ </SqlClass>

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSRS_REQUESTREAPROVISION">
+    <function name="SSRS_REQUESTREAPROVISION" type="VARCHAR">
+      <body><![CDATA[v_DocStatus VARCHAR(60);
+      
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF; 
+    END IF;
+
+
+  IF TG_OP = 'INSERT' THEN
+    v_DocStatus := new.DocStatus;
+  ELSE
+    v_DocStatus := old.DocStatus;
+  END IF;
+
+  IF ((v_DocStatus = 'CL')
+      OR ((v_DocStatus = 'CO') AND NOT TG_OP = 'UPDATE')) THEN
+    RAISE_APPLICATION_ERROR(-20000, '@20501@');
+  END IF;
+
+  IF (v_DocStatus = 'CO' AND TG_OP = 'UPDATE') THEN
+    IF ((COALESCE(old.DocumentNo, '.') <> COALESCE(new.DocumentNo,'.'))
+       OR (COALESCE(old.C_BPartner_ID, '0') <> COALESCE(new.C_BPartner_ID, '0'))
+       OR (COALESCE(old.M_PriceList_ID, '0') <> COALESCE(new.M_PriceList_ID, '0'))
+       OR (COALESCE(old.C_Currency_ID, '0') <> COALESCE(new.C_Currency_ID, '0'))
+       OR (COALESCE(old.AD_User_ID, '0') <> COALESCE(new.AD_User_ID, '0'))) THEN
+      RAISE_APPLICATION_ERROR(-20000, '@20501@');
+    END IF;
+  END IF;
+
+IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END SSRS_REQUESTREAPROVISION
+]]></body>
+    </function>
+  </database>

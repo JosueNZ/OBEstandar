@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER IMDLV_VPORCHUSE2_TRG">
+    <trigger name="IMDLV_VPORCHUSE2_TRG" table="IMDLV_VOUCHER_PURCHASE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+v_DateNull DATE := TO_DATE('31-12-9999','DD-MM-YYYY');
+v_ImportData VARCHAR(32);
+v_FileID VARCHAR(32);
+v_TableID VARCHAR(32);
+
+v_FileName 	VARCHAR(60);
+V_NewFileName	VARCHAR(60);
+v_CountFiles NUMBER;
+v_Docstatus VARCHAR(60);
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+ 
+ IF (UPDATING) THEN
+ 
+   v_ImportData:=:NEW.imdlv_voucher_purchase_id;
+   v_Docstatus:=:NEW.docstatus;
+   
+   if ( v_Docstatus=  'DR') then
+	   v_CountFiles:=0;
+	   SELECT COALESCE((SELECT count(*) FROM C_FILE 
+						WHERE AD_RECORD_ID = v_ImportData
+					   ),0)
+	   INTO v_CountFiles
+	   FROM DUAL;
+
+		IF (v_CountFiles>0 AND v_CountFiles<=1 ) THEN
+			SELECT NAME
+            INTO V_NewFileName
+            from c_file where ad_record_id=v_ImportData;
+            :new.description:= V_NewFileName;
+		END IF;
+
+	END IF;
+
+ END IF;
+ 
+ 
+END IMDLV_VPORCHUSE2_TRG
+]]></body>
+    </trigger>
+  </database>
