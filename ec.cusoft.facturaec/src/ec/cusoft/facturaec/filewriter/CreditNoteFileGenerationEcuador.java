@@ -8,6 +8,7 @@ package ec.cusoft.facturaec.filewriter;
 
 import java.io.File;
 import java.io.StringWriter;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -45,6 +46,7 @@ import org.openbravo.model.common.geography.CountryTrl;
 import org.openbravo.model.common.invoice.Invoice;
 import org.openbravo.model.common.invoice.InvoiceLine;
 import org.openbravo.model.common.invoice.InvoiceTax;
+import org.openbravo.model.financialmgmt.tax.TaxRate;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
@@ -197,7 +199,7 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
     Element secuencial = doc.createElement("secuencial");
     secuencial.appendChild(doc.createTextNode(documentno[2]));
     infoTributaria.appendChild(secuencial);
-    
+
     // AGENTE DE RETENCIÓN - MICROEMPRESAS
     OBCriteria<Organization> ObjOrganization = OBDal.getInstance()
         .createCriteria(Organization.class);
@@ -209,22 +211,22 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
     String strWithholdingAgent = null;
 
     if (ObjOrganization.list().size() > 0) {
-    	strMicroBusiness = ObjOrganization.list().get(0).getEeiMicroBusiness();
-    	strWithholdingAgent = ObjOrganization.list().get(0).getEeiWithholdingAgent();    	
+      strMicroBusiness = ObjOrganization.list().get(0).getEeiMicroBusiness();
+      strWithholdingAgent = ObjOrganization.list().get(0).getEeiWithholdingAgent();
     }
 
     if (strMicroBusiness != null) {
-        Element regimenMicroempresas = doc.createElement("regimenMicroempresas");
-        regimenMicroempresas.appendChild(doc.createTextNode(strMicroBusiness));
-        infoTributaria.appendChild(regimenMicroempresas);
+      Element regimenMicroempresas = doc.createElement("regimenMicroempresas");
+      regimenMicroempresas.appendChild(doc.createTextNode(strMicroBusiness));
+      infoTributaria.appendChild(regimenMicroempresas);
     }
-    
+
     if (strWithholdingAgent != null) {
-        Element agenteRetencion = doc.createElement("agenteRetencion");
-        agenteRetencion.appendChild(doc.createTextNode(strWithholdingAgent));
-        infoTributaria.appendChild(agenteRetencion);
+      Element agenteRetencion = doc.createElement("agenteRetencion");
+      agenteRetencion.appendChild(doc.createTextNode(strWithholdingAgent));
+      infoTributaria.appendChild(agenteRetencion);
     }
-    
+
     // DIRECCIÓN
     String headquartersCountry = null;
     try {
@@ -340,21 +342,21 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
     String idType=null;
 
     if (invoice.getBusinessPartner().getSswhTaxidtype().equals("R")) {
-    	idType = "04";
+      idType = "04";
     } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("D")) {
-    	idType = "05";
+      idType = "05";
     } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("P")) {
-    	idType = "06";
+      idType = "06";
     } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_C")) {
-    	idType = "07";
-    } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_E")) {    	
-    	idType = "08";
+      idType = "07";
+    } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_E")) {
+      idType = "08";
     }
 
     Element tipoIdentificacionComprador = doc.createElement("tipoIdentificacionComprador");
     tipoIdentificacionComprador.appendChild(doc.createTextNode(idType));
-    infoNotaCredito.appendChild(tipoIdentificacionComprador); 
-    
+    infoNotaCredito.appendChild(tipoIdentificacionComprador);
+
     // Razon social del comprador
 
     String strDescription = invoice.getBusinessPartner().getDescription() == null ? "ND"
@@ -460,6 +462,27 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
     // total con impuestos
     List<InvoiceTax> taxes = invoice.getInvoiceTaxList();
 
+    // **********************
+    // IRBP INFO
+    BigDecimal indice = BigDecimal.ZERO;
+    String codeTaxIrbp = "";
+    double Tarifa = 0; // irbpTax.getRate().doubleValue();
+
+    OBCriteria<TaxRate> obc = OBDal.getInstance().createCriteria(TaxRate.class);
+    obc.add(Restrictions.eq(TaxRate.PROPERTY_SLPLAGIRBP, true));
+    obc.setMaxResults(1);
+    TaxRate irbpTax = (TaxRate) obc.uniqueResult();
+    if (irbpTax != null) {
+      indice = irbpTax.getRate();
+      if (irbpTax.getEeiSriTaxcatCode() != null) {
+        codeTaxIrbp = irbpTax.getEeiSriTaxcatCode().toString();
+      }
+      if (irbpTax.getRate() != null) {
+        Tarifa = irbpTax.getRate().doubleValue();
+      }
+    }
+    // ***********************
+
     if (taxes.size() > 0) {
       Element totalConImpuestos = doc.createElement("totalConImpuestos");
       infoNotaCredito.appendChild(totalConImpuestos);
@@ -500,6 +523,8 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
             // -
             // 01-01-2011"))
             codigo.appendChild(doc.createTextNode("2"));
+          else if (tax.getTax().isSlplagIrbp())
+            codigo.appendChild(doc.createTextNode("5"));
           else
             codigo.appendChild(doc.createTextNode("3"));
 
@@ -512,29 +537,65 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
             porciento = porciento * (-1);
 
           Element codigoPorcentaje = doc.createElement("codigoPorcentaje");
+          String codigoSriFe = ""; // tax.getTax().getEeiSriTaxcatCode().toString();
+          if (tax.getTax() != null) {
+            if (tax.getTax().getEeiSriTaxcatCode() == null) {
+              String msg = "El impuesto " + tax.getTax().getName().toString()
+                  + " no tiene configurado el campo 'Código Impuesto SRI - FE'.";
 
-          if (tax.getTax().isTaxdeductable() && !tax.getTax().getRate().toString().equals("0"))// (tax.getTax().getName().toString().equals("IVA
-            // 12%
-            // -
-            // 01-01-2011"))
-            codigoPorcentaje.appendChild(doc.createTextNode(tax.getTax().getEeiSriTaxcatCode()));
-          else if (tax.getTax().isTaxdeductable() && tax.getTax().getRate().toString().equals("0"))// (tax.getTax().getName().toString().equals("IVA
-            // 0%
-            // -
-            // 01-01-2011"))
-            codigoPorcentaje.appendChild(doc.createTextNode("0"));
-          else
-            codigoPorcentaje.appendChild(doc.createTextNode("6"));
-
+              throw new OBException(msg);
+            }
+            if (tax.getTax().getEeiSriTaxcatCode() != null) {
+              codigoSriFe = tax.getTax().getEeiSriTaxcatCode().toString();
+            }
+          }
+          //
+          // if (tax.getTax().isTaxdeductable() && !tax.getTax().getRate().toString().equals("0"))
+          // codigoPorcentaje.appendChild(doc.createTextNode(tax.getTax().getEeiSriTaxcatCode()));
+          // else if (tax.getTax().isTaxdeductable() &&
+          // tax.getTax().getRate().toString().equals("0"))
+          // codigoPorcentaje.appendChild(doc.createTextNode("0"));
+          // else if (tax.getTax().isSlplagIrbp())
+          // codigoPorcentaje.appendChild(doc
+          // .createTextNode(tax.getTax().getEeiSriTaxcatCode().toString()
+          // else
+          // codigoPorcentaje.appendChild(doc.createTextNode("6"));
+          //
+          codigoPorcentaje.appendChild(doc.createTextNode(codigoSriFe));
           totalConImpuesto.appendChild(codigoPorcentaje);
 
           // base imponible
           double taxableAmount = Math.abs(tax.getTaxableAmount().doubleValue());
           Element baseImponible = doc.createElement("baseImponible");
-          baseImponible.appendChild(doc
-              .createTextNode(formateador.format(taxableAmount).toString()));
-          totalConImpuesto.appendChild(baseImponible);
 
+          if (tax.getTax().isSlplagIrbp()) {
+            // Base impoible es la cantidad de unidades por producto.
+            List<InvoiceLine> lines = invoice.getInvoiceLineList();
+            double cantidadIrbp = 0;
+            for (InvoiceLine detalleObjLn : lines) {
+              OBCriteria<InvoiceLineTax> invlinetax = OBDal.getInstance()
+                  .createCriteria(InvoiceLineTax.class);
+              invlinetax.add(Restrictions.eq(InvoiceLineTax.PROPERTY_INVOICELINE, detalleObjLn));
+              invlinetax.add(Restrictions.eq(InvoiceLineTax.PROPERTY_TAX, tax.getTax()));
+
+              if (invlinetax.list().size() > 0) {
+                List<InvoiceLineTax> lstinvlinetax = invlinetax.list();
+                for (InvoiceLineTax linestax : lstinvlinetax) {
+                  double doubleTaxableAmount = linestax.getTaxableAmount().doubleValue();
+                  ;
+                  cantidadIrbp = cantidadIrbp + doubleTaxableAmount;
+                }
+              }
+            }
+            baseImponible.appendChild(
+                doc.createTextNode(formateador.format(Math.abs(cantidadIrbp)).toString()));
+            totalConImpuesto.appendChild(baseImponible);
+
+          } else {
+            baseImponible
+                .appendChild(doc.createTextNode(formateador.format(taxableAmount).toString()));
+            totalConImpuesto.appendChild(baseImponible);
+          }
           // valor
           double amount = Math.abs(tax.getTaxAmount().doubleValue());
           Element valor = doc.createElement("valor");
@@ -654,20 +715,15 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
 
       // descripcion
       String strDescripcion = "";
-      
-      strDescripcion = invoiceLine.getDescription() == null ? (invoiceLine.getProduct().getName() == null ? "" : invoiceLine.getProduct().getName() ) 
-          :invoiceLine.getDescription();
-        /*
       if (ObjParams.getProductName().equals("N")) {
-    	  strDescripcion = invoiceLine.getProduct().getName();
+        strDescripcion = invoiceLine.getProduct().getName();
       }else if (ObjParams.getProductName().equals("D")){
-    	  strDescripcion = invoiceLine.getProduct().getDescription();
+        strDescripcion = invoiceLine.getProduct().getDescription();
       }else if (ObjParams.getProductName().equals("ND")){
-    	  strDescripcion = invoiceLine.getProduct().getName()+
+        strDescripcion = invoiceLine.getProduct().getName()+
     			  (invoiceLine.getProduct().getDescription()==null?"":" - "+ invoiceLine.getProduct().getDescription());
       }
-      */
-      
+
       strDescription = truncate(strDescripcion, 300);
       if (strDescription == null || strDescription.trim().equals("")) {
         throw new OBException(
@@ -759,6 +815,8 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
             && invoiceLineTax.getTax().getRate().toString().equals("0"))// (invoiceLineTax.getTax().getName().toString().equals("IVA
           // 0% - 01-01-2011"))
           codigoT.appendChild(doc.createTextNode("2"));
+        else if (invoiceLineTax.getTax().isSlplagIrbp())
+          codigoT.appendChild(doc.createTextNode("5"));
         else
           codigoT.appendChild(doc.createTextNode("3"));
 
@@ -772,27 +830,50 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
          */
 
         Element codigoPorcentajeT = doc.createElement("codigoPorcentaje");
+        String codigoSriFeDet = ""; // tax.getTax().getEeiSriTaxcatCode().toString();
+        if (invoiceLineTax.getTax() != null) {
+          if (invoiceLineTax.getTax().getEeiSriTaxcatCode() == null) {
+            String msg = "El impuesto " + invoiceLineTax.getTax().getName().toString()
+                + " no tiene configurado el campo 'Código Impuesto SRI - FE'.";
 
-        if (invoiceLineTax.getTax().isTaxdeductable()
-            && !invoiceLineTax.getTax().getRate().toString().equals("0"))// (invoiceLineTax.getTax().getName().toString().equals("IVA
-          // 12% - 01-01-2011"))
-          codigoPorcentajeT.appendChild(doc.createTextNode(invoiceLineTax.getTax()
-              .getEeiSriTaxcatCode())); // validar
-        else if (invoiceLineTax.getTax().isTaxdeductable()
-            && invoiceLineTax.getTax().getRate().toString().equals("0"))// (invoiceLineTax.getTax().getName().toString().equals("IVA
-          // 0% - 01-01-2011"))
-          codigoPorcentajeT.appendChild(doc.createTextNode("0")); // validar
-        else
-          codigoPorcentajeT.appendChild(doc.createTextNode("6")); // validar
+            throw new OBException(msg);
+          }
+          if (invoiceLineTax.getTax().getEeiSriTaxcatCode() != null) {
+            codigoSriFeDet = invoiceLineTax.getTax().getEeiSriTaxcatCode().toString();
+          }
+        }
 
+        // if (invoiceLineTax.getTax().isTaxdeductable()
+        // && !invoiceLineTax.getTax().getRate().toString().equals("0"))
+        // codigoPorcentajeT
+        // .appendChild(doc.createTextNode(invoiceLineTax.getTax().getEeiSriTaxcatCode()));
+        // else if (invoiceLineTax.getTax().isTaxdeductable()
+        // && invoiceLineTax.getTax().getRate().toString().equals("0"))
+        // codigoPorcentajeT.appendChild(doc.createTextNode("0"));
+        // else if (invoiceLineTax.getTax().isSlplagIrbp())
+        // codigoPorcentajeT.appendChild(doc.createTextNode(
+        // invoiceLineTax.getTax().getEeiSriTaxcatCode().toString() ));
+        // else
+        // codigoPorcentajeT.appendChild(doc.createTextNode("6"));
+
+        codigoPorcentajeT.appendChild(doc.createTextNode(codigoSriFeDet));
         invImpuesto.appendChild(codigoPorcentajeT);
 
         // tarifa
         String strTarifa = invoiceLineTax.getTax().getRate().toString();
         Element tarifa = doc.createElement("tarifa");
-        tarifa.appendChild(doc.createTextNode(strTarifa));
-        invImpuesto.appendChild(tarifa);
 
+        if (invoiceLineTax.getTax().isSlplagIrbp()) {
+          String numberString = Double.toString(Tarifa);
+          char firsDigit = numberString.charAt(0);
+          int myInt = Integer.parseInt(String.valueOf(firsDigit));
+          tarifa.appendChild(doc.createTextNode(formateador.format(myInt).toString())); // validar
+          invImpuesto.appendChild(tarifa);
+
+        } else {
+          tarifa.appendChild(doc.createTextNode(strTarifa));
+          invImpuesto.appendChild(tarifa);
+        }
         // base imponible
         double taxableAmount = Math.abs(invoiceLineTax.getTaxableAmount().doubleValue());
         Element baseImponibleT = doc.createElement("baseImponible");
@@ -818,14 +899,14 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
     // INFOADICIONAL
 
     String dataInvoice[] = new String[6];
-    dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);    
-    
+    dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);
+
     OBCriteria<EEIParamFacturae> ObjEeiParam = OBDal.getInstance()
-            .createCriteria(EEIParamFacturae.class);
-        ObjEeiParam.add(Restrictions.eq(EEIParamFacturae.PROPERTY_ACTIVE, true));
+        .createCriteria(EEIParamFacturae.class);
+    ObjEeiParam.add(Restrictions.eq(EEIParamFacturae.PROPERTY_ACTIVE, true));
     EEIParamFacturae ObjParams = null;
     ObjParams = OBDal.getInstance().get(EEIParamFacturae.class, ObjEeiParam.list().get(0).getId());
-    
+
     if ((((invoice.getDescription() != null && !invoice.getDescription().trim().equals("")) || (invoice
         .getEeiDescription() != null && !invoice.getEeiDescription().trim().equals(""))) && !invoice
         .getDocumentType().getEeiDescriptionfields().equals("NO"))
@@ -836,33 +917,33 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
       Element infoAdicional = doc.createElement("infoAdicional");
       rootElement.appendChild(infoAdicional);
       String StrUnionCadenaSinSaltos = "";
-      
+
       if (dataInvoice[0] != null) {
-          Element campoAdicionaldir = doc.createElement("campoAdicional");
-          campoAdicionaldir.setAttribute("nombre", "Dirección");
-          campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
-          infoAdicional.appendChild(campoAdicionaldir);
-      }      
+        Element campoAdicionaldir = doc.createElement("campoAdicional");
+        campoAdicionaldir.setAttribute("nombre", "Dirección");
+        campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
+        infoAdicional.appendChild(campoAdicionaldir);
+      }
       if (dataInvoice[1] != null) {
-          Element campoAdicionaltel = doc.createElement("campoAdicional");
-          campoAdicionaltel.setAttribute("nombre", "Teléfono");
-          campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
-          infoAdicional.appendChild(campoAdicionaltel);
+        Element campoAdicionaltel = doc.createElement("campoAdicional");
+        campoAdicionaltel.setAttribute("nombre", "Teléfono");
+        campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
+        infoAdicional.appendChild(campoAdicionaltel);
       }
       if (dataInvoice[2] != null) {
-          Element campoAdicionalem = doc.createElement("campoAdicional");
-          campoAdicionalem.setAttribute("nombre", "E-mail");
-          campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
-          infoAdicional.appendChild(campoAdicionalem);
-      }      
+        Element campoAdicionalem = doc.createElement("campoAdicional");
+        campoAdicionalem.setAttribute("nombre", "E-mail");
+        campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
+        infoAdicional.appendChild(campoAdicionalem);
+      }
 
       if(ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals("")) {
-          Element campoAdicional = doc.createElement("campoAdicional");
-          campoAdicional.setAttribute("nombre", "Descripción");
-          campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)));
-          infoAdicional.appendChild(campoAdicional);
-          StrUnionCadenaSinSaltos=";";
-      }      
+        Element campoAdicional = doc.createElement("campoAdicional");
+        campoAdicional.setAttribute("nombre", "Descripción");
+        campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)));
+        infoAdicional.appendChild(campoAdicional);
+        StrUnionCadenaSinSaltos=";";
+      }
 
       if (invoice.getBusinessPartner().getName2() != null
           || invoice.getBusinessPartner().getDescription() != null) {
@@ -911,9 +992,9 @@ public class CreditNoteFileGenerationEcuador extends AbstractFileGeneration impl
         StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos.replaceAll(";;", ";");
 
         if(StrUnionCadenaSinSaltos.equals(";")) {
-        	StrUnionCadenaSinSaltos="";
+          StrUnionCadenaSinSaltos="";
         }
-        
+
         String strCadenaParcial = "";
         String strCadenaConcatenada = "";
         int intContador = 0;

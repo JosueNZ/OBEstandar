@@ -23,7 +23,6 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.criterion.Restrictions;
 import org.openbravo.base.exception.OBException;
@@ -1536,32 +1535,32 @@ public class PurchaseSettlementGenerationEcuador {
 			rootElement.appendChild(infoAdicional);
 		    String StrUnionCadenaSinSaltos = "";
 
-                    if (StringUtils.isNotBlank(dataInvoice[0])) {
-                      Element campoAdicionaldir = doc.createElement("campoAdicional");
-                      campoAdicionaldir.setAttribute("nombre", "Dirección");
-                      campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
-                      infoAdicional.appendChild(campoAdicionaldir);
-                    }
-                    if (StringUtils.isNotBlank(dataInvoice[1])) {
-                      Element campoAdicionaltel = doc.createElement("campoAdicional");
-                      campoAdicionaltel.setAttribute("nombre", "Teléfono");
-                      campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
-                      infoAdicional.appendChild(campoAdicionaltel);
-                    }
-                    if (StringUtils.isNotBlank(dataInvoice[2])) {
-                      Element campoAdicionalem = doc.createElement("campoAdicional");
-                      campoAdicionalem.setAttribute("nombre", "E-mail");
-                      campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
-                      infoAdicional.appendChild(campoAdicionalem);
-                    }		    
+		      if (dataInvoice[0] != null) {
+		          Element campoAdicionaldir = doc.createElement("campoAdicional");
+		          campoAdicionaldir.setAttribute("nombre", "Dirección");
+		          campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
+		          infoAdicional.appendChild(campoAdicionaldir);
+		      }      
+		      if (dataInvoice[1] != null) {
+		          Element campoAdicionaltel = doc.createElement("campoAdicional");
+		          campoAdicionaltel.setAttribute("nombre", "Teléfono");
+		          campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
+		          infoAdicional.appendChild(campoAdicionaltel);
+		      }
+		      if (dataInvoice[2] != null) {
+		          Element campoAdicionalem = doc.createElement("campoAdicional");
+		          campoAdicionalem.setAttribute("nombre", "E-mail");
+		          campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
+		          infoAdicional.appendChild(campoAdicionalem);
+		      } 		    
 
-//		    if(ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals("")) {
-//		        Element campoAdicional = doc.createElement("campoAdicional");
-//		        campoAdicional.setAttribute("nombre", "Descripción");
-//		        campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)));
-//		        infoAdicional.appendChild(campoAdicional);
-//		        StrUnionCadenaSinSaltos = ";"; 		        
-//		    }			
+		    if(ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals("")) {
+		        Element campoAdicional = doc.createElement("campoAdicional");
+		        campoAdicional.setAttribute("nombre", "Descripción");
+		        campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)));
+		        infoAdicional.appendChild(campoAdicional);
+		        StrUnionCadenaSinSaltos = ";"; 		        
+		    }			
 
       if (invoice.getBusinessPartner().getName2() != null
           || invoice.getBusinessPartner().getDescription() != null) {

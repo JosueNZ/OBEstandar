@@ -13,7 +13,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -46,8 +45,10 @@ import org.openbravo.model.common.geography.CountryTrl;
 import org.openbravo.model.common.invoice.Invoice;
 import org.openbravo.model.common.invoice.InvoiceLine;
 import org.openbravo.model.common.invoice.InvoiceTax;
+import org.openbravo.model.common.plm.ProductBOM;
 import org.openbravo.model.financialmgmt.payment.FIN_PaymentSchedule;
 import org.openbravo.model.financialmgmt.payment.FIN_PaymentScheduleDetail;
+import org.openbravo.model.financialmgmt.tax.TaxRate;
 import org.openbravo.service.db.DalConnectionProvider;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -403,21 +404,36 @@ public class FileGenerationEcuador extends AbstractFileGeneration
     identificacionComprador.appendChild(doc.createTextNode(strTaxid));
     infoFactura.appendChild(identificacionComprador);
 
-    if (address == null) {
-      throw new OBException("Dirección del cliente es nula.");
-    } else {
-      address = address.replaceAll("[\n]", " ");
+    Element direccionComprador = doc.createElement("direccionComprador");
+
+    boolean dirComprador = invoice.getTransactionDocument().isEeiComercialInv();
+
+    if (dirComprador) {
+
+      direccionComprador.appendChild(
+          doc.createTextNode(invoice.getPartnerAddress().getLocationAddress().getAddressLine1()
+              + " - " + invoice.getPartnerAddress().getLocationAddress().getCityName()));
+      infoFactura.appendChild(direccionComprador);
     }
-    
-    Element dirEstablecimiento2 = doc.createElement("direccionComprador");
-    dirEstablecimiento2.appendChild(doc.createTextNode(truncate(address, 300)));
-    infoFactura.appendChild(dirEstablecimiento2);
-    
+
     DecimalFormatSymbols simbolos = new DecimalFormatSymbols();
     simbolos.setDecimalSeparator('.');
     DecimalFormat formateador = new DecimalFormat("#########0.00", simbolos);
 
-    double TotalSinImpuestos = invoice.getSummedLineAmount().doubleValue();
+    boolean isTip = false;
+    BigDecimal amountTip = BigDecimal.ZERO;
+    double TotalSinImpuestos = 0;
+    for (InvoiceTax impuestoObj : invoice.getInvoiceTaxList()) {
+      // Verificar si existe Rango de Impuesto con Propina y activar tag propina
+      if (impuestoObj.getTax().isEeiTip()) {
+        amountTip = impuestoObj.getTaxAmount();
+        TotalSinImpuestos = invoice.getSummedLineAmount().doubleValue() + amountTip.doubleValue();
+      } else {
+        TotalSinImpuestos = invoice.getSummedLineAmount().doubleValue();
+
+      }
+    }
+
     Element totalSinImpuestos = doc.createElement("totalSinImpuestos");
     totalSinImpuestos
         .appendChild(doc.createTextNode(formateador.format(TotalSinImpuestos).toString()));
@@ -563,8 +579,14 @@ public class FileGenerationEcuador extends AbstractFileGeneration
     infoFactura.appendChild(totalConImpuestos);
 
     for (InvoiceTax impuestoObj : invoice.getInvoiceTaxList()) {
-      Element totalImpuesto = doc.createElement("totalImpuesto");
-      totalConImpuestos.appendChild(totalImpuesto);
+      // Verificar si existe Rango de Impuesto con Propina y activar tag propina
+      if (impuestoObj.getTax().isEeiTip()) {
+        isTip = true;
+        amountTip = impuestoObj.getTaxAmount();
+      }
+      if (!isTip) {
+        Element totalImpuesto = doc.createElement("totalImpuesto");
+        totalConImpuestos.appendChild(totalImpuesto);
 
       /* CODIGO DEL IMPUESTO */
       Element codigo = doc.createElement("codigo");
@@ -588,48 +610,110 @@ public class FileGenerationEcuador extends AbstractFileGeneration
         // -
         // 01-01-2011"))
         codigo.appendChild(doc.createTextNode("2"));
-      else
+      else if (impuestoObj.getTax().isSlplagIrbp()) {
+        codigo.appendChild(doc.createTextNode("5"));
+      } else {
         codigo.appendChild(doc.createTextNode("3"));
+      }
 
       totalImpuesto.appendChild(codigo);
       /* FIN DE CODIGO DEL IMPUESTO */
 
       /* CODIGO DEL IMPUESTO RATE */
       Element codigoPorcentaje = doc.createElement("codigoPorcentaje");
-      if (impuestoObj.getTax().isTaxdeductable()
-          && !impuestoObj.getTax().getRate().toString().equals("0"))
-        codigoPorcentaje
-            .appendChild(doc.createTextNode(impuestoObj.getTax().getEeiSriTaxcatCode()));
-      else if (impuestoObj.getTax().isTaxdeductable()
-          && impuestoObj.getTax().getRate().toString().equals("0"))// (impuestoObj.getTax().getName().toString().equals("IVA
-        // 0%
-        // -
-        // 01-01-2011"))
-        codigoPorcentaje.appendChild(doc.createTextNode("0"));
-      else
-        codigoPorcentaje.appendChild(doc.createTextNode("6"));
+      String codigoSriFeDet = ""; // tax.getTax().getEeiSriTaxcatCode().toString();
+      if (impuestoObj.getTax() != null) {
+        if (impuestoObj.getTax().getEeiSriTaxcatCode() == null) {
+          String msg = "El impuesto " + impuestoObj.getTax().getName().toString()
+              + " no tiene configurado el campo 'Código Impuesto SRI - FE'.";
+
+          throw new OBException(msg);
+        }
+        if (impuestoObj.getTax().getEeiSriTaxcatCode() != null) {
+          codigoSriFeDet = impuestoObj.getTax().getEeiSriTaxcatCode().toString();
+        }
+      }
+      // if (impuestoObj.getTax().isTaxdeductable()
+      // && !impuestoObj.getTax().getRate().toString().equals("0"))
+      // codigoPorcentaje
+      // .appendChild(doc.createTextNode((impuestoObj.getTax().getEeiSriTaxcatCode() != null)
+      // ? impuestoObj.getTax().getEeiSriTaxcatCode().toString()
+      // : ""));
+      // else if (impuestoObj.getTax().isTaxdeductable()
+      // && impuestoObj.getTax().getRate().toString().equals("0"))
+
+      // codigoPorcentaje.appendChild(doc.createTextNode("0"));
+      // else if (impuestoObj.getTax().isSlplagIrbp())
+      // codigoPorcentaje
+      // .appendChild(doc.createTextNode((impuestoObj.getTax().getEeiSriTaxcatCode() != null)
+      // ? impuestoObj.getTax().getEeiSriTaxcatCode().toString()
+      // : ""));
+
+      // else
+      // codigoPorcentaje.appendChild(doc.createTextNode("6"));
+
+      codigoPorcentaje.appendChild(doc.createTextNode(codigoSriFeDet));
       totalImpuesto.appendChild(codigoPorcentaje);
       /* FIN DE CODIGO DEL IMPUESTO RATE */
 
-      double BaseImp = impuestoObj.getTaxableAmount().doubleValue();
+      // Base imponible
       Element baseImponible = doc.createElement("baseImponible");
-      baseImponible.appendChild(doc.createTextNode(formateador.format(BaseImp).toString()));
-      totalImpuesto.appendChild(baseImponible);
 
-      double Tarifa = impuestoObj.getTax().getRate().doubleValue();
-      Element tarifa = doc.createElement("tarifa");
-      tarifa.appendChild(doc.createTextNode(formateador.format(Tarifa).toString()));
-      totalImpuesto.appendChild(tarifa);
+      if (impuestoObj.getTax().isSlplagIrbp()) {
+        // Base impoible es la cantidad de unidades por producto.
+        List<InvoiceLine> lines = invoice.getInvoiceLineList();
+        double cantidadIrbp = 0;
+        for (InvoiceLine detalleObjLn : lines) {
+          OBCriteria<InvoiceLineTax> invlinetax = OBDal.getInstance()
+              .createCriteria(InvoiceLineTax.class);
+          invlinetax.add(Restrictions.eq(InvoiceLineTax.PROPERTY_INVOICELINE , detalleObjLn));
+          invlinetax.add(Restrictions.eq(InvoiceLineTax.PROPERTY_TAX ,impuestoObj.getTax()));
+          
+          if (invlinetax.list().size() > 0) {
+            List<InvoiceLineTax> lstinvlinetax = invlinetax.list();
+            for (InvoiceLineTax linestax : lstinvlinetax) {
+              double doubleTaxableAmount =  linestax.getTaxableAmount().doubleValue(); ;
+              cantidadIrbp = cantidadIrbp + doubleTaxableAmount;
+            }           
+          }
+          baseImponible
+              .appendChild(doc.createTextNode(formateador.format(cantidadIrbp).toString()));
+          totalImpuesto.appendChild(baseImponible);
+        }
+        } else {
+          double BaseImp = impuestoObj.getTaxableAmount().doubleValue();
+          baseImponible.appendChild(doc.createTextNode(formateador.format(BaseImp).toString()));
+          totalImpuesto.appendChild(baseImponible);
+        }
 
-      double Valor = impuestoObj.getTaxAmount().doubleValue();
-      Element valor = doc.createElement("valor");
-      valor.appendChild(doc.createTextNode(formateador.format(Valor).toString()));
-      totalImpuesto.appendChild(valor);
+        Element tarifa = doc.createElement("tarifa");
+        double Tarifa = impuestoObj.getTax().getRate().doubleValue();
+
+        if (impuestoObj.getTax().isSlplagIrbp()) {
+          // irbp
+          String numberString = Double.toString(Tarifa);
+          char firsDigit = numberString.charAt(0);
+          int myInt = Integer.parseInt(String.valueOf(firsDigit));
+          tarifa.appendChild(doc.createTextNode(formateador.format(myInt).toString()));
+          totalImpuesto.appendChild(tarifa);
+        } else {
+          tarifa.appendChild(doc.createTextNode(formateador.format(Tarifa).toString()));
+          totalImpuesto.appendChild(tarifa);
+        }
+
+        double Valor = impuestoObj.getTaxAmount().doubleValue();
+        Element valor = doc.createElement("valor");
+        valor.appendChild(doc.createTextNode(formateador.format(Valor).toString()));
+        totalImpuesto.appendChild(valor);
+      }
+
     }
-
-    Element propina = doc.createElement("propina");
-    propina.appendChild(doc.createTextNode("0.00")); // 0 por defecto
-    infoFactura.appendChild(propina);
+    // Tag Propina ( solo si existe impuesto con check Propina marcado
+    if (isTip) {
+      Element propina = doc.createElement("propina");
+      propina.appendChild(doc.createTextNode(amountTip.toString())); // 0 por defecto
+      infoFactura.appendChild(propina);
+    }
 
     double ImporteTotal = invoice.getGrandTotalAmount().doubleValue();
     Element importeTotal = doc.createElement("importeTotal");
@@ -1045,18 +1129,15 @@ public class FileGenerationEcuador extends AbstractFileGeneration
       }
 
       String strDescription = "";
-      /*
-       * if (ObjParams.getProductName().equals("N")) { strDescription =
-       * detalleObj.getProduct().getName(); } else if (ObjParams.getProductName().equals("D")) {
-       * strDescription = detalleObj.getProduct().getDescription(); } else if
-       * (ObjParams.getProductName().equals("ND")) { strDescription =
-       * detalleObj.getProduct().getName() + (detalleObj.getProduct().getDescription() == null ? ""
-       * : " - " + detalleObj.getProduct().getDescription()); }
-       */
-      strDescription = detalleObj.getDescription() == null ? detalleObj.getProduct().getName() : detalleObj.getDescription();
-      // detalleObj.getProduct().getName()
-      // + (detalleObj.getDescription() == null ? "" : " - " + detalleObj.getDescription());
-
+      if (ObjParams.getProductName().equals("N")) {
+    	  strDescription = detalleObj.getProduct().getName();
+      }else if (ObjParams.getProductName().equals("D")){
+    	  strDescription = detalleObj.getProduct().getDescription();
+      }else if (ObjParams.getProductName().equals("ND")){
+    	  strDescription = detalleObj.getProduct().getName()+
+    			  (detalleObj.getProduct().getDescription()==null?"":" - "+ detalleObj.getProduct().getDescription());
+      }
+      
       strDescription = truncate(strDescription, 300);
       if (strDescription == null || strDescription.trim().equals("")) {
         throw new OBException(
@@ -1132,85 +1213,103 @@ public class FileGenerationEcuador extends AbstractFileGeneration
           PrecioTotalSinImpuesto).toString()));
       detalle.appendChild(precioTotalSinImpuesto);
 
-      // ATRIBUTOS
+      //ATRIBUTOS
+      
+      if(lstAttributes !=null) {
+	      int intCountAttr=0;
+	      detallesAdicionales = doc.createElement("detallesAdicionales");
+	      String strValorFinal = ""; 
+	      for (int i=0; i<lstAttributes.get(0).size(); i++) {
+	    	  
+	    	  String strOrderId = lstAttributes.get(0).get(i);
+	    	  
+	    	  if(strOrderId !=null && !strOrderId.equals("") && strOrderId.equals(detalleObj.getId())) {
+	
+	    		  String strNombre = truncate(lstAttributes.get(1).get(i),300);
+	        	  String strValor = truncate(lstAttributes.get(2).get(i),300);
+	        	  
+	        	  if (strNombre != null && strValor != null) {
+	        		  strValorFinal= strValorFinal+strNombre+": "+strValor+"|";
+	        		  intCountAttr++;      	      
+	        	  }
+	        	  
+	    	  }
+	      }
+	      
+	      if(strValorFinal!=null && !strValorFinal.equals("")) {
 
-      if (lstAttributes != null) {
-        int intCountAttr = 0;
-        detallesAdicionales = doc.createElement("detallesAdicionales");
-        String strValorFinal = "";
-        for (int i = 0; i < lstAttributes.get(0).size(); i++) {
+	    	  String strLinea1 = null;
+              String strLinea2 = null;
+              String strLinea3 = null;
 
-          String strOrderId = lstAttributes.get(0).get(i);
-
-          if (strOrderId != null && !strOrderId.equals("")
-              && strOrderId.equals(detalleObj.getId())) {
-
-            String strNombre = truncate(lstAttributes.get(1).get(i), 300);
-            String strValor = truncate(lstAttributes.get(2).get(i), 300);
-
-            if (strNombre != null && strValor != null) {
-              strValorFinal = strValorFinal + strNombre + ": " + strValor + "|";
-              intCountAttr++;
-            }
-
-          }
-        }
-
-        if (strValorFinal != null && !strValorFinal.equals("")) {
-
-          String strLinea1 = null;
-          String strLinea2 = null;
-          String strLinea3 = null;
-
-          if (strValorFinal.length() <= 300) {
-            strLinea1 = strValorFinal.substring(0, strValorFinal.length());
-          }
-          if (strValorFinal.length() > 300 && strValorFinal.length() <= 600) {
-            strLinea1 = strValorFinal.substring(0, 300);
-            strLinea2 = strValorFinal.substring(300, strValorFinal.length());
-          }
-          if (strValorFinal.length() > 600 && strValorFinal.length() <= 900) {
-            strLinea1 = strValorFinal.substring(0, 300);
-            strLinea2 = strValorFinal.substring(300, 600);
-            strLinea3 = strValorFinal.substring(600, strValorFinal.length());
-          }
-          if (strValorFinal.length() > 900) {
-            strLinea1 = strValorFinal.substring(0, 300);
-            strLinea2 = strValorFinal.substring(300, 600);
-            strLinea3 = strValorFinal.substring(600, 900);
-          }
-
-          if (strLinea1 != null && !strLinea1.equals("")) {
-            detAdicional1 = doc.createElement("detAdicional");
-            detAdicional1.setAttribute("nombre", "Atributos");
-            detAdicional1.setAttribute("valor", strLinea1.replaceAll("[\n]", " "));
-            detallesAdicionales.appendChild(detAdicional1);
-          }
-
-          if (strLinea2 != null && !strLinea2.equals("")) {
-            detAdicional2 = doc.createElement("detAdicional");
-            detAdicional2.setAttribute("nombre", "Atributos");
-            detAdicional2.setAttribute("valor", strLinea2.replaceAll("[\n]", " "));
-            detallesAdicionales.appendChild(detAdicional2);
-          }
-
-          if (strLinea3 != null && !strLinea3.equals("")) {
-            detAdicional3 = doc.createElement("detAdicional");
-            detAdicional3.setAttribute("nombre", "Atributos");
-            detAdicional3.setAttribute("valor", strLinea3.replaceAll("[\n]", " "));
-            detallesAdicionales.appendChild(detAdicional3);
-          }
-        }
-
-        if (intCountAttr > 0) {
-          detalle.appendChild(detallesAdicionales);
-        }
-
+              if(strValorFinal.length()<=300){
+            	  strLinea1 = strValorFinal.substring(0,strValorFinal.length());
+              }            
+	    	  if(strValorFinal.length()>300 && strValorFinal.length()<=600){
+	    		  strLinea1 = strValorFinal.substring(0,300);
+	    		  strLinea2 = strValorFinal.substring(300,strValorFinal.length());
+              }
+              if(strValorFinal.length()>600 && strValorFinal.length()<=900){
+            	  strLinea1 = strValorFinal.substring(0,300);
+            	  strLinea2 = strValorFinal.substring(300,600);
+            	  strLinea3 = strValorFinal.substring(600,strValorFinal.length());
+              }
+              if(strValorFinal.length()>900){
+            	  strLinea1 = strValorFinal.substring(0,300);
+            	  strLinea2 = strValorFinal.substring(300,600);
+            	  strLinea3 = strValorFinal.substring(600,900);
+              }
+	    	  
+	    	  if(strLinea1!=null && !strLinea1.equals("")) {
+			      detAdicional1 = doc.createElement("detAdicional");
+			      detAdicional1.setAttribute("nombre","Atributos");
+			      detAdicional1.setAttribute("valor", strLinea1.replaceAll("[\n]", " "));
+			      detallesAdicionales.appendChild(detAdicional1);
+	    	  }
+	    	  
+		      if(strLinea2!=null && !strLinea2.equals("")) {
+			      detAdicional2 = doc.createElement("detAdicional");
+			      detAdicional2.setAttribute("nombre","Atributos");
+			      detAdicional2.setAttribute("valor", strLinea2.replaceAll("[\n]", " "));
+			      detallesAdicionales.appendChild(detAdicional2);		    	  
+		      }
+		      
+		      if(strLinea3!=null && !strLinea3.equals("")) {
+			      detAdicional3 = doc.createElement("detAdicional");
+			      detAdicional3.setAttribute("nombre","Atributos");
+			      detAdicional3.setAttribute("valor", strLinea3.replaceAll("[\n]", " "));
+			      detallesAdicionales.appendChild(detAdicional3);		    	  
+		      }		      
+	      }
+	      
+	      if (intCountAttr>0) {
+	    	  detalle.appendChild(detallesAdicionales);
+	      }
+	      
       }
 
       // IMPUESTOS
       impuestos = doc.createElement("impuestos");
       detalle.appendChild(impuestos);
+      
+      // IRBP INFO
+      BigDecimal indice = BigDecimal.ZERO;
+      String codeTaxIrbp = "";
+      double Tarifa = 0; // irbpTax.getRate().doubleValue();
+
+      OBCriteria<TaxRate> obc = OBDal.getInstance().createCriteria(TaxRate.class);
+      obc.add(Restrictions.eq(TaxRate.PROPERTY_SLPLAGIRBP, true));
+      obc.setMaxResults(1);
+      TaxRate irbpTax = (TaxRate) obc.uniqueResult();
+      if (irbpTax != null) {
+        indice = irbpTax.getRate();
+        if (irbpTax.getEeiSriTaxcatCode() != null) {
+          codeTaxIrbp = irbpTax.getEeiSriTaxcatCode().toString();
+        }
+        if (irbpTax.getRate() != null) {
+          Tarifa = irbpTax.getRate().doubleValue();
+        }
+      }
 
       for (InvoiceLineTax detalleImpuestoObj : detalleObj.getInvoiceLineTaxList()) {
         impuesto = doc.createElement("impuesto");
@@ -1227,6 +1326,8 @@ public class FileGenerationEcuador extends AbstractFileGeneration
             && detalleImpuestoObj.getTax().getRate().toString().equals("0"))// (detalleImpuestoObj.getTax().getName().toString().equals("IVA
           // 0% - 01-01-2011"))
           codigoImpuesto.appendChild(doc.createTextNode("2")); // validar
+        else if(detalleImpuestoObj.getTax().isSlplagIrbp() )
+          codigoImpuesto.appendChild(doc.createTextNode("5"));
         else
           codigoImpuesto.appendChild(doc.createTextNode("3")); // validar
 
@@ -1234,18 +1335,34 @@ public class FileGenerationEcuador extends AbstractFileGeneration
         /* FIN DE CODIGO DEL IMPUESTO */
 
         codigoPorcentajeImpuesto = doc.createElement("codigoPorcentaje");
-        if (detalleImpuestoObj.getTax().isTaxdeductable()
-            && !detalleImpuestoObj.getTax().getRate().toString().equals("0"))// (detalleImpuestoObj.getTax().getName().toString().equals("IVA
-          // 12% - 01-01-2011"))
-          codigoPorcentajeImpuesto
-              .appendChild(doc.createTextNode(detalleImpuestoObj.getTax().getEeiSriTaxcatCode())); // validar
-        else if (detalleImpuestoObj.getTax().isTaxdeductable()
-            && detalleImpuestoObj.getTax().getRate().toString().equals("0"))// (detalleImpuestoObj.getTax().getName().toString().equals("IVA
-          // 0% - 01-01-2011"))
-          codigoPorcentajeImpuesto.appendChild(doc.createTextNode("0")); // validar
-        else
-          codigoPorcentajeImpuesto.appendChild(doc.createTextNode("6")); // validar
+        String codigoSriFeDet = ""; // tax.getTax().getEeiSriTaxcatCode().toString();
+        if (detalleImpuestoObj.getTax() != null) {
+          if (detalleImpuestoObj.getTax().getEeiSriTaxcatCode() == null) {
+            String msg = "El impuesto " + detalleImpuestoObj.getTax().getName().toString()
+                + " no tiene configurado el campo 'Código Impuesto SRI - FE'.";
 
+            throw new OBException(msg);
+          }
+          if (detalleImpuestoObj.getTax().getEeiSriTaxcatCode() != null) {
+            codigoSriFeDet = detalleImpuestoObj.getTax().getEeiSriTaxcatCode().toString();
+          }
+        }
+        // if (detalleImpuestoObj.getTax().isTaxdeductable()
+        // && !detalleImpuestoObj.getTax().getRate().toString().equals("0"))
+        // codigoPorcentajeImpuesto.appendChild(
+        // doc.createTextNode((detalleImpuestoObj.getTax().getEeiSriTaxcatCode() != null)
+        // ? detalleImpuestoObj.getTax().getEeiSriTaxcatCode().toString()
+        // : ""));
+        // else if (detalleImpuestoObj.getTax().isTaxdeductable()
+        // && detalleImpuestoObj.getTax().getRate().toString().equals("0"))
+        // codigoPorcentajeImpuesto.appendChild(doc.createTextNode("0"));
+        // else if (detalleImpuestoObj.getTax().isSlplagIrbp())
+        // codigoPorcentajeImpuesto.appendChild(
+        // doc.createTextNode(detalleImpuestoObj.getTax().getEeiSriTaxcatCode().toString()));
+
+        // else
+        // codigoPorcentajeImpuesto.appendChild(doc.createTextNode("6"));
+        codigoPorcentajeImpuesto.appendChild(doc.createTextNode(codigoSriFeDet));
         impuesto.appendChild(codigoPorcentajeImpuesto);
 
         /* FIN DE CODIGO DEL IMPUESTO RATE */
@@ -1253,9 +1370,18 @@ public class FileGenerationEcuador extends AbstractFileGeneration
         tarifaImpuesto = doc.createElement("tarifa");
         // tarifaImpuesto.appendChild(doc.createTextNode(detalleImpuestoObj.getTax().getRate().toPlainString()));
         // // validar
-        tarifaImpuesto
-            .appendChild(doc.createTextNode(formateador.format(TarifaImpuesto).toString())); // validar
-        impuesto.appendChild(tarifaImpuesto);
+        if (detalleImpuestoObj.getTax().isSlplagIrbp() ){
+          String numberString = Double.toString(Tarifa);
+          char firsDigit = numberString.charAt(0);
+          int myInt = Integer.parseInt(String.valueOf(firsDigit));
+          tarifaImpuesto.appendChild(doc.createTextNode(formateador.format(myInt).toString())); // validar
+          impuesto.appendChild(tarifaImpuesto);
+        }else {
+          tarifaImpuesto
+          .appendChild(doc.createTextNode(formateador.format(TarifaImpuesto).toString())); // validar
+          impuesto.appendChild(tarifaImpuesto);
+        }
+
 
         double BaseImponibleImpuesto = detalleImpuestoObj.getTaxableAmount().doubleValue();
         baseImponibleImpuesto = doc.createElement("baseImponible");
@@ -1272,6 +1398,7 @@ public class FileGenerationEcuador extends AbstractFileGeneration
         valorImpuesto.appendChild(doc.createTextNode(formateador.format(ValorImpuesto).toString()));
         impuesto.appendChild(valorImpuesto);
       }
+
     }
 
     // *****************INICIA TAGS REEMBOLSOS
@@ -1289,15 +1416,15 @@ public class FileGenerationEcuador extends AbstractFileGeneration
       // TIPO IDENTIFICACIÓN
       String strRefundTaxID = null;
       if (purchase_invoice.getBusinessPartner().getSswhTaxidtype().equals("R")) {
-        strRefundTaxID = "04";
+    	  strRefundTaxID = "04";
       } else if (purchase_invoice.getBusinessPartner().getSswhTaxidtype().equals("D")) {
-        strRefundTaxID = "05";
+    	  strRefundTaxID = "05";
       } else if (purchase_invoice.getBusinessPartner().getSswhTaxidtype().equals("P")) {
-        strRefundTaxID = "06";
+    	  strRefundTaxID = "06";
       } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_C")) {
-        strRefundTaxID = "07";
-      } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_E")) {
-        strRefundTaxID = "08";
+    	  strRefundTaxID = "07";
+      } else if (invoice.getBusinessPartner().getSswhTaxidtype().equals("EEI_E")) {    	
+    	  strRefundTaxID = "08";
       }
       Element tipoIdentificacionProveedorReembolso = doc
           .createElement("tipoIdentificacionProveedorReembolso");
@@ -1425,7 +1552,9 @@ public class FileGenerationEcuador extends AbstractFileGeneration
               && !impuestoObj.getTax().getRate().toString().equals("0")) {// (impuestoObj.getTax().getName().toString().equals("IVA
                                                                           // 12% - 01-01-2011"))
             codigoPorcentaje
-                .appendChild(doc.createTextNode(impuestoObj.getTax().getEeiSriTaxcatCode()));
+                .appendChild(doc.createTextNode((impuestoObj.getTax().getEeiSriTaxcatCode() != null)
+                    ? impuestoObj.getTax().getEeiSriTaxcatCode().toString()
+                    : ""));
           } else if (impuestoObj.getTax().isTaxdeductable()
               && impuestoObj.getTax().getRate().toString().equals("0")) {// (impuestoObj.getTax().getName().toString().equals("IVA
                                                                          // 0% - 01-01-2011"))
@@ -1462,10 +1591,10 @@ public class FileGenerationEcuador extends AbstractFileGeneration
 
     // INFOADICIONAL
     OBCriteria<FIN_PaymentSchedule> objPaymentPlan = OBDal.getInstance()
-        .createCriteria(FIN_PaymentSchedule.class);
+            .createCriteria(FIN_PaymentSchedule.class);
     objPaymentPlan.add(Restrictions.eq(FIN_PaymentSchedule.PROPERTY_INVOICE, invoice));
-    objPaymentPlan.addOrderBy(FIN_PaymentSchedule.PROPERTY_DUEDATE, false);
-    objPaymentPlan.setMaxResults(1);
+    objPaymentPlan.setProjection(Projections.max(FIN_PaymentSchedule.PROPERTY_DUEDATE));
+    objPaymentPlan.setFirstResult(1);
     
     String fecha_vencimiento="";
 
@@ -1478,244 +1607,141 @@ public class FileGenerationEcuador extends AbstractFileGeneration
     }catch(Exception efe){
       
     }
-        
-    if (ObjParams.isSendInfoSpecial()) {
-      String dataInvoice[] = new String[6];
-      dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);
+    
 
-      Element infoAdicional = doc.createElement("infoAdicional");
-      rootElement.appendChild(infoAdicional);
-      String proceso = "", emailsolicita = "", ordencompra = "";
-      String ciudad = invoice.getPartnerAddress().getLocationAddress().getCityName();
-      String metodopago = invoice.getPaymentMethod().getName();
-      String condicionpago = invoice.getPaymentTerms().getName();
-      
-      if (invoice.getSalesOrder() != null) {
-        proceso = invoice.getSalesOrder().getDocumentNo();
-        emailsolicita = getEmailSolicitante(invoice);
-        ordencompra = invoice.getSalesOrder().getSscaPoreferenceFe() != null
-            ? invoice.getSalesOrder().getSscaPoreferenceFe()
-            : "";
-            /*
-            invoice.getSalesOrder().getOrderReference() != null
-            ? invoice.getSalesOrder().getOrderReference()
-            : "";
-            */
-      }
-      // Proceso = determinar si es factura conciliada y tomar las pedidos que intervienen
-      if (invoice.getSalesOrder() == null) {
-        ArrayList<String> oldocuments = new ArrayList<>();
-        // tomar los pedidos detallados en las lineas
-        for (InvoiceLine invline : invoice.getInvoiceLineList()) {
-          // concatenar el nuemro de documento de los pedidos ya que debe ser una factura
-          // conciliada.
-          if (invline.getSalesOrderLine() != null) {
-            oldocuments.add(invline.getSalesOrderLine().getSalesOrder().getDocumentNo().toString());
-          }
-        }
-        // setear array duplicados
-        Set<String> hashSet = new HashSet<String>(oldocuments);
-        oldocuments.clear();
-        oldocuments.addAll(hashSet);
-        String str = String.join(",", oldocuments);
-        proceso = str;
-      }
-//      if (dataInvoice[0] != null) {
-//        Element campoAdicionaldir = doc.createElement("campoAdicional");
-//        campoAdicionaldir.setAttribute("nombre", "Dirección");
-//        campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
-//        infoAdicional.appendChild(campoAdicionaldir);
-//      }
-      if (StringUtils.isNotBlank(ciudad)) {
-      Element campoAdicionalCiudad = doc.createElement("campoAdicional");
-      campoAdicionalCiudad.setAttribute("nombre", "Ciudad");
-      campoAdicionalCiudad.appendChild(doc.createTextNode(truncate(ciudad, 300)));
-      infoAdicional.appendChild(campoAdicionalCiudad);
-      }
-      if (StringUtils.isNotBlank(dataInvoice[1])) {
-        Element campoAdicionaltel = doc.createElement("campoAdicional");
-        campoAdicionaltel.setAttribute("nombre", "Teléfono");
-        campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
-        infoAdicional.appendChild(campoAdicionaltel);
-      }
-      if (StringUtils.isNotBlank(proceso)) {
-      Element campoAdicionalproceso = doc.createElement("campoAdicional");
-      campoAdicionalproceso.setAttribute("nombre", "Proceso");
-      campoAdicionalproceso.appendChild(doc.createTextNode(truncate(proceso, 300)));
-      infoAdicional.appendChild(campoAdicionalproceso);
-      }
-      if (StringUtils.isNotBlank(metodopago)) {
-      Element campoAdicionalmpago = doc.createElement("campoAdicional");
-      campoAdicionalmpago.setAttribute("nombre", "Forma de pago");
-      campoAdicionalmpago.appendChild(doc.createTextNode(truncate(metodopago, 300)));
-      infoAdicional.appendChild(campoAdicionalmpago);
-      }
-      if (StringUtils.isNotBlank(condicionpago)) {
-      Element campoAdicionalcpago = doc.createElement("campoAdicional");
-      campoAdicionalcpago.setAttribute("nombre", "Condición de pago");
-      campoAdicionalcpago.appendChild(doc.createTextNode(truncate(condicionpago, 300)));
-      infoAdicional.appendChild(campoAdicionalcpago);
-      }
-      if (StringUtils.isNotBlank(fecha_vencimiento)) {
-        Element campoAdicionalfn = doc.createElement("campoAdicional");
-        campoAdicionalfn.setAttribute("nombre", "FechaVencimiento");
-        campoAdicionalfn.appendChild(doc.createTextNode(fecha_vencimiento));
-        infoAdicional.appendChild(campoAdicionalfn);
-      }
-      if (StringUtils.isNotBlank(ordencompra)) {
-      Element campoAdicionalOrdenC = doc.createElement("campoAdicional");
-      campoAdicionalOrdenC.setAttribute("nombre", "Orden de compra");
-      campoAdicionalOrdenC.appendChild(doc.createTextNode(truncate(ordencompra, 300)));
-      infoAdicional.appendChild(campoAdicionalOrdenC);
-      }
-      if (StringUtils.isNotBlank(emailsolicita)) {
-      Element campoAdicionalSolEmail = doc.createElement("campoAdicional");
-      campoAdicionalSolEmail.setAttribute("nombre", "Email Solicitante");
-      campoAdicionalSolEmail.appendChild(doc.createTextNode(truncate(emailsolicita, 300)));
-      infoAdicional.appendChild(campoAdicionalSolEmail);
-      }
-      if (StringUtils.isNotBlank(dataInvoice[2])) {
-        Element campoAdicionalem = doc.createElement("campoAdicional");
-        campoAdicionalem.setAttribute("nombre", "E-mail");
-        campoAdicionalem.appendChild(doc.createTextNode(
-            invoice.getEeiEmailTo() != null ? invoice.getEeiEmailTo() : dataInvoice[2])); // dataInvoice[2]));
-        infoAdicional.appendChild(campoAdicionalem);
-      }
-      if (StringUtils.isNotBlank(invoice.getDescription())
-          || StringUtils.isNotBlank(invoice.getEeiDescription())) {
-        String descrip = (invoice.getDescription() != null ? invoice.getDescription() : "") + " "
-            + (invoice.getEeiDescription() != null ? invoice.getEeiDescription() : "");
-        if (StringUtils.isNotBlank(descrip)) {
-          Element campoAdicional1 = doc.createElement("campoAdicional");
-          campoAdicional1.setAttribute("nombre", "Adicional1");
-          campoAdicional1.appendChild(doc.createTextNode(truncate(descrip, 300)));
-          infoAdicional.appendChild(campoAdicional1);
-        }
-      }
-
-      if (StringUtils.isNotBlank(ObjParams.getAdittionalInfo()) && invoice.isSalesTransaction()) {
-        Element campoAdicional2 = doc.createElement("campoAdicional");
-        campoAdicional2.setAttribute("nombre", "Adicional2");
-        campoAdicional2
-            .appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(), 300)));
-        infoAdicional.appendChild(campoAdicional2);
-      }
-
-//      String ciudad = invoice.getPartnerAddress().getLocationAddress().getCityName();
-//      String proceso = "", emailsolicita = "", ordencompra = "";
-
-//      if (invoice.getSalesOrder() != null) {
-//        proceso = invoice.getSalesOrder().getDocumentNo();
-//        emailsolicita = getEmailSolicitante(invoice);
-//        ordencompra = invoice.getSalesOrder().getSscaPoreferenceFe() != null
-//            ? invoice.getSalesOrder().getSscaPoreferenceFe()
-//            : "";
-//            /*
-//            invoice.getSalesOrder().getOrderReference() != null
-//            ? invoice.getSalesOrder().getOrderReference()
-//            : "";
-//            */
-//      }
-//      // Proceso = determinar si es factura conciliada y tomar las pedidos que intervienen
-//      if (invoice.getSalesOrder() == null) {
-//        ArrayList<String> oldocuments = new ArrayList<>();
-//        // tomar los pedidos detallados en las lineas
-//        for (InvoiceLine invline : invoice.getInvoiceLineList()) {
-//          // concatenar el nuemro de documento de los pedidos ya que debe ser una factura
-//          // conciliada.
-//          if (invline.getSalesOrderLine() != null) {
-//            oldocuments.add(invline.getSalesOrderLine().getSalesOrder().getDocumentNo().toString());
-//          }
-//        }
-//        // setear array duplicados
-//        Set<String> hashSet = new HashSet<String>(oldocuments);
-//        oldocuments.clear();
-//        oldocuments.addAll(hashSet);
-//        String str = String.join(",", oldocuments);
-//        proceso = str;
-//      }
-
-//      String metodopago = invoice.getPaymentMethod().getName();
-//      String condicionpago = invoice.getPaymentTerms().getName();
-
-      // CUENTAS BANCARIAS
-      OBCriteria<EeiBankAccount> obBankAccount = OBDal.getInstance()
-          .createCriteria(EeiBankAccount.class);
-
-      String strBank = "", strAccount = "";
-      List<EeiBankAccount> lstBank = obBankAccount.list();
-
-      for (int i = 0; i < lstBank.size(); i++) {
-        if (i != 0) {
-          strBank = strBank + "++";
-          strAccount = strAccount + "++";
-        }
-        strBank = strBank + lstBank.get(i).getName();
-        strAccount = strAccount + lstBank.get(i).getAccount();
-      }
-
-      String strFinal = ciudad + ";;" + proceso + ";;" + metodopago + ";;" + condicionpago + ";;"
-          + fecha_vencimiento + ";;" + ordencompra + ";;" + emailsolicita + ";;" + strBank + ";;"
-          + strAccount;
-       Element campoAdicional3 = doc.createElement("campoAdicional");
-      campoAdicional3.setAttribute("nombre", "Adicional3");
-      campoAdicional3.appendChild(doc.createTextNode(truncate(strFinal, 300)));
-      infoAdicional.appendChild(campoAdicional3);
-
-    } else {
-      String dataInvoice[] = new String[6];
-      dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);
-
-      if ((((invoice.getDescription() != null && !invoice.getDescription().trim().equals(""))
-          || (invoice.getEeiDescription() != null
-              && !invoice.getEeiDescription().trim().equals("")))
-          && !invoice.getDocumentType().getEeiDescriptionfields().equals("NO"))
-          || (invoice.getBusinessPartner().getName2() != null)
-          || (ObjParams.getAdittionalInfo() != null
-              && !ObjParams.getAdittionalInfo().trim().equals(""))
-          || (dataInvoice[0] != null || dataInvoice[1] != null || dataInvoice[2] != null)
-          || (StringUtils.isNotEmpty(fecha_vencimiento))) {
+    if (ObjParams.isSendInfoSpecial()){
+        String dataInvoice[] = new String[6];
+        dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);      
 
         Element infoAdicional = doc.createElement("infoAdicional");
         rootElement.appendChild(infoAdicional);
 
         if (dataInvoice[0] != null) {
-          Element campoAdicionaldir = doc.createElement("campoAdicional");
-          campoAdicionaldir.setAttribute("nombre", "Dirección");
-          campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
-          infoAdicional.appendChild(campoAdicionaldir);
-        }
+            Element campoAdicionaldir = doc.createElement("campoAdicional");
+            campoAdicionaldir.setAttribute("nombre", "Dirección");
+            campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
+            infoAdicional.appendChild(campoAdicionaldir);
+        }      
         if (dataInvoice[1] != null) {
-          Element campoAdicionaltel = doc.createElement("campoAdicional");
-          campoAdicionaltel.setAttribute("nombre", "Teléfono");
-          campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
-          infoAdicional.appendChild(campoAdicionaltel);
+            Element campoAdicionaltel = doc.createElement("campoAdicional");
+            campoAdicionaltel.setAttribute("nombre", "Teléfono");
+            campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
+            infoAdicional.appendChild(campoAdicionaltel);
         }
         if (dataInvoice[2] != null) {
-          Element campoAdicionalem = doc.createElement("campoAdicional");
-          campoAdicionalem.setAttribute("nombre", "E-mail");
-          campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
-          infoAdicional.appendChild(campoAdicionalem);
+            Element campoAdicionalem = doc.createElement("campoAdicional");
+            campoAdicionalem.setAttribute("nombre", "E-mail");
+            campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
+            infoAdicional.appendChild(campoAdicionalem);
+        }
+        
+        if(StringUtils.isNotEmpty(fecha_vencimiento)) {
+            Element campoAdicionalfn = doc.createElement("campoAdicional");
+            campoAdicionalfn.setAttribute("nombre", "FechaVencimiento");
+            campoAdicionalfn.appendChild(doc.createTextNode(fecha_vencimiento));
+            infoAdicional.appendChild(campoAdicionalfn);
         }
 
-        if (StringUtils.isNotEmpty(fecha_vencimiento)) {
-          Element campoAdicionalfn = doc.createElement("campoAdicional");
-          campoAdicionalfn.setAttribute("nombre", "FechaVencimiento");
-          campoAdicionalfn.appendChild(doc.createTextNode(fecha_vencimiento));
-          infoAdicional.appendChild(campoAdicionalfn);
+        if(StringUtils.isNotEmpty(invoice.getDescription()) || StringUtils.isNotEmpty(invoice.getEeiDescription())) {
+        	String descrip = (invoice.getDescription()!=null?invoice.getDescription():"")+" "+(invoice.getEeiDescription()!=null?invoice.getEeiDescription():"");
+	        Element campoAdicional1 = doc.createElement("campoAdicional");
+	        campoAdicional1.setAttribute("nombre", "Adicional1");
+	        campoAdicional1.appendChild(doc.createTextNode(truncate(descrip, 300)));
+	        infoAdicional.appendChild(campoAdicional1);
         }
 
+        if(StringUtils.isNotEmpty(ObjParams.getAdittionalInfo())) {
+	        Element campoAdicional2 = doc.createElement("campoAdicional");
+	        campoAdicional2.setAttribute("nombre", "Adicional2");
+	        campoAdicional2.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(), 300)));
+	        infoAdicional.appendChild(campoAdicional2);        
+        }
+        
+        String ciudad = invoice.getPartnerAddress().getLocationAddress().getCityName();
+        String proceso = "", emailsolicita="", ordencompra="";
+        if (invoice.getSalesOrder() != null) {
+        	proceso = invoice.getSalesOrder().getDocumentNo();
+        	emailsolicita = getEmailSolicitante(invoice);
+        	ordencompra = invoice.getSalesOrder().getOrderReference()!=null?invoice.getSalesOrder().getOrderReference():""; 
+        }
+        String metodopago = invoice.getPaymentMethod().getName();
+        String condicionpago = invoice.getPaymentTerms().getName();
+        
+        //CUENTAS BANCARIAS
+        OBCriteria<EeiBankAccount> obBankAccount = OBDal.getInstance()
+                .createCriteria(EeiBankAccount.class);
+        
+        String strBank = "", strAccount="";
+        List<EeiBankAccount> lstBank = obBankAccount.list();
+        
+        for(int i=0; i<lstBank.size(); i++) {
+        	if(i!=0) {
+        		strBank = strBank+"++";
+        		strAccount = strAccount+"++";
+        	}
+        	strBank = strBank+lstBank.get(i).getName();
+        	strAccount = strAccount+lstBank.get(i).getAccount();
+        }
+        
+        String strFinal = ciudad+";;"+proceso+";;"+metodopago+";;"+condicionpago+";;"+fecha_vencimiento+";;"+ordencompra
+        		+";;"+emailsolicita+";;"+strBank+";;"+strAccount;
+
+        Element campoAdicional3 = doc.createElement("campoAdicional");
+        campoAdicional3.setAttribute("nombre", "Adicional3");
+        campoAdicional3.appendChild(doc.createTextNode(truncate(strFinal, 300)));
+        infoAdicional.appendChild(campoAdicional3);                  
+
+    } else{
+      String dataInvoice[] = new String[6];
+      dataInvoice = ClientSOAP.getDataInv(invoice.getId(), invoice, null);
+
+      if ((((invoice.getDescription() != null && !invoice.getDescription().trim().equals(""))
+          || (invoice.getEeiDescription() != null && !invoice.getEeiDescription().trim().equals("")))
+          && !invoice.getDocumentType().getEeiDescriptionfields().equals("NO"))
+          || (invoice.getBusinessPartner().getName2() != null)
+          || (ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals(""))
+          || (dataInvoice[0] != null || dataInvoice[1] != null || dataInvoice[2] != null)
+          || (StringUtils.isNotEmpty(fecha_vencimiento))) {
+
+        Element infoAdicional = doc.createElement("infoAdicional");
+        rootElement.appendChild(infoAdicional);
+        
+        if (dataInvoice[0] != null) {
+            Element campoAdicionaldir = doc.createElement("campoAdicional");
+            campoAdicionaldir.setAttribute("nombre", "Dirección");
+            campoAdicionaldir.appendChild(doc.createTextNode(dataInvoice[0]));
+            infoAdicional.appendChild(campoAdicionaldir);
+        }      
+        if (dataInvoice[1] != null) {
+            Element campoAdicionaltel = doc.createElement("campoAdicional");
+            campoAdicionaltel.setAttribute("nombre", "Teléfono");
+            campoAdicionaltel.appendChild(doc.createTextNode(dataInvoice[1]));
+            infoAdicional.appendChild(campoAdicionaltel);
+        }
+        if (dataInvoice[2] != null) {
+            Element campoAdicionalem = doc.createElement("campoAdicional");
+            campoAdicionalem.setAttribute("nombre", "E-mail");
+            campoAdicionalem.appendChild(doc.createTextNode(dataInvoice[2]));
+            infoAdicional.appendChild(campoAdicionalem);
+        }      
+        
+        if(StringUtils.isNotEmpty(fecha_vencimiento)) {
+            Element campoAdicionalfn = doc.createElement("campoAdicional");
+            campoAdicionalfn.setAttribute("nombre", "FechaVencimiento");
+            campoAdicionalfn.appendChild(doc.createTextNode(fecha_vencimiento));
+            infoAdicional.appendChild(campoAdicionalfn);
+        }
+        
         String StrUnionCadenaSinSaltos = "";
-
-        /*
-         * if(ObjParams.getAdittionalInfo() != null &&
-         * !ObjParams.getAdittionalInfo().trim().equals("")) { Element campoAdicional =
-         * doc.createElement("campoAdicional"); campoAdicional.setAttribute("nombre",
-         * "Descripción");
-         * campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)
-         * )); infoAdicional.appendChild(campoAdicional); StrUnionCadenaSinSaltos=";"; }
-         */
-
+        
+        /*if(ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals("")) {
+            Element campoAdicional = doc.createElement("campoAdicional");
+            campoAdicional.setAttribute("nombre", "Descripción");
+            campoAdicional.appendChild(doc.createTextNode(truncate(ObjParams.getAdittionalInfo(),300)));
+            infoAdicional.appendChild(campoAdicional);
+            StrUnionCadenaSinSaltos=";";
+        }  */    
+        
         if (invoice.getBusinessPartner().getName2() != null
             || invoice.getBusinessPartner().getDescription() != null) {
 
@@ -1735,47 +1761,46 @@ public class FileGenerationEcuador extends AbstractFileGeneration
         }
 
         if ((((invoice.getDescription() != null && !invoice.getDescription().trim().equals(""))
-            || (invoice.getEeiDescription() != null
-                && !invoice.getEeiDescription().trim().equals("")))
+            || (invoice.getEeiDescription() != null && !invoice.getEeiDescription().trim().equals("")))
             && !invoice.getDocumentType().getEeiDescriptionfields().equals("NO"))) {
-
-          if (((invoice.getDescription() != null && !invoice.getDescription().trim().equals(""))
-              || (invoice.getEeiDescription() != null
-                  && !invoice.getEeiDescription().trim().equals("")))
-              && !invoice.getDocumentType().getEeiDescriptionfields().equals("NO")) {
-
+          
+              
+          
+          if(((invoice.getDescription() != null && !invoice.getDescription().trim().equals(""))
+                  || (invoice.getEeiDescription() != null && !invoice.getEeiDescription().trim().equals("")))
+                  && !invoice.getDocumentType().getEeiDescriptionfields().equals("NO")) {
+            
             if (invoice.getDocumentType().getEeiDescriptionfields().equals("DEDA")) {
-
-              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos
-                  + (invoice.getDescription() == null ? "" : invoice.getDescription()) + ";"
+    
+              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos+(invoice.getDescription() == null ? ""
+                  : invoice.getDescription()) + ";"
                   + (invoice.getEeiDescription() == null ? "" : invoice.getEeiDescription());
-
+    
             } else if (invoice.getDocumentType().getEeiDescriptionfields().equals("DE")) {
-
-              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos
-                  + (invoice.getDescription() == null ? "" : invoice.getDescription());
-
+    
+              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos+(invoice.getDescription() == null ? ""
+                  : invoice.getDescription());
+    
             } else if (invoice.getDocumentType().getEeiDescriptionfields().equals("DA")) {
-
-              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos
-                  + (invoice.getEeiDescription() == null ? "" : invoice.getEeiDescription());
-
+    
+              StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos+(invoice.getEeiDescription() == null ? ""
+                  : invoice.getEeiDescription());
+    
             }
-
-          }
-
-          if (ObjParams.getAdittionalInfo() != null
-              && !ObjParams.getAdittionalInfo().trim().equals("")) {
-            StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos + ObjParams.getAdittionalInfo();
-          }
+            
+          }  
+          
+          if (ObjParams.getAdittionalInfo() != null && !ObjParams.getAdittionalInfo().trim().equals("")) {
+            StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos+ObjParams.getAdittionalInfo();
+          }  
 
           StrUnionCadenaSinSaltos = String.valueOf(StrUnionCadenaSinSaltos).replaceAll("[\n]", ";");
 
           StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos.replaceAll(";;;", ";");
           StrUnionCadenaSinSaltos = StrUnionCadenaSinSaltos.replaceAll(";;", ";");
 
-          if (StrUnionCadenaSinSaltos.equals(";")) {
-            StrUnionCadenaSinSaltos = "";
+          if(StrUnionCadenaSinSaltos.equals(";")) {
+            StrUnionCadenaSinSaltos="";
           }
           String strCadenaParcial = "";
           String strCadenaConcatenada = "";
@@ -1936,86 +1961,85 @@ public class FileGenerationEcuador extends AbstractFileGeneration
     }
 
   }
-
+  
   public static List<List<String>> getAttributes(Invoice invOb) {
+	  
+	    ConnectionProvider conn = new DalConnectionProvider(false);
+	    String strSQLAttributes = null;
+	    try {
 
-    ConnectionProvider conn = new DalConnectionProvider(false);
-    String strSQLAttributes = null;
-    try {
+	      String strSql = "SELECT sql_attributes FROM eei_param_facturae where isactive='Y'";
+	      PreparedStatement st = null;
 
-      String strSql = "SELECT sql_attributes FROM eei_param_facturae where isactive='Y'";
-      PreparedStatement st = null;
+	      st = conn.getPreparedStatement(strSql);
+	      ResultSet rsConsulta = st.executeQuery();
 
-      st = conn.getPreparedStatement(strSql);
-      ResultSet rsConsulta = st.executeQuery();
+	      while (rsConsulta.next()) {
+	    	  strSQLAttributes = rsConsulta.getString("sql_attributes");
+	      }
+	      
+	      st = conn.getPreparedStatement(strSQLAttributes);
+	      st.setString(1, invOb.getId());
+	      ResultSet rsAttributes = st.executeQuery();
 
-      while (rsConsulta.next()) {
-        strSQLAttributes = rsConsulta.getString("sql_attributes");
-      }
+          List<String> arrInvoiceLine = new ArrayList<String>();
+          List<String> arrNombre = new ArrayList<String>();
+          List<String> arrValor = new ArrayList<String>();
+          
+          List<List<String>> arrResult = new ArrayList<List<String>>();
+          
+	      while (rsAttributes.next()) {
+	    	  arrInvoiceLine.add(rsAttributes.getString("c_invoiceline_id"));
+	    	  arrNombre.add(rsAttributes.getString("nombre"));
+	    	  arrValor.add(rsAttributes.getString("valor"));
+	      }
+	      
+	      arrResult.add(arrInvoiceLine);
+	      arrResult.add(arrNombre);
+	      arrResult.add(arrValor);
+      
+	      return arrResult;
 
-      st = conn.getPreparedStatement(strSQLAttributes);
-      st.setString(1, invOb.getId());
-      ResultSet rsAttributes = st.executeQuery();
+	    } catch (Exception e) {
+	    	throw new OBException("Error al consultar información de atributos. " + e.getMessage());
+	    } finally {
+	      try {
+	        conn.destroy();
+	      } catch (Exception e) {
 
-      List<String> arrInvoiceLine = new ArrayList<String>();
-      List<String> arrNombre = new ArrayList<String>();
-      List<String> arrValor = new ArrayList<String>();
-
-      List<List<String>> arrResult = new ArrayList<List<String>>();
-
-      while (rsAttributes.next()) {
-        arrInvoiceLine.add(rsAttributes.getString("c_invoiceline_id"));
-        arrNombre.add(rsAttributes.getString("nombre"));
-        arrValor.add(rsAttributes.getString("valor"));
-      }
-
-      arrResult.add(arrInvoiceLine);
-      arrResult.add(arrNombre);
-      arrResult.add(arrValor);
-
-      return arrResult;
-
-    } catch (Exception e) {
-      throw new OBException("Error al consultar información de atributos. " + e.getMessage());
-    } finally {
-      try {
-        conn.destroy();
-      } catch (Exception e) {
-
-      }
-    }
+	      }
+	    }
 
   }
-
+  
   public static String getEmailSolicitante(Invoice invOb) {
-    ConnectionProvider conn = new DalConnectionProvider(false);
-    String strResult = "";
-    try {
+	    ConnectionProvider conn = new DalConnectionProvider(false);
+	    String strResult = "";
+	    try {
 
-      String strSql = "SELECT EM_Scactu_Emailrequest AS RESULTADO  FROM  c_order WHERE EM_Scactu_Emailrequest IS NOT NULL AND c_order_id=? ";
-      PreparedStatement st = null;
+	      String strSql = "SELECT EM_Scactu_Emailrequest AS RESULTADO  FROM  c_order WHERE EM_Scactu_Emailrequest IS NOT NULL AND c_order_id=? ";
+	      PreparedStatement st = null;
 
-      st = conn.getPreparedStatement(strSql);
-      st.setString(1, invOb.getSalesOrder().getId());
-      // st.setString(1, invOb.getId());
-      ResultSet rsConsulta = st.executeQuery();
+	      st = conn.getPreparedStatement(strSql);
+	      st.setString(1, invOb.getSalesOrder().getId());
+	      ResultSet rsConsulta = st.executeQuery();
 
-      while (rsConsulta.next()) {
-        strResult = rsConsulta.getString("RESULTADO");
-      }
+	      while (rsConsulta.next()) {
+	        strResult = rsConsulta.getString("RESULTADO");
+	      }
 
-      return strResult;
+	      return strResult;
 
-    } catch (Exception e) {
+	    } catch (Exception e) {
 
-      return "";
-    } finally {
-      try {
-        conn.destroy();
-      } catch (Exception e) {
+	      return "";
+	    } finally {
+	      try {
+	        conn.destroy();
+	      } catch (Exception e) {
 
-      }
-    }
+	      }
+	    }
 
-  }
+	  }  
 }

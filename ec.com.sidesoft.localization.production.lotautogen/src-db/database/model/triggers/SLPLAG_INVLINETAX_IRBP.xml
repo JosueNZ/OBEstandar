@@ -1,0 +1,266 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SLPLAG_INVLINETAX_IRBP">
+    <trigger name="SLPLAG_INVLINETAX_IRBP" table="C_INVOICELINE" fires="after" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[  v_costcenter_co          varchar2(32); 
+  v_issotrx   varchar2(10); 
+  v_em_slplag_package   varchar2(10); 
+  v_rate NUMBER;
+  v_total NUMBER;
+  v_tax_id   varchar2(32); 
+  v_QtyInvoiced  NUMBER;
+  v_line NUMBER; 
+  v_c_invoicetax_irbp NUMBER;
+  v_totalImp  NUMBER;
+  v_count_oltax  NUMBER;
+  v_ci_totalImp   NUMBER;
+  v_GrandTotal   NUMBER;
+  v_num   NUMBER;
+  v_processed  varchar2(10); 
+  v_IsBOM   varchar2(10); 
+  v_qtyTotalByProduct   NUMBER;
+  v_totalIrbpBoom   NUMBER;
+  v_bomqty   NUMBER;
+  v_irbp  varchar2(10); 
+  v_ldm_irbp  varchar2(10); 
+  v_c_count_invtax_id   NUMBER;
+  v_c_inlinetax   NUMBER;
+
+  Cur_ProductBom   RECORD;
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+    
+    IF (INSERTING OR UPDATING ) THEN
+      v_irbp = 'N';
+      v_ldm_irbp = 'N';
+
+      SELECT issotrx 
+      INTO v_issotrx
+      FROM c_invoice where c_invoice_id = :new.c_invoice_id;
+
+        IF(v_issotrx = 'Y') THEN 
+          -- Caso 1 - IRBP - Determinar si el producto de la linea es de tipo IRBP (PET - SFP)
+            SELECT em_slplag_package 
+            INTO v_em_slplag_package
+            FROM m_product 
+            WHERE m_product_id = :new.m_product_id;
+            
+            SELECT processed INTO v_processed FROM c_invoice  
+            WHERE c_invoice_ID = :new.c_invoice_ID;
+
+            select C_Tax_id , Rate
+            INTO v_tax_id , v_rate
+            from C_Tax
+            WHERE EM_Slplag_Irbp = 'Y';
+
+            IF(v_em_slplag_package in ('P' , 'SFP')) THEN
+
+              IF v_processed = 'Y' THEN
+                UPDATE c_invoice SET processed = 'N' WHERE c_invoice_ID = :new.c_invoice_ID;
+              END IF;
+              v_irbp = 'Y';
+              -- Nueva linea a la linea de Impuestos del producto
+              v_QtyInvoiced = COALESCE(:new.QtyInvoiced, 0);
+              v_total = COALESCE(v_total, 0) + ( v_QtyInvoiced * COALESCE(v_rate , 0.02)  ) ;
+              
+              IF (INSERTING) THEN
+                v_line  = (select COALESCE(max(line), 0) + 10 FROM c_invoicelinetax WHERE c_invoiceline_id = :new.c_invoiceline_id);
+
+                INSERT INTO c_invoicelinetax(
+                        c_invoicelinetax_id, c_invoiceline_id, c_tax_id, ad_client_id, ad_org_id, 
+                        isactive, created, createdby, updated, updatedby, taxbaseamt, 
+                        taxamt, line, c_invoice_id)
+                VALUES (get_uuid(), :new.c_invoiceline_id, v_tax_id, :new.ad_client_id , :new.ad_org_id, 
+                        'Y', now(), :new.createdby, now(), :new.updatedby,v_QtyInvoiced, 
+                        v_total, v_line , :new.c_invoice_id);
+
+              END IF;
+
+              IF (UPDATING) THEN
+                -- Verirficar si no existe linea impuesto irbp o ldm crear la linea
+                SELECT count(*) 
+                INTO v_c_inlinetax
+                FROM c_invoicelinetax
+                WHERE c_invoiceline_id = :new.c_invoiceline_id 
+                AND c_tax_id = v_tax_id;
+                IF (v_c_inlinetax > 0) THEN
+
+                  UPDATE c_invoicelinetax SET taxbaseamt = v_QtyInvoiced , taxamt = v_total 
+                  WHERE c_invoiceline_id = :new.c_invoiceline_id and c_tax_id = v_tax_id;
+                ELSE
+                  v_line  = (select COALESCE(max(line), 0) + 10 FROM c_invoicelinetax WHERE c_invoiceline_id = :new.c_invoiceline_id);
+                  INSERT INTO c_invoicelinetax(
+                          c_invoicelinetax_id, c_invoiceline_id, c_tax_id, ad_client_id, ad_org_id, 
+                          isactive, created, createdby, updated, updatedby, taxbaseamt, 
+                          taxamt, line, c_invoice_id)
+                  VALUES (get_uuid(), :new.c_invoiceline_id, v_tax_id, :new.ad_client_id , :new.ad_org_id, 
+                          'Y', now(), :new.createdby, now(), :new.updatedby,v_QtyInvoiced, 
+                          v_total, v_line , :new.c_invoice_id);
+
+                END IF;
+
+              END IF;
+
+
+              IF v_processed = 'Y' THEN
+                UPDATE c_invoice SET processed = 'Y' WHERE c_invoice_ID = :new.c_invoice_ID;
+              END IF;
+
+            END IF;
+
+          -- CASO 2 - LDM  (Lista de materiales con productos tipo PET - SFP)
+            SELECT mp.IsBOM 
+            INTO v_IsBOM
+            FROM m_product mp
+            WHERE m_product_id = :new.m_product_id
+            AND mp.IsBOM = 'Y';
+
+            IF( v_IsBOM = 'Y' ) THEN
+              -- Determinar de la lsita de materiales que producto es de tipo PET 
+                SELECT COALESCE(SUM(mpb.bomqty), 0) as bomqty --, mpb.m_product_id , mpb.*
+                into v_bomqty
+                FROM M_Product_BOM mpb
+                LEFT JOIN m_product mp on mp.m_product_id = mpb.M_ProductBOM_id
+                WHERE mpb.m_product_id = :new.m_product_id
+                AND mp.em_slplag_package = 'P';
+
+                IF(v_bomqty > 0) THEN 
+                  v_ldm_irbp = 'Y' ;
+                  IF v_processed = 'Y' THEN
+                    UPDATE c_invoice SET processed = 'N' WHERE c_invoice_ID = :new.c_invoice_ID;
+                  END IF;
+
+                  -- Cantidad Pedido Original * Cantidad productos pet
+                  v_totalIrbpBoom = COALESCE(v_bomqty,0) * :new.QtyInvoiced ;
+                  v_total = COALESCE(v_total, 0) + ( v_totalIrbpBoom * COALESCE(v_rate , 0.02)  ) ;
+                  -- Agregar Linea de Impuesto por linea de c_invoice
+                  IF (INSERTING) THEN
+                    v_line  = (select COALESCE(max(line), 0) + 10 FROM c_invoicelinetax WHERE c_invoiceline_id = :new.c_invoiceline_id);
+                    INSERT INTO c_invoicelinetax(
+                            c_invoicelinetax_id, c_invoiceline_id, c_tax_id, ad_client_id, ad_org_id, 
+                            isactive, created, createdby, updated, updatedby, taxbaseamt, 
+                            taxamt, line, c_invoice_id)
+                    VALUES (get_uuid(), :new.c_invoiceline_id, v_tax_id, :new.ad_client_id , :new.ad_org_id, 
+                            'Y', now(), :new.createdby, now(), :new.updatedby,v_totalIrbpBoom, 
+                            v_total, v_line , :new.c_invoice_id);
+                  END IF;
+
+                  IF (UPDATING) THEN
+                    -- Verirficar si no existe linea impuesto irbp o ldm crear la linea
+                    SELECT count(*) 
+                    INTO v_c_inlinetax
+                    FROM c_invoicelinetax
+                    WHERE c_invoiceline_id = :new.c_invoiceline_id 
+                    AND c_tax_id = v_tax_id;
+                    IF (v_c_inlinetax > 0) THEN
+
+                      UPDATE c_invoicelinetax SET taxbaseamt = v_totalIrbpBoom , taxamt = v_total 
+                      WHERE c_invoiceline_id = :new.c_invoiceline_id and c_tax_id = v_tax_id;
+                    ELSE
+                      v_line  = (select COALESCE(max(line), 0) + 10 FROMc_invoicelinetax WHERE c_invoiceline_id = :new.c_invoiceline_id);
+                      INSERT INTO c_invoicelinetax(
+                             c_invoicelinetax_id,c_invoiceline_id, c_tax_id, ad_client_id, ad_org_id, 
+                              isactive, created, createdby, updated, updatedby, taxbaseamt, 
+                              taxamt, line,c_invoice_id)
+                      VALUES (get_uuid(), :new.c_invoiceline_id, v_tax_id, :new.ad_client_id , :new.ad_org_id, 
+                              'Y', now(), :new.createdby, now(), :new.updatedby,v_totalIrbpBoom, 
+                              v_total, v_line , :new.c_invoice_id);
+
+                    END IF;
+
+                  END IF;
+
+                  -- 
+                  IF v_processed = 'Y' THEN
+                    UPDATE c_invoice SET processed = 'Y' WHERE c_invoice_ID = :new.c_invoice_ID;
+                  END IF; 
+
+                END IF;           
+
+            END IF;
+
+
+            -- VERIFICACION IMPUESTOS
+            IF ( v_irbp = 'Y' OR v_ldm_irbp = 'Y' ) THEN
+                            -- ACTUALIZAR EL TOTAL DE PESTAÑA IMPUESTO
+              -- VALDIAR SI YA EXISTE EL IMPUESTO IRBP ACTUALIZAR LOS MONTOS
+              SELECT count(*)
+              INTO v_c_invoicetax_irbp
+              FROM c_invoicetax WHERE c_invoice_id = :new.c_invoice_id 
+              AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' ) ;
+
+
+              IF(v_c_invoicetax_irbp > 0) THEN 
+                  IF v_processed = 'Y' THEN
+                    UPDATE c_invoice SET processed = 'N' WHERE c_invoice_ID = :new.c_invoice_ID;
+                  END IF;
+                  -- DETERMINAR TODAS LAS LINEAS DE IMPUESTOS CON IRBP SUMAR CANTIDADES taxamt
+                  SELECT COALESCE(SUM(taxamt), 0) 
+                  INTO v_total
+                  FROM c_invoicelinetax
+                  WHERE c_tax_id = v_tax_id
+                  AND c_invoiceline_id in (
+                    SELECT ol.c_invoiceline_id FROM c_invoiceline ol WHERE ol.c_invoice_id = :new.c_invoice_id
+                  );
+
+                  select count(*) 
+                  INTO v_c_count_invtax_id
+                  FROM c_invoicetax  WHERE c_invoicetax_id in (
+                      SELECT c_invoicetax_id
+                      FROM c_invoicetax WHERE c_invoice_id = :new.c_invoice_id 
+                      AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' )
+                  );
+                               
+                    UPDATE c_invoicetax SET taxamt =  v_total , taxbaseamt = 0 WHERE c_invoicetax_id in (
+                      SELECT c_invoicetax_id
+                      FROM c_invoicetax WHERE c_invoice_id = :new.c_invoice_id 
+                      AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' )
+                    );
+
+                  -- IMPUESTO SIEMPRE CREA UNA LINEA DEMAS ELIMINAR LA ULTIMA LINEA
+
+                  IF (v_c_count_invtax_id > 1 ) THEN
+                    DELETE FROM c_invoicetax WHERE c_invoicetax_id in (
+                      SELECT c_invoicetax_id
+                      FROM c_invoicetax WHERE c_invoice_id = :new.c_invoice_id 
+                      AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' )
+                    )  AND line = ( SELECT max(line) FROM c_invoicetax WHERE c_invoicetax_id in (
+                          SELECT c_invoicetax_id
+                          FROM c_invoicetax WHERE c_invoice_id = :new.c_invoice_id 
+                          AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' )
+                        )                      
+                      ) ;
+                  END IF;
+
+                  -- VERIFICAR EL TOTAL DE LA CABECERA (Imp Total)
+                  SELECT GrandTotal 
+                  INTO v_GrandTotal              
+                  FROM c_invoice WHERE c_invoice_id = :new.c_invoice_id;
+
+                  SELECT SUM(taxamt) + SUM(TaxBaseAmt) as totalImp
+                  INTO v_ci_totalImp
+                  FROM c_invoicetax
+                  WHERE c_invoice_id = :new.c_invoice_id;
+                  -- Actualizar total de la cabecera
+                  IF(v_ci_totalImp != v_GrandTotal) THEN 
+                    UPDATE c_invoice SET GrandTotal = v_ci_totalImp WHERE c_invoice_id = :new.c_invoice_id;
+                  END IF;
+
+                  IF v_processed = 'Y' THEN
+                    UPDATE c_invoice SET processed = 'Y' WHERE c_invoice_ID = :new.c_invoice_ID;
+                  END IF;
+
+              END IF;
+            END IF;
+
+        END IF;
+
+    END IF;
+
+
+END SLPLAG_INVLINETAX_IRBP
+]]></body>
+    </trigger>
+  </database>

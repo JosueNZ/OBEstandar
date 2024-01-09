@@ -3,7 +3,6 @@ package ec.cusoft.facturaec.ad_process.webservices.util;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.openbravo.base.exception.OBException;
 import org.openbravo.dal.service.OBDal;
@@ -22,7 +21,7 @@ public class ClientSOAP {
 
   public String sendInvoice(String xml, String idInv, Invoice invoice, ShipmentInOut inout,
       InternalMovement movement, String strIdRemissionGuideTable, String strURLWSOffline2,
-      String strCorreoPorDefecto, int intTimeOutPara) {
+      String strCorreoPorDefecto,int intTimeOutPara) {
 
     String response = null;
     String strURLWSOffline = null;
@@ -32,14 +31,13 @@ public class ClientSOAP {
 
         log4j.debug("URL WS: " + strURLWSOffline);
 
-        if (strURLWSOffline.length() == 0 || strURLWSOffline == null
-            || strURLWSOffline.equals("")) {
+        if (strURLWSOffline.length() == 0 || strURLWSOffline == null || strURLWSOffline.equals("")) {
           throw new OBException(
               "No se encontró parametrización de tipo de procesamiento en lote en documentos electrónicos.");
         }
       } catch (Exception e) {
-        throw new OBException(
-            "Error al obtener la parametrización de Facturación Electrónica. " + e.getMessage());
+        throw new OBException("Error al obtener la parametrización de Facturación Electrónica. "
+            + e.getMessage());
       }
     } else {
       strURLWSOffline = strURLWSOffline2;
@@ -70,8 +68,8 @@ public class ClientSOAP {
 
       log4j.debug("XML Generado ---> " + xml);
 
-      response = wsRecepcionPort.generar(xml, subTotal12, subTotal0, subTotalNoIVA, subTotalExcento,
-          iva12, idInv, direccion, telefono, email, intTimeOutPara);
+      response = wsRecepcionPort.generar(xml, subTotal12, subTotal0, subTotalNoIVA,
+          subTotalExcento, iva12, idInv, direccion, telefono, email,intTimeOutPara);
 
     } catch (Exception e) {
       throw new OBException(e.getMessage());
@@ -86,25 +84,11 @@ public class ClientSOAP {
 
       String subTotal[] = getSubtotales(invoice);
       dataInvoice[0] = getAddressComplete(invoice.getPartnerAddress());
-      dataInvoice[1] = (invoice.getPartnerAddress().getPhone() == null ? "-"
-          : invoice.getPartnerAddress().getPhone());
+      dataInvoice[1] = (invoice.getPartnerAddress().getPhone() == null ? "-" : invoice
+          .getPartnerAddress().getPhone());
 
-      String strCorreo = "nulo";
-
-      if (invoice.isSalesTransaction()) {
-        strCorreo = invoice.getEeiEmailTo() == null
-            ? StringUtils.isBlank(invoice.getBusinessPartner().getEEIEmail()) ? "nulo"
-                : invoice.getBusinessPartner().getEEIEmail().replaceAll(";;;", ";").replaceAll(";;",
-                    ";")
-            : invoice.getEeiEmailTo().replaceAll(";;;", ";").replaceAll(";;", ";");
-      } else {
-        strCorreo = (StringUtils.isBlank(invoice.getBusinessPartner().getEEIPOEmail()) ? "nulo"
-            : invoice.getBusinessPartner().getEEIPOEmail().replaceAll(";;;", ";").replaceAll(";;",
-                ";"));
-      }
-
-      // (invoice.getBusinessPartner().getEEIEmail() == null ? "nulo" : invoice
-      // .getBusinessPartner().getEEIEmail().replaceAll(";;;", ";").replaceAll(";;", ";"));
+      String strCorreo = (invoice.getBusinessPartner().getEEIEmail() == null ? "nulo" : invoice
+          .getBusinessPartner().getEEIEmail().replaceAll(";;;", ";").replaceAll(";;", ";"));
 
       if (strCorreo.equals("nulo")) {
         if (strCorreoPorDefecto == null) {
@@ -139,21 +123,20 @@ public class ClientSOAP {
       if (inout != null) {
         dataInvoice[0] = getAddressComplete(inout.getPartnerAddress());
 
-        dataInvoice[1] = (inout.getPartnerAddress().getPhone() == null ? "-"
-            : inout.getPartnerAddress().getPhone());
-        strCorreo = (inout.getBusinessPartner().getEEIEmail() == null ? "nulo"
-            : inout.getBusinessPartner().getEEIEmail().replaceAll(";;;", ";").replaceAll(";;",
-                ";"));
+        dataInvoice[1] = (inout.getPartnerAddress().getPhone() == null ? "-" : inout
+            .getPartnerAddress().getPhone());
+        strCorreo = (inout.getBusinessPartner().getEEIEmail() == null ? "nulo" : inout
+            .getBusinessPartner().getEEIEmail().replaceAll(";;;", ";").replaceAll(";;", ";"));
       } else if (movement != null) {
         String[] strPartnerData = new String[3];
         strPartnerData = SelectMovementData(movement.getOrganization().getId().toString());
 
-        strCorreo = (strPartnerData[0] == null ? "nulo"
-            : strPartnerData[0].replaceAll(";;;", ";").replaceAll(";;", ";"));
+        strCorreo = (strPartnerData[0] == null ? "nulo" : strPartnerData[0].replaceAll(";;;", ";")
+            .replaceAll(";;", ";"));
 
         // DIRECCIÓN
-        dataInvoice[0] = getAddressComplete(
-            OBDal.getInstance().get(Location.class, strPartnerData[1]));
+        dataInvoice[0] = getAddressComplete(OBDal.getInstance().get(Location.class,
+            strPartnerData[1]));
         // TELÉFONO
         dataInvoice[1] = (strPartnerData[2] == null ? "-" : strPartnerData[2]);
         // CORREO
@@ -173,10 +156,10 @@ public class ClientSOAP {
       }
       dataInvoice[3] = "0";
       dataInvoice[4] = "0";
-      dataInvoice[5] = strIdRemissionGuideTable; // SE ENVÍA ID DE LA
-      // TABLA DESDE LA QUE SE
+	  dataInvoice[5] = strIdRemissionGuideTable; // SE ENVÍA ID DE LA
+	  // TABLA DESDE LA QUE SE
       // GENERA
-      // LA GUÍA DE REMISIÓN
+	  // LA GUÍA DE REMISIÓN
       dataInvoice[6] = "0";
       dataInvoice[7] = "0";
 
@@ -184,8 +167,8 @@ public class ClientSOAP {
 
       throw new OBException(
 
-          "Error al obtener parámetros para enviar a WS (dirección,teléfono,correo electrónico o subtotales)"
-              + e.getMessage());
+      "Error al obtener parámetros para enviar a WS (dirección,teléfono,correo electrónico o subtotales)"
+          + e.getMessage());
     }
 
     return dataInvoice;
@@ -208,10 +191,10 @@ public class ClientSOAP {
             .valueOf(Math.abs(Double.parseDouble(rsConsulta.getString("basecero"))));
         subTotales[1] = String
             .valueOf(Math.abs(Double.parseDouble(rsConsulta.getString("base12"))));
-        subTotales[3] = String
-            .valueOf(Math.abs(Double.parseDouble(rsConsulta.getString("base_excento"))));
-        subTotales[4] = String
-            .valueOf(Math.abs(Double.parseDouble(rsConsulta.getString("base_no_iva"))));
+        subTotales[3] = String.valueOf(Math.abs(Double.parseDouble(rsConsulta
+            .getString("base_excento"))));
+        subTotales[4] = String.valueOf(Math.abs(Double.parseDouble(rsConsulta
+            .getString("base_no_iva"))));
       }
       subTotales[2] = getIva(invOb);
 
@@ -342,8 +325,8 @@ public class ClientSOAP {
       return strPartnerData;
     } catch (Exception e) {
 
-      throw new OBException(
-          "Error al consultar información del tercero atado a la organización. " + e);
+      throw new OBException("Error al consultar información del tercero atado a la organización. "
+          + e);
     } finally {
       try {
         conn.destroy();
@@ -361,19 +344,24 @@ public class ClientSOAP {
       org.openbravo.model.common.geography.Location objLocation = objBPLocation
           .getLocationAddress();
       String strAddressComplete = "";
-      strAddressComplete = (objLocation.getAddressLine1() == null ? " "
-          : objLocation.getAddressLine1()) + "-"
-          + (objLocation.getAddressLine2() == null ? " " : objLocation.getAddressLine2()) + "-"
-          + (objLocation.getPostalCode() == null ? " " : objLocation.getPostalCode()) + "-"
-          + (objLocation.getCityName() == null ? " " : objLocation.getCityName()) + "-"
-          + (objLocation.getRegion() == null ? " " : objLocation.getRegion().getName()) + "-"
+      strAddressComplete = (objLocation.getAddressLine1() == null ? " " : objLocation
+          .getAddressLine1())
+          + "-"
+          + (objLocation.getAddressLine2() == null ? " " : objLocation.getAddressLine2())
+          + "-"
+          + (objLocation.getPostalCode() == null ? " " : objLocation.getPostalCode())
+          + "-"
+          + (objLocation.getCityName() == null ? " " : objLocation.getCityName())
+          + "-"
+          + (objLocation.getRegion() == null ? " " : objLocation.getRegion().getName())
+          + "-"
           + (objLocation.getCountry() == null ? " " : objLocation.getCountry().getName());
 
       return strAddressComplete;
     } catch (Exception ex) {
 
-      throw new OBException(
-          "Error al consultar información de dirección del tercero (Envío WS). " + ex.getMessage());
+      throw new OBException("Error al consultar información de dirección del tercero (Envío WS). "
+          + ex.getMessage());
     }
 
   }

@@ -216,7 +216,6 @@ public class CustomAddMultiplePaymentsHandler extends BaseProcessActionHandler {
       if (doctype != null) {
         newTransaction.setSfadtDocumentno(docno);
         newTransaction.setSfadtCDoctype(doctype);
-        newTransaction.setScactuMultiplePayment(true);
       }
 
       String desc = "";

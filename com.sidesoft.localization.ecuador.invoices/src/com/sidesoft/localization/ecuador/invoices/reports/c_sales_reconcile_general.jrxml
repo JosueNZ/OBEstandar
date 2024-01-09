@@ -26,8 +26,8 @@ a.documentno as "documentno",
 replace(c.name,',','') as "tipo_documento",
 replace(b.name,',','') as "tercero",
 b.taxid as "taxid",
-TO_CHAR(a.dateinvoiced,'dd-MM-yyyy') as "dateinvoiced",
-TO_CHAR(a.dateacct,'dd-MM-yyyy') as "dateacct",
+TO_DATE(a.dateinvoiced) as "dateinvoiced",
+TO_DATE(a.dateacct) as "dateacct",
 case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(basecero,0.00) else  coalesce(basecero,0.00) * -1 end end as "basecero",
 case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(BASE12,0.00) else  coalesce(BASE12,0.00) * -1 end end as "base12",
 case when a.docstatus = 'VO' then 0 else case when c.isreversal = 'N' then coalesce(iva12,0.00) else  coalesce(iva12,0.00) * -1 end end as "iva",
@@ -44,7 +44,7 @@ case when ws.docstatus ='CO' then  coalesce(ws.totalwhivaamt,0) + coalesce(reten
 (select coalesce(trl.name, rl.name) from ad_ref_list rl
 inner join ad_ref_list_trl trl on rl.ad_ref_list_id=trl.ad_ref_list_id where ad_reference_id = '590A02308DEC4F968E0F00D47741836C'
 and value=a.EM_Eei_Status and ad_language = 'es_ES') as "destatus"
-,TO_CHAR(fps.duedate,'dd-MM-yyyy') as duedate
+,TO_DATE(fps.duedate) as duedate
 ,ct.name as country
 ,CASE WHEN a.posted = 'Y' THEN 'Contabilizado' ELSE 'No contabilizado' END AS posted
 ,h.name as paymentterm
@@ -58,10 +58,6 @@ JOIN c_invoiceline il ON il.c_invoice_id = a.c_invoice_id
 JOIN m_product pr ON pr.m_product_id = il.m_product_id
 left join c_bpartner b on a.c_bpartner_id = b.c_bpartner_id
 left join c_doctype c on a.c_doctype_id = c.c_doctype_id
-left join c_bp_group d on b.c_bp_group_id = d.c_bp_group_id
-left join c_costcenter e on a.c_costcenter_id = e.c_costcenter_id
-left join user1 f on a.user1_id = f.user1_id
-left join user2 g on a.user2_id = g.user2_id
 LEFT JOIN ad_org og ON og.ad_org_id=a.ad_org_id
 left join c_paymentterm h on a.c_paymentterm_id = h.c_paymentterm_id
 left join ssws_withholdingsale ws on ws.c_invoice_id = a.c_invoice_id
@@ -141,10 +137,11 @@ and (to_date(to_char(a.dateacct,'dd/MM/yyyy')) between  $P{DateFrom} and $P{Date
 )
 and (a.C_doctypetarget_id = $P{C_DocTypeTarget_ID} or $P{C_DocTypeTarget_ID} is null)
 AND ad_isorgincluded(og.ad_org_id, $P{AD_Org_ID}, og.ad_client_id) > 0
-AND (CASE WHEN $P{DocBaseType}='ARC' THEN  c.DocBaseType IN ('ARC','ARI_RM')
-	  WHEN $P{DocBaseType}='ARI' THEN  c.DocBaseType IN ('ARI')
-	  else c.DocBaseType IN ('ARC','ARI_RM','ARI') END
-	)
+AND exists (SELECT 1 FROM c_doctype
+WHERE CASE WHEN $P{DocBaseType}='ARC' THEN  DocBaseType IN ('ARC','ARI_RM')
+WHEN $P{DocBaseType}='ARI' THEN  DocBaseType IN ('ARI')
+else DocBaseType IN ('ARC','ARI_RM','ARI') END AND c_doctype_id=c.c_doctype_id
+)
 and em_sswh_implementautoriza ='Y'
 GROUP BY a.c_invoice_id, c.c_doctype_id, b.c_bpartner_id, imp.basecero, imp.base12, imp.iva12, imp.importe_imponible,
  ws.docstatus, ws.totalwhrentalamt, fprentas.retencion_renta, ws.totalwhivaamt,fprentas.retencion_iva, ws.documentno, fps.duedate,
@@ -158,8 +155,8 @@ order by tipo_documento,c.docbasetype,dateinvoiced asc]]>
 	<field name="tipo_documento" class="java.lang.String"/>
 	<field name="tercero" class="java.lang.String"/>
 	<field name="taxid" class="java.lang.String"/>
-	<field name="dateinvoiced" class="java.lang.String"/>
-	<field name="dateacct" class="java.lang.String"/>
+	<field name="dateinvoiced" class="java.sql.Timestamp"/>
+	<field name="dateacct" class="java.sql.Timestamp"/>
 	<field name="basecero" class="java.math.BigDecimal"/>
 	<field name="base12" class="java.math.BigDecimal"/>
 	<field name="iva" class="java.math.BigDecimal"/>
@@ -171,7 +168,7 @@ order by tipo_documento,c.docbasetype,dateinvoiced asc]]>
 	<field name="organizacion" class="java.lang.String"/>
 	<field name="ref_nc" class="java.lang.String"/>
 	<field name="destatus" class="java.lang.String"/>
-	<field name="duedate" class="java.lang.String"/>
+	<field name="duedate" class="java.sql.Timestamp"/>
 	<field name="country" class="java.lang.String"/>
 	<field name="posted" class="java.lang.String"/>
 	<field name="paymentterm" class="java.lang.String"/>
@@ -430,7 +427,7 @@ order by tipo_documento,c.docbasetype,dateinvoiced asc]]>
 				</textElement>
 				<textFieldExpression><![CDATA[$F{taxid}]]></textFieldExpression>
 			</textField>
-			<textField isBlankWhenNull="false">
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="false">
 				<reportElement key="textField" x="766" y="0" width="65" height="15" uuid="bd7d2945-3352-4dd0-9148-80f11ca12dad"/>
 				<box>
 					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -443,7 +440,7 @@ order by tipo_documento,c.docbasetype,dateinvoiced asc]]>
 				</textElement>
 				<textFieldExpression><![CDATA[$F{dateinvoiced}]]></textFieldExpression>
 			</textField>
-			<textField isBlankWhenNull="false">
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="false">
 				<reportElement key="textField" x="941" y="0" width="124" height="15" uuid="4a7a65d9-2613-4a5a-8053-15a85a8f689f"/>
 				<box>
 					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -622,7 +619,7 @@ order by tipo_documento,c.docbasetype,dateinvoiced asc]]>
 				</textElement>
 				<textFieldExpression><![CDATA[$F{base12}]]></textFieldExpression>
 			</textField>
-			<textField isBlankWhenNull="false">
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="false">
 				<reportElement key="textField" x="831" y="0" width="110" height="15" uuid="904d3d1f-8fff-4880-91cb-b5c170a4f4f5"/>
 				<box>
 					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>

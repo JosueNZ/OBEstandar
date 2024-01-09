@@ -743,16 +743,13 @@ public class ECWSClient {
                 ? invoice.getOrganization().getOrganizationInformationList().get(0).getUserContact()
                     .getEmail()
                 : null);
-    String email_to = (invoice.getEeiEmailTo() != null) ? invoice.getEeiEmailTo()
-        : ((invoice.getUserContact() != null) ? invoice.getUserContact().getEeiEmailuser()
-            : ((invoice.getOrganization().getOrganizationInformationList().size() > 0 && invoice
-                .getOrganization().getOrganizationInformationList().get(0).getUserContact() != null)
-                    ? invoice.getOrganization().getOrganizationInformationList().get(0)
-                        .getUserContact().getEeiEmailuser()
-                    : null));
-
-    String username = email_to != null ? email_to : null;
-
+    String username = (invoice.getUserContact() != null)
+        ? invoice.getUserContact().getEeiEmailuser()
+        : ((invoice.getOrganization().getOrganizationInformationList().size() > 0 && invoice
+            .getOrganization().getOrganizationInformationList().get(0).getUserContact() != null)
+                ? invoice.getOrganization().getOrganizationInformationList().get(0).getUserContact()
+                    .getEeiEmailuser()
+                : null);
     String password = (invoice.getUserContact() != null)
         ? invoice.getUserContact().getEmailServerPassword()
         : ((invoice.getOrganization().getOrganizationInformationList().size() > 0 && invoice
@@ -761,14 +758,12 @@ public class ECWSClient {
                     .getEmailServerPassword()
                 : null);
 
-    String destinatary = email_to != null ? email_to : null;
-    /*
-     * (invoice.getSalesRepresentative() != null) ? invoice.getSalesRepresentative().getEmail() :
-     * invoice.getBusinessPartner().getEEIEmail();
-     */
+    String destinatary = (invoice.getSalesRepresentative() != null)
+        ? invoice.getSalesRepresentative().getEmail()
+        : invoice.getBusinessPartner().getEEIEmail();
 
     if (invoice.getDocumentType().getEeiEdocType().equals("07"))// retención
-      destinatary = email_to; // invoice.getBusinessPartner().getEEIEmail();
+      destinatary = invoice.getBusinessPartner().getEEIEmail();
 
     if (mailServer != null && username != null && password != null && destinatary != null) {
       String message = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\" /><title>Notificación de Factura Electrónica</title></head><body><p>Estimado Cliente,</p><p>Le estamos enviando por este medio la factura electr&oacute;nica que nos solicit&oacute; y al mismo tiempo nos reiteramos a sus &oacute;rdenes para cualquier aclaraci&oacute;n al respecto.</p><p>Agradeciendo su preferencia esperamos haberle servido como usted merece.</p><p>Atentamente, "
