@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSFI_FACT_ACCT_TRG">
+    <trigger name="SSFI_FACT_ACCT_TRG" table="FACT_ACCT" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+  v_iscostcenter       CHAR(1);
+  v_isuser1            CHAR(1);
+  v_isuser2            CHAR(1);
+
+  v_RecordID		VARCHAR(4000);
+  v_SQL			VARCHAR(4000);
+  v_result		VARCHAR(60);
+  
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+    
+    SELECT em_ssfi_iscostcenter, em_ssfi_isuser1, em_ssfi_isuser2
+    INTO   v_iscostcenter, v_isuser1, v_isuser2
+    FROM C_ELEMENTVALUE
+    WHERE c_elementvalue_id = :new.account_id;
+
+		IF(:new.factaccttype <> 'O' AND :new.factaccttype <> 'C' ) THEN 
+
+
+
+			IF (:new.ad_table_id<>'224') then
+					IF (v_iscostcenter = 'Y' AND :new.c_costcenter_id is null) OR
+					   (v_isuser1 = 'Y' AND :new.user1_id is null) OR
+					   (v_isuser2 = 'Y' AND :new.user2_id is null) THEN
+
+					RAISE_APPLICATION_ERROR(-20000, 'Mandatory dimensions are not set.');
+
+				END IF;
+			END IF;
+	
+			IF (:new.ad_table_id='224') then
+
+				v_RecordID:= :new.record_id;
+
+				BEGIN
+				
+					v_SQL:= 'SELECT COALESCE ((select em_sfb_affectbudget from  GL_Journal where GL_Journal_ID=''' || v_RecordID || '''),' || '''' || to_char('ND') ||''') FROM DUAL';
+					EXECUTE IMMEDIATE v_SQL INTO v_result;
+				
+                EXCEPTION WHEN OTHERS THEN
+				
+                    v_result :='ND';
+					
+                END;
+
+				IF (v_result<>'ND' AND v_result='Y') THEN
+
+					IF (v_iscostcenter = 'Y' AND :new.c_costcenter_id is null) OR
+					   (v_isuser1 = 'Y' AND :new.user1_id is null) OR
+					   (v_isuser2 = 'Y' AND :new.user2_id is null) THEN
+
+						RAISE_APPLICATION_ERROR(-20000, 'Mandatory dimensions are not set.');
+
+					END IF;
+
+				END IF;
+		
+			END IF;	
+
+		END IF;
+
+  END IF;
+
+  END SSFI_FACT_ACCT_TRG
+]]></body>
+    </trigger>
+  </database>
+

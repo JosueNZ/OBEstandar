@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_IndividualPayrollObservation" pageWidth="595" pageHeight="842" columnWidth="595" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select d.name,
+        e.em_sfpr_description,
+        case when e.em_sfpr_description is not null then
+        d.name || ' - ' || e.em_sfpr_description
+        end as descriptionconcept
+from sspr_payroll a
+left join sspr_payroll_ticket b on b.sspr_payroll_id = a.sspr_payroll_id
+left join sspr_payroll_ticket_concept c on c.sspr_payroll_ticket_id = b.sspr_payroll_ticket_id
+left join sspr_concept d on d.sspr_concept_id = c.sspr_concept_id
+left join sspr_concept_amount e on e.sspr_concept_id = d.sspr_concept_id and
+    e.c_bpartner_id = b.c_bpartner_id and e.c_period_id = a.c_period_id
+where a.documentno = $P{documentno}
+and b.c_bpartner_id= $P{c_bpartner_id}
+and a.ispayroll='Y'
+and e.em_sfpr_description is not null
+order by d.conceptsubtype, d.name]]>
+	</queryString>
+	<field name="name" class="java.lang.String"/>
+	<field name="em_sfpr_description" class="java.lang.String"/>
+	<field name="descriptionconcept" class="java.lang.String"/>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="17" splitType="Stretch">
+			<staticText>
+				<reportElement x="8" y="3" width="246" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[RESUMEN DE OTROS INGRESOS - EGRESOS]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="15" splitType="Stretch">
+			<textField isStretchWithOverflow="true">
+				<reportElement x="8" y="0" width="564" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{descriptionconcept}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band/>
+	</lastPageFooter>
+	<noData>
+		<band/>
+	</noData>
+</jasperReport>

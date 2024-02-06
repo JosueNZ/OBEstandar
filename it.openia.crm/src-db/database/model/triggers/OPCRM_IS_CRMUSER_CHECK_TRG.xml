@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_IS_CRMUSER_CHECK_TRG">
+    <trigger name="OPCRM_IS_CRMUSER_CHECK_TRG" table="OPCRM_CASES" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+isuser character(1);
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+ 
+  IF INSERTING OR UPDATING THEN
+      SELECT u.em_opcrm_is_crm_user INTO isuser FROM ad_user u WHERE u.ad_user_id = :NEW.createdby;
+      IF ( isuser IS NULL OR isuser = 'N' ) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@OPCRM_NOTUSER@') ;
+      END IF;    
+
+  
+  ELSIF DELETING THEN
+
+  END IF;
+ 
+ 
+  END OPCRM_IS_CRMUSER_CHECK_TRG
+]]></body>
+    </trigger>
+  </database>

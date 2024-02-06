@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWS_SCHEDULEDETAIL_TRG">
+    <trigger name="SSWS_SCHEDULEDETAIL_TRG" table="FIN_PAYMENT_SCHEDULEDETAIL" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+    v_PaymentScheduleDetail_ID VARCHAR2(32);
+    v_Payment VARCHAR2(32);
+    v_Ssws_WithhSalesID  VARCHAR2(32);
+    v_SswsAmount NUMBER;
+    v_finPaymentAmount NUMBER;
+    v_count NUMBER;
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+
+
+  IF (INSERTING) THEN
+
+         v_PaymentScheduleDetail_ID:= :new.fin_payment_scheduledetail_id;
+         v_Payment:= :new.isinvoicepaid;
+         v_Ssws_WithhSalesID:= coalesce(to_char(:new.Em_Ssws_Withholdingsale_Id),to_char('ND'));
+         v_SswsAmount:= coalesce(to_number(:new.em_ssws_amount),to_number(0));
+         v_finPaymentAmount:= coalesce(to_number(:new.amount),to_number(0));
+
+         IF (v_Ssws_WithhSalesID<>'ND') THEN 
+	         -- New Payment
+		 update Ssws_Withholdingsale whs 
+		 set Fin_Payment_Scheduledetail_id = v_PaymentScheduleDetail_ID 
+		 where Whs.Ssws_Withholdingsale_Id = v_Ssws_WithhSalesID;
+		 --new.amount:= v_finPaymentAmount + v_SswsAmount;
+         END IF;
+	
+
+  END IF;
+  
+END SSWS_SCHEDULEDETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPEV_VAL_PRINTTYPE">
+    <trigger name="SPEV_VAL_PRINTTYPE" table="SSPR_CONCEPT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[V_Count_AU NUMBER;
+
+
+BEGIN
+  
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING OR UPDATING) THEN
+
+	IF(:new.concepttypepayroll = 'UA'  ) THEN
+
+		SELECT COUNT(*) 
+			INTO V_Count_AU
+		FROM sspr_concept 
+		WHERE concepttypepayroll = 'UA'
+		AND isactive='Y';
+
+		IF(V_Count_AU>0)THEN
+				RAISE_APPLICATION_ERROR(-20000, 'Solo puede contar con un Concepto laboral Tipo "Falta injustificada". ');
+		END IF;
+		
+	END IF;  
+    
+  END IF;	
+  
+END SPEV_VAL_PRINTTYPE
+]]></body>
+    </trigger>
+  </database>

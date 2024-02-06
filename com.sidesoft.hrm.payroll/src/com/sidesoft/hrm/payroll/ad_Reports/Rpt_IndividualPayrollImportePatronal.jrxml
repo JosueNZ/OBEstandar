@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_IndividualPayrollImportePatronal" pageWidth="595" pageHeight="842" columnWidth="595" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select a.c_period_id, b.c_bpartner_id, p.concepto, p.amount
+from sspr_payroll a
+left join sspr_payroll_ticket b on b.sspr_payroll_id = a.sspr_payroll_id
+left join sspr_payroll_ticket_concept c on c.sspr_payroll_ticket_id = b.sspr_payroll_ticket_id
+left join (
+select d.name as concepto,
+      round(c.amount,2) as amount,
+      d.print_observ_report as printconceptreport,
+      a.c_period_id as c_period_id,
+      b.c_bpartner_id as c_bpartner_id,
+      a.ispayroll as ispayroll,
+      a.isliquidation as isliquidation
+from sspr_payroll a
+left join sspr_payroll_ticket b on b.sspr_payroll_id = a.sspr_payroll_id
+left join sspr_payroll_ticket_concept c on c.sspr_payroll_ticket_id = b.sspr_payroll_ticket_id
+left join sspr_concept d on d.sspr_concept_id = c.sspr_concept_id
+) p on  p.printconceptreport = 'Y'
+        and p.c_period_id = a.c_period_id
+        and p.c_bpartner_id = b.c_bpartner_id
+        and p.ispayroll = 'N'
+        and p.isliquidation = 'N'
+where a.documentno = $P{documentno}
+and b.c_bpartner_id= $P{c_bpartner_id}
+and a.ispayroll='Y'
+group by a.c_period_id, b.c_bpartner_id, p.concepto, p.amount]]>
+	</queryString>
+	<field name="c_period_id" class="java.lang.String"/>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="concepto" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="15" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="10" y="0" width="180" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concepto}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="200" y="0" width="75" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band/>
+	</lastPageFooter>
+	<noData>
+		<band/>
+	</noData>
+</jasperReport>

@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SMSCC_PAYMENTDETAIL_TRG">
+    <trigger name="SMSCC_PAYMENTDETAIL_TRG" table="FIN_PAYMENT_DETAIL" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+v_payment Record;
+v_paidclientinv Record;
+v_paidproviinv	RECORD;
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+	
+	select *
+	into v_payment
+	from fin_payment
+	where fin_payment_id = :new.fin_payment_id;
+	
+	select fps.amount, fps.paidamt, fps.outstandingamt, ci.issotrx, ci.c_costcenter_id
+	into v_paidclientinv
+	from fin_payment_schedule fps
+	left join c_invoice ci on ci.c_invoice_id = fps.c_invoice_id 
+	where ci.c_invoice_id in (select c_invoice_id 
+	from c_invoice
+	where c_costcenter_id = v_payment.c_costcenter_id
+							 and issotrx = 'Y');
+	
+	if v_payment.c_costcenter_id is not null and v_payment.isReceipt='N' then
+	
+		if v_paidclientinv.amount is not null and v_paidclientinv.amount > v_paidclientinv.paidamt then
+	
+				RAISE_APPLICATION_ERROR(-20000, '@Proceso no permitido  proyecto pendiente  de recaudación@');
+	
+		end if;
+			
+	end if;
+		
+    END SMSCC_PAYMENTDETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

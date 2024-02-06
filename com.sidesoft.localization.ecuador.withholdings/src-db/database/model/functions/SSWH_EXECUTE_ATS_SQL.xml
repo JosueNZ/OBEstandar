@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_EXECUTE_ATS_SQL">
+    <function name="SSWH_EXECUTE_ATS_SQL" type="NULL">
+      <parameter name="p_period" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_process" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_typeats" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_semester" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_year" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_strStartDate DATE;
+  v_strendDate  DATE;
+  v_SqlText VARCHAR2(10000);
+
+    --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parametersql RECORD;
+  v_processID VARCHAR(32);
+
+    V_ORG  VARCHAR(100);
+    
+BEGIN
+
+
+IF (COALESCE(p_period,'ND')<>'ND') THEN
+	select startdate,enddate f
+	INTO v_strStartDate,v_strendDate
+	from c_period where c_period_id = p_period;
+END IF;
+
+IF ((COALESCE(p_period,'ND')='ND' OR p_period IS NULL OR p_period='') and p_typeats='M' ) THEN
+	RAISE_APPLICATION_ERROR(-20200, 'Para generar el ATS semestral seleccione el Año');
+END IF;
+
+IF (p_typeats='S')  THEN
+	v_strStartDate:=null;
+	IF (COALESCE(p_year,'ND')='ND' OR p_year IS NULL OR p_year='') THEN
+		RAISE_APPLICATION_ERROR(-20200, 'Para generar el ATS semestral seleccione el Año');
+	END IF;
+	
+	IF (p_semester='1') THEN
+
+		select
+		startdate  as date_p
+		INTO v_strStartDate
+		from c_period cp 
+		where C_YEAR_ID = p_year
+		and periodno=1;
+
+		select
+		ENDDATE  as date_p
+		INTO v_strendDate
+		from c_period cp 
+		where C_YEAR_ID = p_year
+		and periodno=6;
+		
+
+	ELSE
+
+		select
+		startdate  as date_p
+		INTO v_strStartDate
+		from c_period cp 
+		where C_YEAR_ID = p_year
+		and periodno=7;
+
+		select
+		ENDDATE as date_p
+		INTO v_strendDate
+		from c_period cp 
+		where C_YEAR_ID = p_year
+		and periodno=12;
+
+	END IF;
+
+END IF;
+
+v_processID:=p_process;
+
+V_ORG:= coalesce(p_org,to_char('ND'));
+
+V_ORG:= (case when p_org <> to_char('ND') then '''' || p_org  || '''' else to_char('NULL') end) ;
+
+
+FOR Cur_Parametersql in(
+	select replace(replace(replace(replace(replace(sqlscript,':p',v_processID),':sd', to_char(v_strStartDate)), ':edd', to_char(v_strendDate)),':og1' , V_ORG),
+	':prd',p_period ) AS sqlscript
+    from sswh_rptc_sql where isactive ='Y'
+)LOOP
+
+	v_SqlText:= (Cur_Parametersql.sqlscript);
+	EXECUTE IMMEDIATE v_SqlText;
+END LOOP;
+END SSWH_EXECUTE_ATS_SQL
+]]></body>
+    </function>
+  </database>

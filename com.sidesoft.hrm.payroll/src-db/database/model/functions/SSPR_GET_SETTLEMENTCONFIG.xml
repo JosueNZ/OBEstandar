@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GET_SETTLEMENTCONFIG">
+    <function name="SSPR_GET_SETTLEMENTCONFIG" type="VARCHAR">
+      <parameter name="p_settlement_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2006 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+  TYPE RECORD IS REF CURSOR;
+    Cur_SettlementConfig RECORD;
+  v_SettlementConfig_ID sspr_settlementconfig.sspr_settlementconfig_id%TYPE := null;
+  v_ContractType_ID sspr_settlementconfig.sspr_contracttype_id%TYPE := null;
+  v_ReasonEndPeriod sspr_settlementconfig.reasonendperiod%TYPE := null;
+  v_startdate DATE;
+  v_enddate DATE;
+  v_year NUMBER:=0;
+
+  BEGIN
+  
+    select  con.sspr_contracttype_id, con.reasonendperiod, con.startdate, con.enddate
+    into  v_ContractType_ID, v_ReasonEndPeriod, v_startdate, v_enddate
+    from  sspr_contract con
+    where con.sspr_contract_id = p_contract_id;
+
+    --OBTENGO EL NUMERO DE DIAS DEL CONTRATO
+    v_year := to_number(v_enddate - v_startdate);
+    v_year := v_year / 360;
+    IF v_year >= 25 THEN
+      v_year := 24.999999;
+    END IF;
+
+    FOR Cur_SettlementConfig IN
+    (    
+      SELECT  scfg.sspr_settlementconfig_id,
+              ad_isorgincluded(p_settlement_org_id, scfg.ad_org_id, scfg.ad_client_id) AS parent_level
+      FROM sspr_settlementconfig scfg
+      WHERE ad_isorgincluded(p_settlement_org_id, scfg.ad_org_id, scfg.ad_client_id) <> -1
+            AND scfg.sspr_contracttype_id = v_ContractType_ID
+            AND scfg.reasonendperiod = v_ReasonEndPeriod
+            AND (COALESCE(scfg.byinterval, 'N') = 'N' OR v_year >= scfg.intervalfrom AND v_year < scfg.intervalto)
+      ORDER BY ad_isorgincluded(p_settlement_org_id, scfg.ad_org_id, scfg.ad_client_id)
+    )
+    LOOP
+      v_SettlementConfig_ID := Cur_SettlementConfig.sspr_settlementconfig_id;
+      EXIT;
+    END LOOP;
+    
+    RETURN v_SettlementConfig_ID;
+END SSPR_GET_SETTLEMENTCONFIG
+]]></body>
+    </function>
+  </database>

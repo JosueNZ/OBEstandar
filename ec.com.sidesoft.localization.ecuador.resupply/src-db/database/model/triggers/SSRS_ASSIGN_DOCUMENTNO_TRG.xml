@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRS_ASSIGN_DOCUMENTNO_TRG">
+    <trigger name="SSRS_ASSIGN_DOCUMENTNO_TRG" table="M_MOVEMENT" fires="after" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_document_type_id        VARCHAR2(32);   
+ v_currentnext NUMBER:= 0;
+ v_ad_sequence_id	   VARCHAR2(32);   
+ v_message_a               VARCHAR2(2000); 
+ v_prefix		   VARCHAR2(10);   
+ v_currentnextf		   VARCHAR2(32);   
+ 
+ V_NEWSTATUS        	   VARCHAR2(32);
+ V_OLDSTATUS       	   VARCHAR2(32);
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING) THEN
+
+    --OBTENGO EL TIPO DE DOCUMENTO
+    v_document_type_id := :new.EM_Ssrs_C_Doctype_ID;    
+    --select distinct EM_Ssrs_C_Doctype_ID from m_movement
+    
+    --OBTENGO ID DE LA SEQUENCIA RELACIONADA AL TIPO DE DOCUMENTO
+    select currentnext,ad_sequence_id,prefix
+    into  v_currentnext,v_ad_sequence_id,v_prefix
+    from ad_sequence where ad_sequence_id in (select docnosequence_id from c_doctype 
+    where c_doctype_id = v_document_type_id);
+
+    --ACTUALIZO EL DOCUMENTNO EN EL MOVIMIENTO
+    IF (v_prefix IS NOT NULL) THEN 
+
+	v_currentnextf = v_prefix||v_currentnext;
+    ELSE
+
+	v_currentnextf = v_currentnext;
+    END IF;
+    
+    update m_movement set documentno = v_currentnextf
+    where m_movement_id = :new.m_movement_id;
+    
+    --ACTUALIZO LA SECUENCIA AL SIGUIENTE NUMERO QUE LE CORRESPONDE
+    update ad_sequence set currentnext = v_currentnext + 1 
+    where ad_sequence_id = v_ad_sequence_id;
+    
+  END IF;  /* END TG -INSERT */
+
+
+
+   IF (UPDATING) THEN
+   
+      --VALIDA SI SE MODIFICO EL TIPO DE DOCUMENTO
+      IF (:new.EM_Ssrs_C_Doctype_ID <> :old.EM_Ssrs_C_Doctype_ID) THEN
+
+	    --OBTENGO EL TIPO DE DOCUMENTO
+	    v_document_type_id := :new.EM_Ssrs_C_Doctype_ID;    
+	    --select distinct EM_Ssrs_C_Doctype_ID from m_movement
+	    
+	    --OBTENGO ID DE LA SEQUENCIA RELACIONADA AL TIPO DE DOCUMENTO
+	    select currentnext,ad_sequence_id,prefix
+	    into  v_currentnext,v_ad_sequence_id,v_prefix
+	    from ad_sequence where ad_sequence_id in (select docnosequence_id from c_doctype 
+	    where c_doctype_id = v_document_type_id);
+
+	    --ACTUALIZO EL DOCUMENTNO EN EL MOVIMIENTO
+	    IF (v_prefix IS NOT NULL) THEN 
+		v_currentnextf = v_prefix||v_currentnext;
+	    ELSE
+		v_currentnextf = v_currentnext;
+	    END IF;
+
+	    --ACTUALIZO EL DOCUMENTNO EN EL MOVIMIENTO
+	    update m_movement set documentno = v_currentnextf
+	    where m_movement_id = coalesce(:new.m_movement_id,:old.m_movement_id);
+	    
+	    --ACTUALIZO LA SECUENCIA AL SIGUIENTE NUMERO QUE LE CORRESPONDE
+	    update ad_sequence set currentnext = v_currentnext + 1 
+	    where ad_sequence_id = v_ad_sequence_id;
+      
+    END IF; 
+  END IF;  /* END TG UPDATE */  
+  END SSRS_ASSIGN_DOCUMENTNO_TRG
+]]></body>
+    </trigger>
+  </database>

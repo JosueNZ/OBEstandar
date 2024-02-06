@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_RequestVacactions" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select a.ad_org_id as organizationid,
+        a.documentno, upper(b.printname) as doctype,
+        d.name || ', ' || to_number(to_char(a.stardateabsent,'dd')) || ' de '  ||
+        case when to_char(a.stardateabsent,'mm') = '01' then 'Enero'
+        when to_char(a.stardateabsent,'mm') = '02' then 'Febrero'
+        when to_char(a.stardateabsent,'mm') = '03' then 'Marzo'
+        when to_char(a.stardateabsent,'mm') = '04' then 'Abril'
+        when to_char(a.stardateabsent,'mm') = '05' then 'Mayo'
+        when to_char(a.stardateabsent,'mm') = '06' then 'Junio'
+        when to_char(a.stardateabsent,'mm') = '07' then 'Julio'
+        when to_char(a.stardateabsent,'mm') = '08' then 'Agosto'
+        when to_char(a.stardateabsent,'mm') = '09' then 'Septiembre'
+        when to_char(a.stardateabsent,'mm') = '10' then 'Octubre'
+        when to_char(a.stardateabsent,'mm') = '11' then 'Noviembre'
+        when to_char(a.stardateabsent,'mm') = '12' then 'Diciembre' end
+        || ' del ' || to_char(a.stardateabsent,'yyyy')  as fechacity
+        , 'CPA' as cpa,
+        coalesce(to_char(e.name),'No definido') as jefe, coalesce(to_char(h.name),'No definido') as cargo, i.social_name as organizacion,
+        'Ciudad' as citydefault,
+        'De mis consideraciones' as consideraciones,
+        'Yo, ' || c.name
+               || ' solicito a Usted, se sirva autorizar el uso de mis vacaciones correspondiente al periodo del    '
+               || (select to_char(min(aa.startdate),'yyyy') from sspr_leave_emp_vac aa where aa.sspr_leave_emp_id = a.sspr_leave_emp_id)
+               || '    al    '
+               || (select to_char(max(aa.enddate),'yyyy') from sspr_leave_emp_vac aa where aa.sspr_leave_emp_id = a.sspr_leave_emp_id) as body,
+        to_char(a.stardate,'dd-mm-yyyy') as startdateout,
+        to_char(a.enddate,'dd-mm-yyyy') as  enddateout,
+        'Atentamente' as atentamente,
+        'CI: ' ||c.taxid as ci,
+        'USO EXCLUSIVO DE RECURSOS HUMANOS' as exclusives,
+        'AUTORIZADO GERENCIA  Y/O PRESIDENCIA______________________' as autorizado1,
+        'AUTORIZADO RR.HH_____________________________________________' as autorizado2,
+        'NO AUTORIZADO GERENCIA Y/O PRESIDENCIA____________________' as autorizado3,
+        'NO AUTORIZADO RR.HH__________________________________________' as autorizado4,
+        '*Copia carpeta personal' as copia,
+	to_char(now(),'dd/MM/yyyy HH24:MI:SS') as fecha_impresion,
+	(select COALESCE(CB.NAME,AU.NAME) from AD_USER AU LEFT JOIN C_BPARTNER CB on CB.C_BPARTNER_ID 	= AU.C_BPARTNER_ID where AU.AD_USER_ID=$P{AD_USER_ID}) as usuario
+        from sspr_leave_emp a
+        left join c_doctype b on b.c_doctype_id = a.c_doctype_id
+        left join c_bpartner c on c.c_bpartner_id = a.c_bpartner_id
+        left join c_city d on d.c_city_id = c.em_sspr_city
+        left join c_bpartner e on e.c_bpartner_id = a.Authorizer_ID
+        left join sspr_contract f on f.c_bpartner_id = e.c_bpartner_id and f.isactive = 'Y'
+        left join sspr_contract_position g on g.sspr_contract_id = f.sspr_contract_id and g.isactive = 'Y'
+        left join sspr_position h on h.sspr_position_id = g.sspr_position_id
+        left join ad_org i on i.ad_org_id = a.ad_org_id
+where a.sspr_leave_emp_id = $P{DOCUMENT_ID}
+and g.startdate = (select max(startdate) from sspr_contract_position where  sspr_contract_id = f.sspr_contract_id and isactive = 'Y' )]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="doctype" class="java.lang.String"/>
+	<field name="fechacity" class="java.lang.String"/>
+	<field name="cpa" class="java.lang.String"/>
+	<field name="jefe" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="citydefault" class="java.lang.String"/>
+	<field name="consideraciones" class="java.lang.String"/>
+	<field name="body" class="java.lang.String"/>
+	<field name="startdateout" class="java.lang.String"/>
+	<field name="enddateout" class="java.lang.String"/>
+	<field name="atentamente" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="exclusives" class="java.lang.String"/>
+	<field name="autorizado1" class="java.lang.String"/>
+	<field name="autorizado2" class="java.lang.String"/>
+	<field name="autorizado3" class="java.lang.String"/>
+	<field name="autorizado4" class="java.lang.String"/>
+	<field name="copia" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="86" splitType="Stretch">
+			<textField>
+				<reportElement x="472" y="34" width="100" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="54" width="572" height="20"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{doctype}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="363" y="16" width="81" height="13"/>
+				<textElement textAlignment="Right">
+					<font size="6"/>
+				</textElement>
+				<text><![CDATA[Usuario:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="363" y="3" width="81" height="13"/>
+				<textElement textAlignment="Right">
+					<font size="6"/>
+				</textElement>
+				<text><![CDATA[Fecha de impresión:]]></text>
+			</staticText>
+			<textField>
+				<reportElement mode="Transparent" x="445" y="16" width="127" height="13" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Top" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="6" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="445" y="3" width="127" height="13"/>
+				<textElement textAlignment="Right">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+			<image>
+				<reportElement x="0" y="4" width="100" height="50"/>
+				<imageExpression class="java.lang.String"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band splitType="Stretch"/>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="601" splitType="Stretch">
+			<textField>
+				<reportElement x="36" y="12" width="536" height="15"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechacity}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="58" width="100" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cpa}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="73" width="536" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{jefe}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="88" width="536" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cargo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="103" width="536" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="118" width="536" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{citydefault}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="166" width="536" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{consideraciones}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="36" y="201" width="536" height="17"/>
+				<textElement lineSpacing="Single"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{body}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="177" y="315" width="195" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{atentamente}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="177" y="360" width="195" height="15"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[__________________________________]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="177" y="375" width="195" height="20"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ci}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="406" width="572" height="17"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{exclusives}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="432" width="536" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{autorizado1}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="452" width="536" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{autorizado2}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="472" width="536" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{autorizado3}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="36" y="492" width="536" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{autorizado4}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="36" y="403" width="521" height="1"/>
+			</line>
+			<line>
+				<reportElement x="36" y="420" width="521" height="1"/>
+			</line>
+			<textField>
+				<reportElement x="36" y="522" width="536" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{copia}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="87" y="230" width="118" height="17"/>
+				<textElement/>
+				<text><![CDATA[Fecha de salida del día   ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="305" y="230" width="31" height="17"/>
+				<textElement/>
+				<text><![CDATA[al día]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="205" y="230" width="100" height="17"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{startdateout}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="336" y="230" width="100" height="17"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{enddateout}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="87" y="249" width="349" height="17"/>
+				<textElement/>
+				<text><![CDATA[La cancelación de mis vacaciones____________________]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="36" y="276" width="536" height="20"/>
+				<textElement/>
+				<text><![CDATA[Sin otro particular, reitero mis sentimientos de consideración y respeto]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

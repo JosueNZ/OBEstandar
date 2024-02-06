@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_VALIDATE_INFOPARTNER_TRG">
+    <trigger name="SSPR_VALIDATE_INFOPARTNER_TRG" table="C_BPARTNER" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_Taxid VARCHAR2(30);
+  v_Name2 VARCHAR2(60);
+  v_Name  VARCHAR2(60);
+
+  BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+	
+
+  IF (INSERTING or UPDATING ) THEN
+
+	v_Taxid:= :NEW.taxid;
+	v_Name:= :NEW.name;
+	v_Name2:= :NEW.name2;
+	
+	  	IF COALESCE(v_Name2,'ND')='ND' THEN 
+			:NEW.name2:= v_Name;
+			v_Name2:= v_Name;
+	  	END IF;
+
+		IF COALESCE(trim(v_Taxid),'ND') ='ND' OR COALESCE(trim(v_Name2),'ND')='ND' THEN
+				RAISE_APPLICATION_ERROR(-20000,'@Sspr_InfoPartner@');
+		ELSE
+			:NEW.em_sspr_documentno := v_Taxid;
+		
+		END IF;
+
+ END IF;
+      
+  END SSPR_VALIDATE_INFOPARTNER_TRG
+]]></body>
+    </trigger>
+  </database>

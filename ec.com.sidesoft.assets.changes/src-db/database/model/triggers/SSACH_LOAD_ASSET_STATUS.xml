@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSACH_LOAD_ASSET_STATUS">
+    <trigger name="SSACH_LOAD_ASSET_STATUS" table="SSACH_MODIFY_LINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[    vStatus VARCHAR2(60);
+BEGIN
+    IF (DELETING) THEN
+        SELECT isstatus INTO vStatus FROM ssach_modify_asset WHERE ssach_modify_asset_id=:OLD.ssach_modify_asset_id;
+        IF (vStatus = 'SSACH_PR') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@ssach_error_process@') ;
+        END IF;
+    END IF;
+    RETURN OLD;
+    IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END SSACH_LOAD_ASSET_STATUS
+]]></body>
+    </trigger>
+  </database>

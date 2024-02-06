@@ -1,0 +1,688 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWS_WHSALE_PROCESS">
+    <function name="SSWS_WHSALE_PROCESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_InvoiceLine RECORD;
+Cur_PaymentLines RECORD;
+Cur_Config RECORD;
+Cur_Fin_Payment_schedules RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+
+  v_Record_ID  VARCHAR2(32);
+  v_Message VARCHAR2(2000):='';
+  V_SSWS_Withholdingsale_ID VARCHAR2(32); 
+  V_Amt NUMBER;
+  
+  V_totalwhrentalamt NUMBER:=0 ;
+  V_totalwhivaamt NUMBER:=0 ;
+  v_available_period NUMBER;
+
+  V_Fin_Payment_Schedule_Id Varchar2(32); 
+  V_Fin_PaymentSchedDetail_Id Varchar2(32); 
+  V_Count_PaymentSchedDetail NUMBER:=0 ;
+  V_C_Invoice_Id Varchar2(32); 
+  V_Processed Varchar2(60);
+  V_Processing Varchar2(60);
+  V_Posted Varchar2(60);
+  V_Outstandingamt NUMBER;
+--  V_Description  VARCHAR2(255);
+  v_paidinvoice VARCHAR2(32) ;
+  v_IsAgreement VARCHAR2(60);
+  v_CountIsInvoicedPayment NUMBER; --OBTG:NUMBER--
+  v_IsInvoicedPayment VARCHAR2(60);
+  v_SswsWithInvoice_Id Varchar2(32); 
+  v_CountAux  NUMBER; --OBTG:NUMBER--
+  v_FlagDes  Varchar2(60);
+  v_NewScheduleDetail  Varchar2(32); 
+  v_CountPayment  NUMBER; --OBTG:NUMBER--
+  v_ResultAmt NUMBER; --OBTG:NUMBER--
+  v_fin_payment_detail_id Varchar2(32); 
+  v_total_amount  NUMBER; --OBTG:NUMBER--
+  v_fin_payment_schdetup_id Varchar2(32);  
+
+  --VARIABLES DE LA CONFIGURACION
+  v_Count_PaymentIn NUMBER:= 0; --OBTG:NUMBER--
+  v_Count_Config NUMBER:= 0; --OBTG:NUMBER--
+  v_Org_Config Varchar2(32); 
+  v_Doctype_Config Varchar2(32); 
+  v_PaymentMethod_Config Varchar2(32); 
+  v_FinancialAccount_Config Varchar2(32); 
+  v_Currency_Config Varchar2(32); 
+  v_Documentno_sec VARCHAR(30);
+
+  v_StatusPeriod  VARCHAR(60);
+  v_NamePeriod   VARCHAR(60);
+  v_DateWithholding VARCHAR(10);
+  v_Msgbox VARCHAR(255);
+  v_Trx_Amount NUMBER:= 0; --OBTG:NUMBER--
+  v_Trx_Amount_Total NUMBER:= 0; --OBTG:NUMBER--
+  v_Is_Trx_Tot Varchar2(32); 
+
+  v_bpartner_id Varchar2(32); 
+  v_invoiceposted Varchar2(32); 
+  v_HaveModule18160 Varchar2(32) := 'N'; 
+  v_query VARCHAR2(2000):='';
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+--    v_n_insertions := 0;  
+
+    FOR Cur_Parameter IN (
+		SELECT i.Record_ID,
+			i.AD_User_ID,
+			i.AD_Client_ID --,
+--        i.AD_Org_ID 
+
+		FROM AD_PInstance i      
+		WHERE i.AD_PInstance_ID = PInstance_ID      
+    ) LOOP
+    
+		v_Record_ID := Cur_Parameter.Record_ID;      
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+--      v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.AD_User_ID;     
+
+    END LOOP; -- End Get Parameter
+	
+	-- VALIDACIÓN DEL MODULO DE CHEQUES POSFECHADOS
+	Select COALESCE((CASE WHEN COALESCE((Select COUNT(*) From ad_module Where javapackage = 'ec.com.sidesoft.postdated.check'),0) > 0 
+			Then 'Y' ELse 'N'
+			END), 'N')
+		INTO v_HaveModule18160
+	From dual;
+
+    -- Get withholding processed status
+	Select Whs.Processed, Whs.Processing, Whs.Posted, coalesce(Whs.totalwhrentalamt,0), coalesce(Whs.totalwhivaamt,0), to_char(Whs.withholdingdate,'dd-MM-yyyy') as withholdingdate, Whs.c_bpartner_id Into V_Processed, V_Processing, V_Posted, V_totalwhrentalamt, V_totalwhivaamt,v_DateWithholding, v_bpartner_id  From Ssws_Withholdingsale Whs Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+    
+    	--SE COMPRUEBA SI EL PERÍODO ESTÁ CERRADO RELACIONADO A LA LINEA DEL PERIODO POR TIPO DE DOCUMENTO BASE.
+		SELECT COUNT(C_Period_ID)
+				INTO v_available_period
+			FROM C_Period
+			WHERE  TO_DATE(v_DateWithholding)>=STARTDATE AND  TO_DATE(v_DateWithholding)<ENDDATE+1
+			AND EXISTS (SELECT 1
+			FROM C_PeriodControl
+			WHERE C_PeriodControl.C_Period_ID= C_Period.C_Period_ID
+			AND DocBaseType='SSWS_WHS'
+			AND openclose='C') ; 
+		
+		IF (v_available_period <> 1 ) THEN
+			RAISE_APPLICATION_ERROR(-20000, '@PeriodNotAvailable@');
+		END IF;
+
+    /***********************************************************/
+    /*			INICIO PROCESO DE VERIFICACION COBROS          */
+    /***********************************************************/
+    Select COUNT(fin_payment_id) 
+    INTO v_Count_PaymentIn
+    FROM fin_payment
+    Where isreceipt = 'Y' 
+    AND fin_payment_id = '11111111111111111111111111111111';
+
+	If (v_Count_PaymentIn = 0) Then  
+
+		SELECT COUNT(ssws_config_id)
+		INTO v_Count_Config
+		FROM ssws_config
+		WHERE isactive = 'Y';
+
+		If(v_Count_Config = 0) Then
+
+			RAISE_APPLICATION_ERROR(-20000, '@SSWS_NotConfigWithholding@');
+
+		Else
+
+			--SE BUSCAN LOS PARAMETROS DE LA CONFIGURACION DE RETENCIONES
+			FOR Cur_Config IN(SELECT ad_org_id, c_doctype_id, fin_paymentmethod_id, fin_financial_account_id, c_currency_id
+				FROM ssws_config
+				WHERE isactive = 'Y'
+				ORDER BY created ASC
+			) LOOP
+				v_Org_Config := Cur_Config.ad_org_id;
+				v_Doctype_Config := Cur_Config.c_doctype_id;
+				v_PaymentMethod_Config := Cur_Config.fin_paymentmethod_id;
+				v_FinancialAccount_Config := Cur_Config.fin_financial_account_id;
+				v_Currency_Config := Cur_Config.c_currency_id;
+			END LOOP;
+
+			-- CREO UN REGISTRO EN LA CABECERA DE LOS COBROS
+			INSERT INTO fin_payment(fin_payment_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby, 
+				isactive, isreceipt, c_currency_id, fin_paymentmethod_id, documentno, referenceno, 
+				status, processed, posted, fin_financial_account_id, c_doctype_id, 
+				createdbyalgorithm, finacc_txn_convert_rate,em_aprm_process_payment)
+			VALUES ('11111111111111111111111111111111', v_Client_ID , v_Org_Config, now(), v_User_ID, now(), v_User_ID, 
+				'Y', 'Y', v_Currency_Config, v_PaymentMethod_Config, 'RETENCIONES', NULL, 'SSWS_WTH', 'N', 'D', 
+				v_FinancialAccount_Config, v_Doctype_Config, 'N', 1 , 'RE');		    
+
+		End If; 
+
+		update fin_payment 
+		set processed = 'Y'
+		where fin_payment_id = '11111111111111111111111111111111';		
+
+	End If;
+
+    /***********************************************************/
+    /*			FIN PROCESO DE VERIFICACION COBROS          */
+    /***********************************************************/
+
+    If V_Processing = 'Y' Then
+		RAISE_APPLICATION_ERROR(-20000, '@Processing@');
+    End If;
+    If V_Posted = 'Y' Then
+		RAISE_APPLICATION_ERROR(-20000, '@DocumentPosted@');
+    End If;
+
+    -- Set processing 'Y'
+    Update Ssws_Withholdingsale Whs Set Processing = 'Y' Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+    
+    -- Get corresponding FIN_PAYMENT_SCHEDULE_ID
+    SELECT  WHS.C_INVOICE_ID, 
+            PS.FIN_PAYMENT_SCHEDULE_ID,
+            WHS.AD_ORG_ID,
+			whs.ISAGREEMMENT
+	INTO  V_C_Invoice_Id,
+			V_Fin_Payment_Schedule_Id,
+			v_Org_ID,
+			v_IsAgreement
+    FROM ssws_withholdingsale whs
+    JOIN fin_payment_schedule ps on whs.c_invoice_id = ps.c_invoice_id
+    Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+
+    SELECT posted INTO v_invoiceposted
+    FROM c_invoice WHERE c_invoice_id = V_C_Invoice_Id;
+
+    IF(COALESCE(v_invoiceposted,'N')='N' AND V_Processed='N') THEN
+		RAISE_APPLICATION_ERROR(-20000, '@Ssws_InvoiceNotPosted@');
+    END IF;
+
+    select paidinvoice 
+    into v_paidinvoice
+    from Ssws_Withholdingsale
+    Where Ssws_Withholdingsale_Id = V_Record_Id;
+
+If(v_paidinvoice = 'Y')Then --Start Paid Invoice
+
+	If V_Processed = 'Y' Then -- Unprocess
+
+		-- Unprocess the withholding sale
+		update Ssws_Withholdingsale whs set processed = 'N', Docstatus = 'DR', Docaction = 'CO'  where Whs.Ssws_Withholdingsale_Id = V_RECORD_ID;
+
+		V_Message := '@RowsDeleted@';
+        
+	Elsif V_Processed = 'N' Then -- Process
+
+		-- Process the withholding sale
+		update Ssws_Withholdingsale whs set processed = 'Y', Docstatus = 'CO', Docaction = '--' where Whs.Ssws_Withholdingsale_Id = V_RECORD_ID;
+    
+		V_Message := '@RowsInserted@';
+
+	End If;
+
+Else
+
+	If V_Processed = 'Y' Then -- Unprocess
+		
+		--Obtengo valor total de rentecion
+		Select 
+			coalesce((Select (coalesce(totalwhrentalamt,0) + coalesce(totalwhivaamt,0)) as tot
+				From Ssws_Withholdingsale
+				Where Ssws_Withholdingsale_Id = V_Record_Id
+			),0)
+			Into V_Amt
+		From dual;
+		
+		--Desprocesa el cobro para eliminar
+		update fin_payment set processed = 'N'
+		where fin_payment_id = '11111111111111111111111111111111';
+
+		-- Desprocesa el retencion
+		update Ssws_Withholdingsale whs set processed = 'N', Docstatus = 'DR', Docaction = 'CO'
+			,Fin_Payment_Scheduledetail_id = null 
+		where Whs.Ssws_Withholdingsale_Id = V_RECORD_ID;
+		
+
+		-- Get corresponding FIN_PAYMENT_SCHEDULE_ID
+		v_Trx_Amount_Total := V_Amt; -- Guardar valor total de la retención
+
+		For Cur_Fin_Payment_schedules In (
+			SELECT  ps.fin_payment_schedule_id
+				, fpsd.Fin_Payment_Scheduledetail_id
+				, fpsd.fin_payment_detail_id
+				, fpsd.amount
+			FROM fin_payment_schedule ps 
+				Join Fin_Payment_Scheduledetail fpsd on fpsd.fin_payment_schedule_invoice = ps.fin_payment_schedule_id
+			Where ps.c_invoice_id = V_C_Invoice_Id
+				And EXISTS (Select 1 
+					From fin_payment_detail fpd 
+					Where fpd.fin_payment_id = '11111111111111111111111111111111'
+						And fpd.fin_payment_detail_id = fpsd.fin_payment_detail_id )
+			--Order By ps.expecteddate ASC
+		) LOOP
+			V_Fin_PaymentSchedDetail_Id := Cur_Fin_Payment_schedules.Fin_Payment_Scheduledetail_id;
+			v_fin_payment_detail_id := Cur_Fin_Payment_schedules.fin_payment_detail_id;
+
+			-- Elimina la relacion del cobro de la retencion con el detalle de plan de pagos
+			Update Fin_Payment_Scheduledetail 
+				set fin_payment_detail_id = Null
+			where Fin_Payment_Scheduledetail_id = V_Fin_PaymentSchedDetail_Id; 
+
+			--Elimina la cobro de la rentención
+			Delete from fin_payment_detail where fin_payment_detail_id = v_fin_payment_detail_id;
+
+			-- Desontar para planes de pago multiple
+			If (v_Trx_Amount_Total > Cur_Fin_Payment_schedules.amount) Then
+				v_Trx_Amount := Cur_Fin_Payment_schedules.amount;
+				v_Trx_Amount_Total := v_Trx_Amount_Total - Cur_Fin_Payment_schedules.amount;
+			Else
+				v_Trx_Amount := v_Trx_Amount_Total;
+			End If;
+
+			-- Update paid amount on fin_payment_schedule
+			Update Fin_Payment_Schedule Set Paidamt = round((Paidamt - v_Trx_Amount),2), Outstandingamt = round((Outstandingamt + v_Trx_Amount),2) 
+			Where Fin_Payment_Schedule_Id = Cur_Fin_Payment_schedules.fin_payment_schedule_id; --V_Fin_Payment_Schedule_Id;
+
+			--Elimina el la linea del plan de pagos creado por la retención
+			DELETE FROM FIN_PAYMENT_SCHEDULEDETAIL 
+			WHERE FIN_PAYMENT_SCHEDULEDETAIL_Id = V_Fin_PaymentSchedDetail_Id;
+
+			BEGIN
+				--Obtengo la linea para actualizar el saldo 
+				select psd.fin_payment_scheduledetail_id, amount
+					into v_fin_payment_schdetup_id, V_Outstandingamt
+				from fin_payment_scheduledetail psd
+				where (psd.fin_payment_detail_id is null and psd.isinvoicepaid='N')
+					and psd.fin_payment_schedule_invoice = Cur_Fin_Payment_schedules.fin_payment_schedule_id--V_Fin_Payment_Schedule_Id
+				ORDER BY psd.amount desc;
+			EXCEPTION WHEN OTHERS THEN
+				V_Outstandingamt :=0;
+			END;
+
+			V_Outstandingamt := COALESCE(V_Outstandingamt,0);
+
+			-- Actualizo el saldo
+			Update Fin_Payment_ScheduleDetail Psd 
+			Set Amount = round(V_Outstandingamt + v_Trx_Amount,2)
+				, isinvoicepaid = 'N'
+				, fin_payment_detail_id = Null 
+			Where Psd.Fin_Payment_ScheduleDetail_Id = v_fin_payment_schdetup_id;
+
+			If(round(V_Outstandingamt,0)=0) Then
+				-- Insert lines into fin_payment_scheduledetail
+				v_NewScheduleDetail:= Get_Uuid();
+
+				--Crea una nueva linea de cobro
+				insert into fin_payment_scheduledetail 
+				(FIN_PAYMENT_SCHEDULEDETAIL_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY, 
+				EM_SSWS_WITHHOLDINGSALE_ID, AMOUNT, FIN_PAYMENT_SCHEDULE_INVOICE, WRITEOFFAMT, ISCANCELED, ISINVOICEPAID)
+				values
+				(v_NewScheduleDetail, V_Client_Id, V_Org_Id, 'Y', COALESCE(TO_DATE(v_DateWithholding),now()), V_User_Id, COALESCE(TO_DATE(v_DateWithholding),now()), V_User_Id, 
+				null, v_Trx_Amount, Cur_Fin_Payment_schedules.fin_payment_schedule_id--V_Fin_Payment_Schedule_Id
+				, 0, 'N','N');
+			End If; -- End Unprocess	
+
+		End Loop;
+
+		--Procesa nuevamente el cobro
+		Update fin_payment set processed = 'Y'
+		Where fin_payment_id = '11111111111111111111111111111111';
+    
+		-- Update paid amount on c_invoice
+		Update C_Invoice I Set Totalpaid = round((Totalpaid - V_Amt),2), Outstandingamt = round((Outstandingamt + V_Amt),2) 
+			, EM_Sswh_Totalwithholdingincome = 0 
+			, EM_Sswh_Totalwithholdingvat = 0
+		Where I.C_Invoice_Id = V_C_Invoice_Id;
+
+		-- Cambia de estado a la factura a pagado
+		Update C_Invoice I Set ispaid = 'N' Where I.C_Invoice_Id = V_C_Invoice_Id;
+
+        V_Message := '@RowsDeleted@';
+        
+	Elsif V_Processed = 'N' Then -- Process
+		
+		--Valor de la retención
+		Select 
+			coalesce((Select (coalesce(totalwhrentalamt,0) + coalesce(totalwhivaamt,0)) as tot
+				From Ssws_Withholdingsale
+			Where Ssws_Withholdingsale_Id = V_Record_Id
+			),0)
+			Into V_Amt
+		From dual;
+
+		--Obtengo id de la retención
+		select coalesce((Select SSWS_WITHHOLDINGSALE_ID as tot
+			From Ssws_Withholdingsale
+			Where Ssws_Withholdingsale_Id = V_Record_Id
+			),'ND')
+			Into V_SSWS_Withholdingsale_ID
+		from dual;
+
+		-- Check Outstandingamt from fin_payment_schedule(De todas las lineas)
+		If(v_HaveModule18160 = 'N')Then
+			SELECT SUM(ps.outstandingamt) INTO V_Outstandingamt
+			FROM fin_payment_schedule ps
+			WHERE ps.c_invoice_id = V_C_Invoice_Id;
+		Else -- Restar pagos en estado a ejecutar
+			SELECT SUM(COALESCE(ps.outstandingamt,0)) - SUM(COALESCE(psd.amount,0))
+				INTO V_Outstandingamt
+			FROM fin_payment_schedule ps
+				Left Join (Select spsd.fin_payment_schedule_invoice, SUM(spsd.amount) as "amount"
+					From fin_payment_scheduledetail spsd
+						Join fin_payment_detail sfpd on sfpd.fin_payment_detail_id = spsd.fin_payment_detail_id
+						Join fin_payment fp on sfpd.fin_payment_id = fp.fin_payment_id And fp.status = 'RPAE' -- Estado a Ejecutar
+					Group by spsd.fin_payment_schedule_invoice
+				) psd on psd.fin_payment_schedule_invoice = ps.fin_payment_schedule_id 
+			WHERE COALESCE(ps.outstandingamt,0) - COALESCE(psd.amount,0) > 0 
+				And ps.c_invoice_id = V_C_Invoice_Id;
+		End IF;
+		
+
+		V_Outstandingamt := COALESCE(V_Outstandingamt,0);
+
+		-- Si el valor de la retencion es igual al pendiente del detalle de pagos del plan de pagos
+		IF ROUND(V_Outstandingamt - V_Amt,2 )= 0 THEN 
+
+			--Modifica el estado procesado para inserta
+			update fin_payment set processed = 'N'
+			where fin_payment_id = '11111111111111111111111111111111';
+
+			v_Trx_Amount_Total := V_Amt;
+			If (v_HaveModule18160 = 'N')Then
+				Select format('SELECT  ps.fin_payment_schedule_id 
+									, outstandingamt 
+								FROM fin_payment_schedule ps  
+								Where ps.c_invoice_id = %L 
+									And outstandingamt > 0 
+								Order By ps.expecteddate ASC', V_C_Invoice_Id)
+				Into v_query
+				From dual;
+			Else  -- Restar cobros con estado a Ejecutar
+				Select format('SELECT  ps.fin_payment_schedule_id 
+					, (COALESCE(ps.outstandingamt,0) - COALESCE(psd.amount,0)) as outstandingamt 
+				FROM fin_payment_schedule ps  
+					Left Join (Select spsd.fin_payment_schedule_invoice, SUM(spsd.amount) as amount 
+							From fin_payment_scheduledetail spsd 
+								Join fin_payment_detail sfpd on sfpd.fin_payment_detail_id = spsd.fin_payment_detail_id 
+								Join fin_payment fp on sfpd.fin_payment_id = fp.fin_payment_id and fp.status = %L
+							Group by spsd.fin_payment_schedule_invoice 
+						) psd on psd.fin_payment_schedule_invoice = ps.fin_payment_schedule_id  
+				Where ps.c_invoice_id = %L  
+					And COALESCE(ps.outstandingamt,0) - COALESCE(psd.amount,0) > 0  
+				Order By ps.expecteddate ASC','RPAE' ,V_C_Invoice_Id)
+					Into v_query
+				From dual;
+
+			End IF;
+			
+			For Cur_Fin_Payment_schedules In EXECUTE IMMEDIATE v_query
+			LOOP
+				V_Fin_Payment_Schedule_Id := Cur_Fin_Payment_schedules.fin_payment_schedule_id;
+
+				-- Retención de manera proporcional
+				If (Cur_Fin_Payment_schedules.outstandingamt < v_Trx_Amount_Total) Then
+					v_Trx_Amount := Cur_Fin_Payment_schedules.outstandingamt;
+					v_Trx_Amount_Total := v_Trx_Amount_Total - Cur_Fin_Payment_schedules.outstandingamt;
+				Else 
+					v_Trx_Amount := v_Trx_Amount_Total;
+				End If; 
+
+				-- Elimina el registro creado por retenciónes
+				DELETE FROM FIN_PAYMENT_SCHEDULEDETAIL 
+				WHERE EM_SSWS_WITHHOLDINGSALE_ID = V_Record_Id 
+					AND FIN_PAYMENT_DETAIL_ID IS NULL 
+					AND ISINVOICEPAID = 'N';
+				
+				--Recuperar cuota pendiente
+				select psd.fin_payment_scheduledetail_id 
+					into V_Fin_PaymentSchedDetail_Id
+				from fin_payment_scheduledetail psd
+				where (psd.fin_payment_detail_id is null and psd.isinvoicepaid = 'N')
+					and psd.fin_payment_schedule_invoice = V_Fin_Payment_Schedule_Id
+				ORDER BY psd.amount asc;
+				
+				--Insert fin_payment_detail
+				v_fin_payment_detail_id := get_uuid();
+				insert into fin_payment_detail(fin_payment_detail_id, ad_client_id, ad_org_id, created, createdby, updated,updatedby, fin_payment_id, amount, refund, isactive,
+					writeoffamt, c_glitem_id, isprepayment)
+				values (v_fin_payment_detail_id, V_Client_Id, V_Org_Id, now(), V_User_Id, now(), V_User_Id, '11111111111111111111111111111111', V_Amt, 'N', 'Y', 0, null,'N');
+				
+				Update Fin_Payment_ScheduleDetail Psd 
+					Set em_ssws_withholdingsale_id = V_Record_Id,
+						Amount = v_Trx_Amount
+						, isinvoicepaid = 'Y'
+						, fin_payment_detail_id = v_fin_payment_detail_id
+						, c_bpartner_id = v_bpartner_id 
+				Where Psd.Fin_Payment_ScheduleDetail_Id = V_Fin_PaymentSchedDetail_Id;
+				
+				-- Update paid amount on fin_payment_schedule
+				Update Fin_Payment_Schedule Ps Set Paidamt = round((Paidamt + v_Trx_Amount),2), Outstandingamt = round((Outstandingamt - v_Trx_Amount),2) Where Ps.Fin_Payment_Schedule_Id = V_Fin_Payment_Schedule_Id;
+
+			End Loop;
+
+			-- Update paid amount on c_invoice
+			Update C_Invoice I Set Totalpaid = round((Totalpaid + V_Amt),2), Outstandingamt = round((Outstandingamt - V_Amt),2) 
+					,EM_Sswh_Totalwithholdingincome= V_TotalWhRentalAmt 
+					,EM_Sswh_Totalwithholdingvat=V_TotalWhIVAAmt
+			Where I.C_Invoice_Id = V_C_Invoice_Id;
+
+			-- Process the withholding sale
+			update Ssws_Withholdingsale whs 
+				set processed = 'Y', Docstatus = 'CO', Docaction = '--'
+				,fin_payment_scheduledetail_id = V_Fin_PaymentSchedDetail_Id
+			where Whs.Ssws_Withholdingsale_Id = V_RECORD_ID;
+
+			-- Change status of the button "Add Payment" to Paid
+			Update C_Invoice I 
+				Set ispaid = 'Y' 
+			Where I.C_Invoice_Id = V_C_Invoice_Id;
+
+			--Retorna a estado procesado
+			update fin_payment set processed = 'Y'
+			where fin_payment_id = '11111111111111111111111111111111';
+
+			V_Message := '@RowsInserted@';
+
+		ELSE  -- CC
+			IF ROUND(V_Outstandingamt - V_Amt, 2) < 0 Then
+				-- Set processing 'N'
+				Update Ssws_Withholdingsale Whs Set Processing = 'N' Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+				v_ResultStr:= '@SSWS_InsuficientAmountForWithholding@';
+				RAISE_APPLICATION_ERROR(-20000, v_ResultStr);
+				
+			END IF;
+
+			If round(V_Amt,2) = 0 Then
+				-- Set processing 'N'
+				Update Ssws_Withholdingsale Whs Set Processing = 'N' Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+				v_ResultStr:= '@SSWS_NoWithholdingAmount@';
+				DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+			 AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+				RETURN;	    
+			Else
+
+				--Retorna a estado procesado
+				update fin_payment set processed = 'N'
+				where fin_payment_id = '11111111111111111111111111111111';
+
+				v_Trx_Amount_Total := V_Amt;
+
+				If (v_HaveModule18160 = 'N')Then
+					Select format('SELECT  ps.fin_payment_schedule_id 
+										, outstandingamt 
+									FROM fin_payment_schedule ps  
+									Where ps.c_invoice_id = %L 
+										And outstandingamt > 0 
+									Order By ps.expecteddate ASC', V_C_Invoice_Id)
+					Into v_query
+					From dual;
+				Else  -- Restar cobros con estado a Ejecutar
+					Select format('SELECT  ps.fin_payment_schedule_id 
+						, (COALESCE(ps.outstandingamt,0) - COALESCE(psd.amount,0)) as outstandingamt 
+					FROM fin_payment_schedule ps  
+						Left Join (Select spsd.fin_payment_schedule_invoice, SUM(spsd.amount) as amount 
+								From fin_payment_scheduledetail spsd 
+									Join fin_payment_detail sfpd on sfpd.fin_payment_detail_id = spsd.fin_payment_detail_id 
+									Join fin_payment fp on sfpd.fin_payment_id = fp.fin_payment_id and fp.status = %L
+								Group by spsd.fin_payment_schedule_invoice 
+							) psd on psd.fin_payment_schedule_invoice = ps.fin_payment_schedule_id  
+					Where ps.c_invoice_id = %L  
+						And COALESCE(ps.outstandingamt,0) - COALESCE(psd.amount,0) > 0  
+					Order By ps.expecteddate ASC','RPAE' ,V_C_Invoice_Id)
+						Into v_query
+					From dual;
+				End IF;
+				
+				For Cur_Fin_Payment_schedules In EXECUTE IMMEDIATE v_query
+				LOOP
+					V_Fin_Payment_Schedule_Id := Cur_Fin_Payment_schedules.fin_payment_schedule_id;
+
+					-- Check the payment schaedule detail before updated
+					Select count(psd.fin_payment_scheduledetail_id)
+						Into V_Count_PaymentSchedDetail
+					From fin_payment_scheduledetail psd
+					Where psd.fin_payment_schedule_invoice = V_Fin_Payment_Schedule_Id;
+					
+					If V_Count_PaymentSchedDetail = 0 then
+						v_ResultStr:= '@SSWS_NoPaymentSchedDetail@';
+						RAISE_APPLICATION_ERROR(-20000, '@SSWS_NoPaymentSchedDetail@');
+					End If;
+
+					IF V_Count_PaymentSchedDetail > 0 then
+						v_CountAux := 0;
+						v_CountPayment := 0;
+
+						FOR Cur_PaymentLines IN (
+							Select psd.fin_payment_scheduledetail_id, psd.amount
+							From fin_payment_scheduledetail psd
+							Where (psd.fin_payment_detail_id is null and psd.isinvoicepaid='N')
+								And psd.fin_payment_schedule_invoice = V_Fin_Payment_Schedule_Id
+							ORDER BY psd.amount asc
+						) LOOP
+
+							V_Fin_PaymentSchedDetail_Id := Cur_PaymentLines.fin_payment_scheduledetail_id;
+							v_CountAux:=v_CountAux+1;
+							v_CountPayment := v_CountPayment + 1;
+
+						END LOOP;
+
+						IF(v_CountAux=0) THEN
+							FOR Cur_PaymentLines IN (
+								select psd.fin_payment_scheduledetail_id, psd.amount
+								from fin_payment_scheduledetail psd
+								where (psd.fin_payment_detail_id is not null and psd.isinvoicepaid='Y')
+								and psd.fin_payment_schedule_invoice = V_Fin_Payment_Schedule_Id
+								ORDER BY psd.amount asc
+							) LOOP
+
+								V_Fin_PaymentSchedDetail_Id:= Cur_PaymentLines.fin_payment_scheduledetail_id;
+								v_CountPayment := 1;
+
+							END LOOP;
+						END IF;
+					END IF; -- End V_Count_PaymentSchedDetail > 0
+
+					-- Retención de manera proporcional
+					If (Cur_Fin_Payment_schedules.outstandingamt < v_Trx_Amount_Total) Then
+						v_Trx_Amount := Cur_Fin_Payment_schedules.outstandingamt;
+						v_Trx_Amount_Total := v_Trx_Amount_Total - Cur_Fin_Payment_schedules.outstandingamt;
+						v_Is_Trx_Tot := 'Y';
+
+					Else 
+						v_Trx_Amount := v_Trx_Amount_Total;
+						v_Is_Trx_Tot := 'N';
+						v_Trx_Amount_Total:=0;
+					End If;
+	
+					-- Insert lines into fin_payment_scheduledetail
+
+					--Insert fin_payment_detail
+					v_fin_payment_detail_id := get_uuid();
+					insert into fin_payment_detail(fin_payment_detail_id, ad_client_id, ad_org_id, created, createdby, updated,updatedby, fin_payment_id, amount, refund, isactive,
+					writeoffamt, c_glitem_id, isprepayment)
+					values (v_fin_payment_detail_id, V_Client_Id, V_Org_Id, now(), V_User_Id, now(), V_User_Id, '11111111111111111111111111111111', round(v_Trx_Amount,2), 'N', 'Y', 0, null,'N');
+					
+					If (v_Is_Trx_Tot = 'N') Then
+						v_NewScheduleDetail:= Get_Uuid();
+						insert into fin_payment_scheduledetail 
+						(FIN_PAYMENT_SCHEDULEDETAIL_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY, 
+						EM_SSWS_WITHHOLDINGSALE_ID, AMOUNT, FIN_PAYMENT_SCHEDULE_INVOICE, WRITEOFFAMT, ISCANCELED, ISINVOICEPAID, fin_payment_detail_id, em_ssws_amount, c_bpartner_id)
+						values
+						(v_NewScheduleDetail, V_Client_Id, V_Org_Id, 'Y', COALESCE(TO_DATE(v_DateWithholding),now()), V_User_Id, COALESCE(TO_DATE(v_DateWithholding),now()), V_User_Id, 
+						V_RECORD_ID, v_Trx_Amount, V_Fin_Payment_Schedule_Id, 0, 'N','Y', v_fin_payment_detail_id, 0, v_bpartner_id);
+
+						Update Fin_Payment_ScheduleDetail Psd Set 
+							Amount = round((Psd.Amount -v_Trx_Amount),2)
+							, ISINVOICEPAID = 'N'
+						Where Psd.Fin_Payment_ScheduleDetail_Id = V_Fin_PaymentSchedDetail_Id;
+
+					Else
+						Update Fin_Payment_ScheduleDetail Psd 
+							Set em_ssws_withholdingsale_id = V_Record_Id,
+								Amount = v_Trx_Amount
+								, isinvoicepaid = 'Y'
+								, fin_payment_detail_id = v_fin_payment_detail_id
+								, c_bpartner_id = v_bpartner_id 
+						Where Psd.Fin_Payment_ScheduleDetail_Id = V_Fin_PaymentSchedDetail_Id;
+					End If;
+
+					-- Update paid amount on fin_payment_schedule
+					Update Fin_Payment_Schedule Ps Set Paidamt = round((Paidamt + v_Trx_Amount),2), Outstandingamt = round((Outstandingamt - v_Trx_Amount),2) Where Ps.Fin_Payment_Schedule_Id = V_Fin_Payment_Schedule_Id;
+					EXIT WHEN v_Trx_Amount_Total = 0;
+				End Loop; 
+
+				--Retorna a estado procesado
+				update fin_payment set processed = 'Y'
+				where fin_payment_id = '11111111111111111111111111111111';
+
+				-- Update paid amount on c_invoice
+				Update C_Invoice I Set Totalpaid = round((Totalpaid + V_Amt),2), Outstandingamt = round((Outstandingamt - V_Amt),2) 
+						, EM_Sswh_Totalwithholdingincome = V_TotalWhRentalAmt 
+						, EM_Sswh_Totalwithholdingvat = V_TotalWhIVAAmt
+				Where I.C_Invoice_Id = V_C_Invoice_Id;
+
+				-- Process the withholding sale
+				update Ssws_Withholdingsale whs set processed = 'Y', Docstatus = 'CO', Docaction = '--'
+				,fin_payment_scheduledetail_id = v_NewScheduleDetail
+				where Whs.Ssws_Withholdingsale_Id = V_RECORD_ID;
+
+				V_Message := '@RowsInserted@';
+			END IF; -- End round(V_Amt,2) = 0
+		End If; -- End CC
+	End If;-- End Process
+End If;--End Paid invoice
+
+    -- Set processing 'N'
+    Update Ssws_Withholdingsale Whs Set Processing = 'N' Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+    
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    -- Set processing 'N'
+    Update Ssws_Withholdingsale Whs Set Processing = 'N' Where Whs.Ssws_Withholdingsale_Id = V_Record_Id;
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSWS_WHSALE_PROCESS
+]]></body>
+    </function>
+  </database>

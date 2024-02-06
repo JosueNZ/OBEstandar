@@ -1,0 +1,1117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_Blind_Inventory" pageWidth="2772" pageHeight="555" orientation="Landscape" columnWidth="2772" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="1ff74371-b648-4543-b659-e7d98574dcb7">
+	<property name="ireport.zoom" value="1.1000000000000463"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<parameter name="DATE_FROM" class="java.util.Date"/>
+	<parameter name="DATE_TO" class="java.util.Date"/>
+	<parameter name="M_BRAND_ID" class="java.lang.String"/>
+	<parameter name="SSFI_MODEL_PROD_ID" class="java.lang.String"/>
+	<parameter name="C_BPARTNER_ID" class="java.lang.String"/>
+	<parameter name="M_PRODUCT_ID" class="java.lang.String"/>
+	<parameter name="M_WAREHOUSE_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[(SELECT
+	ao.ad_org_id as "ad_org_id",
+	ao.name AS "organization",
+	co.c_order_id as "id",
+	co.docstatus as "estado",
+	olq.quotation_id,
+	co.documentno as "numero",
+	co.dateordered as "fechapresupuesto",
+	cbp.referenceno as "cliente",
+	cbp.name as "clientenombre",
+	au.name as "vendedor",
+	mp.value as "codigoproducto",
+	mp.name as "nombreproducto",
+	br.name as "marca",
+	mpro.name as"modelo",
+	mwh.name as "bodega",
+	mp.value as "codigoproductopedido",
+	mp.name as "nombreproductopedido",
+	br.name as "marcapedido",
+	mpro.name as"modelopedido",
+	olq.name as "bodegapedido",
+	ol.qtyordered as "cantidadpresupuesto",
+	coalesce(olq.documentno,'') as "numeropedidoventa",
+	prv.value as "codigoproductopedidoventa",
+	olq.qtyordered as "cantidadpedido",
+	olq.qtyinvoiced as "cantidadfacturada",
+	olq.qtydelivered as "cantidaddespachada",
+	coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) as "stockpresupuesto",
+	CASE
+	    WHEN olq.qtydelivered >= olq.qtyordered THEN to_number(1)
+	    ELSE to_number(0)
+	END AS "cumplimiento",
+	CASE
+	    WHEN coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) >= ol.qtyordered THEN to_number(1)
+	    WHEN coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) <= olq.qtydelivered
+                   AND olq.qtydelivered >= olq.qtyordered THEN to_number(1)
+	    ELSE to_number(0)
+	END AS "cumplimientofinal",
+	olq.dateordered as "fecha",
+	(select AD_USER.NAME from AD_USER where AD_USER_ID = $P{AD_USER_ID}) AS "usuario",
+	to_char(now(),'dd-MM-yyyy') as "fecha_actual",
+sscsl_getlastinvoiceinfo(olq.c_order_id, '1') as "fechaultimafactura",
+sscsl_getlastinvoiceinfo(olq.c_order_id, '2') as "numeroultimafactura"
+FROM c_order co
+LEFT JOIN c_orderline ol ON co.c_order_id = ol.c_order_id
+LEFT JOIN (
+select coq.c_order_id, olq.m_product_id, coq.dateordered, coq.c_bpartner_id, coq.documentno, coq.quotation_id, olq.qtyordered, olq.qtyinvoiced,olq.qtydelivered,mwh.name
+from c_order coq
+left join c_orderline olq on olq.c_order_id = coq.c_order_id
+LEFT JOIN m_warehouse mwh ON mwh.m_warehouse_id = olq.m_warehouse_id
+group by coq.c_order_id,olq.m_product_id, coq.dateordered, coq.c_bpartner_id, coq.documentno, olq.qtyordered, olq.qtyinvoiced, olq.qtydelivered,mwh.name
+) olq on olq.m_product_id = ol.m_product_id and olq.quotation_id = co.c_order_id
+left join ad_user au on co.salesrep_id  = au.ad_user_id
+left join c_bpartner cbp ON cbp.c_bpartner_id = co.c_bpartner_id
+inner join m_product mp on ol.m_product_id = mp.m_product_id
+LEFT JOIN m_product prv ON olq.m_product_id = prv.m_product_id
+LEFT JOIN m_brand br ON br.m_brand_id = mp.m_brand_id
+LEFT JOIN ssfi_model_prod mpro ON mpro.ssfi_model_prod_id = mp.em_ssfi_model_prod_id
+LEFT JOIN m_warehouse mwh ON mwh.m_warehouse_id = ol.m_warehouse_id
+inner join ad_org ao on co.ad_org_id = ao.ad_org_id
+WHERE co.issotrx = 'Y'
+AND olq.dateordered between $P{DATE_FROM} and $P{DATE_TO}
+AND ( br.m_brand_id = $P{M_BRAND_ID} OR $P{M_BRAND_ID} IS NULL)
+AND ( mpro.ssfi_model_prod_id = $P{SSFI_MODEL_PROD_ID} OR $P{SSFI_MODEL_PROD_ID} IS NULL)
+AND ( olq.c_bpartner_id = $P{C_BPARTNER_ID} OR $P{C_BPARTNER_ID} IS NULL)
+AND ( olq.m_product_id = $P{M_PRODUCT_ID} OR $P{M_PRODUCT_ID} IS NULL)
+AND ( mwh.m_warehouse_id = $P{M_WAREHOUSE_ID} OR $P{M_WAREHOUSE_ID} IS NULL)
+AND prv.ProductType = 'I' and mp.ProductType = 'I'
+ORDER BY co.c_order_id ASC )
+
+UNION ALL
+
+(SELECT
+	ao.ad_org_id as "ad_org_id",
+	ao.name AS "organization",
+	co.c_order_id as "id",
+	co.docstatus as "estado",
+	co.quotation_id,
+	co.documentno as "numero",
+	co.dateordered as "fechapresupuesto",
+	cbp.referenceno as "cliente",
+	cbp.name as "clientenombre",
+	au.name as "vendedor",
+	mp.value as "codigoproducto",
+	mp.name as "nombreproducto",
+	br.name as "marca",
+	mpro.name as"modelo",
+	mwh.name as "bodega",
+	NULL as "codigoproductopedido",
+	NULL as "nombreproductopedido",
+	NULL as "marcapedido",
+	NULL as"modelopedido",
+	NULL as "bodegapedido",
+	ol.qtyordered as "cantidadpresupuesto",
+	'' as "numeropedidoventa",
+	prv.value as "codigoproductopedidoventa",
+	to_number(0) as "cantidadpedido",
+	to_number(0) as "cantidadfacturada",
+	to_number(0) as "cantidaddespachada",
+	coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) as "stockpresupuesto",
+	to_number(0) as "cumplimiento",
+	CASE
+	    WHEN coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) >= ol.qtyordered THEN to_number(1)
+	    WHEN coalesce(sscsl_stock_budget_allwh(ol.m_product_id,co.c_order_id), 0) <= to_number(0) AND to_number(0) = 1 THEN to_number(1)
+	    ELSE to_number(0)
+	END AS "cumplimientofinal",
+	co.dateordered as "fecha",
+	(select AD_USER.NAME from AD_USER where AD_USER_ID = $P{AD_USER_ID}) AS "usuario",
+	to_char(now(),'dd-MM-yyyy') as "fecha_actual",
+to_CHAR('') as "fechaultimafactura",
+to_char('') as "numeroultimafactura"
+FROM c_order co
+LEFT JOIN c_orderline ol ON co.c_order_id = ol.c_order_id
+left join ad_user au on co.salesrep_id  = au.ad_user_id
+left join c_bpartner cbp ON cbp.c_bpartner_id = co.c_bpartner_id
+inner join m_product mp on ol.m_product_id = mp.m_product_id
+LEFT JOIN m_product prv ON ol.m_product_id = prv.m_product_id
+LEFT JOIN m_brand br ON br.m_brand_id = mp.m_brand_id
+LEFT JOIN ssfi_model_prod mpro ON mpro.ssfi_model_prod_id = mp.em_ssfi_model_prod_id
+LEFT JOIN m_warehouse mwh ON mwh.m_warehouse_id = ol.m_warehouse_id
+inner join ad_org ao on co.ad_org_id = ao.ad_org_id
+WHERE co.issotrx = 'Y'
+AND co.docstatus = 'UE'
+AND co.dateordered between $P{DATE_FROM} and $P{DATE_TO}
+AND ( br.m_brand_id = $P{M_BRAND_ID} OR $P{M_BRAND_ID} IS NULL)
+AND ( mpro.ssfi_model_prod_id = $P{SSFI_MODEL_PROD_ID} OR $P{SSFI_MODEL_PROD_ID} IS NULL)
+AND ( co.c_bpartner_id = $P{C_BPARTNER_ID} OR $P{C_BPARTNER_ID} IS NULL)
+AND ( ol.m_product_id = $P{M_PRODUCT_ID} OR $P{M_PRODUCT_ID} IS NULL)
+AND ( mwh.m_warehouse_id = $P{M_WAREHOUSE_ID} OR $P{M_WAREHOUSE_ID} IS NULL)
+AND prv.ProductType = 'I' and mp.ProductType = 'I'
+ORDER BY co.c_order_id ASC)
+
+UNION ALL
+
+(SELECT t.ad_org_id,
+	t.organization,
+	t.id,
+	t.estado,
+	t.quotation_id,
+	t.numero,
+	t.fechapresupuesto,
+	t.cliente,
+	t.clientenombre,
+	t.vendedor,
+	t.codigoproducto,
+	t.nombreproducto,
+	t.marca,
+	t.modelo,
+	t.bodega,
+	t.codigoproductopedido,
+	t.nombreproductopedido,
+	t.marcapedido,
+	t.modelopedido,
+	t.bodegapedido,
+	t.cantidadpresupuesto,
+	t.numeropedidoventa,
+	t.codigoproductopedidoventa,
+	t.cantidadpedido,
+	t.cantidadfacturada,
+	t.cantidaddespachada,
+	t.stockpresupuesto,
+	t.cumplimiento,
+    CASE
+	    WHEN stockpresupuesto >= t.cantidadpedido THEN to_number(1)
+	    WHEN stockpresupuesto <= t.cantidaddespachada
+            AND t.cantidaddespachada >= t.cantidadpedido THEN to_number(1)
+	    ELSE to_number(0)
+	END AS cumplimientofinal,
+	t.fecha,
+	t.usuario,
+	t.fecha_actual,
+	t.fechaultimafactura,
+	t.numeroultimafactura
+FROM (SELECT NULL AS ad_org_id,
+    	NULL AS organization,
+    	NULL AS id,
+    	NULL AS estado,
+    	co.quotation_id,
+    	NULL AS numero,
+    	NULL::TIMESTAMP AS fechapresupuesto,
+    	NULL AS cliente,
+    	NULL AS clientenombre,
+    	NULL AS vendedor,
+    	NULL AS codigoproducto,
+    	NULL AS nombreproducto,
+    	NULL AS marca,
+    	NULL AS modelo,
+    	NULL AS bodega,
+    	mp.value AS codigoproductopedido,
+    	mp.name AS nombreproductopedido,
+    	br.name AS marcapedido,
+    	mpro.name AS modelopedido,
+    	mwh.name AS bodegapedido,
+    	NULL::NUMERIC AS cantidadpresupuesto,
+    	COALESCE(co.documentno,'') AS numeropedidoventa,
+    	mp.value AS codigoproductopedidoventa,
+    	olq.qtyordered AS cantidadpedido,
+    	olq.qtyinvoiced AS cantidadfacturada,
+    	olq.qtydelivered AS cantidaddespachada,
+    	COALESCE(sscsl_stock_budget_allwh(olq.m_product_id,co.c_order_id), 0) AS stockpresupuesto,
+    	CASE
+    	    WHEN olq.qtydelivered >= olq.qtyordered THEN to_number(1)
+    	    ELSE to_number(0)
+    	END AS cumplimiento,
+    	olq.dateordered AS fecha,
+    	(SELECT AD_USER.NAME FROM AD_USER WHERE AD_USER_ID = $P{AD_USER_ID}) AS "usuario",
+    	TO_CHAR(NOW(),'dd-MM-yyyy') AS fecha_actual,
+    	sscsl_getlastinvoiceinfo(co.c_order_id, '1') AS fechaultimafactura,
+    	sscsl_getlastinvoiceinfo(co.c_order_id, '2') AS numeroultimafactura
+    	FROM c_order co
+    	LEFT JOIN c_doctype AS dt ON dt.c_doctype_id = co.c_doctype_id
+    	LEFT JOIN c_orderline AS olq ON olq.c_order_id = co.c_order_id
+    	LEFT JOIN m_product AS mp ON mp.m_product_id = olq.m_product_id
+    	LEFT JOIN m_brand AS br ON br.m_brand_id = mp.m_brand_id
+    	LEFT JOIN ssfi_model_prod AS mpro ON mpro.ssfi_model_prod_id = mp.em_ssfi_model_prod_id
+    	LEFT JOIN m_warehouse AS mwh ON mwh.m_warehouse_id = olq.m_warehouse_id
+    	LEFT JOIN ad_org AS ao ON co.ad_org_id = ao.ad_org_id
+    WHERE co.issotrx = 'Y' AND dt.isreturn='N' AND dt.docsubtypeso NOT LIKE '%OB%'
+    	AND co.dateordered BETWEEN $P{DATE_FROM} AND $P{DATE_TO}
+    	AND ( br.m_brand_id = $P{M_BRAND_ID} OR $P{M_BRAND_ID} IS NULL)
+    	AND ( mpro.ssfi_model_prod_id = $P{SSFI_MODEL_PROD_ID} OR $P{SSFI_MODEL_PROD_ID} IS NULL)
+    	AND ( co.c_bpartner_id = $P{C_BPARTNER_ID} OR $P{C_BPARTNER_ID} IS NULL)
+    	AND ( olq.m_product_id = $P{M_PRODUCT_ID} OR $P{M_PRODUCT_ID} IS NULL)
+    	AND ( mwh.m_warehouse_id = $P{M_WAREHOUSE_ID} OR $P{M_WAREHOUSE_ID} IS NULL)
+    	AND mp.ProductType = 'I' AND co.quotation_id IS NULL AND co.docstatus='CO'
+    ORDER BY co.c_order_id ASC
+) AS t)]]>
+	</queryString>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="organization" class="java.lang.String"/>
+	<field name="id" class="java.lang.String"/>
+	<field name="estado" class="java.lang.String"/>
+	<field name="quotation_id" class="java.lang.String"/>
+	<field name="numero" class="java.lang.String"/>
+	<field name="fechapresupuesto" class="java.sql.Timestamp"/>
+	<field name="cliente" class="java.lang.String"/>
+	<field name="clientenombre" class="java.lang.String"/>
+	<field name="vendedor" class="java.lang.String"/>
+	<field name="codigoproducto" class="java.lang.String"/>
+	<field name="nombreproducto" class="java.lang.String"/>
+	<field name="marca" class="java.lang.String"/>
+	<field name="modelo" class="java.lang.String"/>
+	<field name="bodega" class="java.lang.String"/>
+	<field name="codigoproductopedido" class="java.lang.String"/>
+	<field name="nombreproductopedido" class="java.lang.String"/>
+	<field name="marcapedido" class="java.lang.String"/>
+	<field name="modelopedido" class="java.lang.String"/>
+	<field name="bodegapedido" class="java.lang.String"/>
+	<field name="cantidadpresupuesto" class="java.math.BigDecimal"/>
+	<field name="numeropedidoventa" class="java.lang.String"/>
+	<field name="codigoproductopedidoventa" class="java.lang.String"/>
+	<field name="cantidadpedido" class="java.math.BigDecimal"/>
+	<field name="cantidadfacturada" class="java.math.BigDecimal"/>
+	<field name="cantidaddespachada" class="java.math.BigDecimal"/>
+	<field name="stockpresupuesto" class="java.math.BigDecimal"/>
+	<field name="cumplimiento" class="java.math.BigDecimal"/>
+	<field name="cumplimientofinal" class="java.math.BigDecimal"/>
+	<field name="fecha" class="java.sql.Timestamp"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fecha_actual" class="java.lang.String"/>
+	<field name="fechaultimafactura" class="java.lang.String"/>
+	<field name="numeroultimafactura" class="java.lang.String"/>
+	<variable name="sum_cant_pre" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cantidadpresupuesto}]]></variableExpression>
+	</variable>
+	<variable name="sum_cant_pedido" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cantidadpedido}]]></variableExpression>
+	</variable>
+	<variable name="sum_cant_fact" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cantidadfacturada}]]></variableExpression>
+	</variable>
+	<variable name="sum_cant_desp" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cantidaddespachada}]]></variableExpression>
+	</variable>
+	<variable name="sum_cumplimiento" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cumplimiento}]]></variableExpression>
+	</variable>
+	<variable name="cont_cumplimiento" class="java.math.BigDecimal" calculation="Count">
+		<variableExpression><![CDATA[$F{cumplimiento}]]></variableExpression>
+	</variable>
+	<variable name="sum_cumplimiento1" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cumplimientofinal}]]></variableExpression>
+	</variable>
+	<variable name="cont_cumplimiento1" class="java.math.BigDecimal" calculation="Count">
+		<variableExpression><![CDATA[$F{cumplimientofinal}]]></variableExpression>
+	</variable>
+	<variable name="sumastock" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{stockpresupuesto}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="80" splitType="Stretch">
+			<staticText>
+				<reportElement x="119" y="0" width="2634" height="40" uuid="520f5e85-60d7-4194-84ac-ede82ac2a0a3"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[NIVEL DE SERVICIO A CLIENTES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="328" y="40" width="245" height="20" uuid="08ed4126-7c65-4f02-b635-ba4e7ea97cc8"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha final:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="119" y="40" width="209" height="20" uuid="0c4c27a9-35d1-4f51-8bef-c3768007f3d4"/>
+				<box leftPadding="0"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$P{DATE_FROM}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="573" y="40" width="329" height="20" uuid="3da43b66-92b5-4133-b28b-f8d934f6c677"/>
+				<box leftPadding="0"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$P{DATE_TO}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="40" width="119" height="20" uuid="36d34a8a-3383-423f-aa46-406ab65ce230"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha inicio:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="60" width="1342" height="20" uuid="551e2251-7eba-4b01-adcf-a7eb0b515e5f"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Presupuesto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1342" y="60" width="1188" height="20" uuid="abe4ee10-9dec-4643-9970-3f8e859a4362"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Pedido y Factura]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2530" y="60" width="223" height="20" uuid="156c80b5-d277-435c-9dfe-cc99f5ed164b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Inventarios]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Center" vAlign="Middle" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="119" height="40" uuid="461c5b90-cd4b-43ec-8b69-524ee04da139"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal",$F{ad_org_id})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="119" height="20" uuid="bb075a0d-8ea5-4509-bfe8-985fa27bc962"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="902" y="0" width="100" height="20" uuid="ddb32276-730e-4fa1-bfe0-3c94d7a82e12"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Marca de producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="573" y="0" width="102" height="20" uuid="76981a49-7a8f-430e-bdc9-e99612f2783d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Código producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1342" y="0" width="90" height="20" uuid="d89d1885-3a8d-443b-bdc5-796d58a31836"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="675" y="0" width="227" height="20" uuid="872e7c48-fddc-4e63-9042-19c9c46a4159"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombre de producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1002" y="0" width="100" height="20" uuid="97244cf3-3890-4818-8715-15c62a507e21"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Modelo del producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1202" y="0" width="66" height="20" uuid="02b903b7-9885-42d4-b660-8c02754341e2"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de cliente]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1268" y="0" width="74" height="20" uuid="e651611a-c435-4d77-a76f-eda6d7ad255c"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cantidad Presupuesto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1524" y="0" width="100" height="20" uuid="9ddb416a-3ee0-4057-a7ac-3df5336a6f32"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha última factura]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="209" y="0" width="119" height="20" uuid="66cc840c-8c62-4873-af77-e793c5e61b3b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Vendedor]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="328" y="0" width="245" height="20" uuid="580ff9e1-6635-4e1d-8d2a-045ca4ebd70c"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cliente]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1102" y="0" width="100" height="20" uuid="89706122-9c5c-4538-873b-093e7070c3eb"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Bodega]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2530" y="0" width="120" height="20" uuid="075b632c-fac4-477c-ad33-189d2a703478"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Stock a fecha de presupuesto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2311" y="0" width="67" height="20" uuid="a6a53f9e-f726-4b51-9bdd-af6f92577a8c"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cantidad Facturada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2378" y="0" width="76" height="20" uuid="9b5ab8cf-40fd-4b5d-870c-77aec85765d5"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cantidad Despachada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2253" y="0" width="58" height="20" uuid="29fd7616-d956-4b07-b835-166980206457"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Demanda]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2454" y="0" width="76" height="20" uuid="42c39fdc-7bd0-4c52-8f0d-b28fb2f5f772"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Servicio]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2650" y="0" width="103" height="20" uuid="24bf421d-a851-48d6-9329-83c677004079"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cumplimiento]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="119" y="0" width="90" height="20" uuid="1bfef953-fc88-4c05-8ba3-d92af513332a"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1432" y="0" width="92" height="20" uuid="a4aa1938-9943-4a2c-84c7-aae20b10f505"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número última factura]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2153" y="0" width="100" height="20" uuid="13da06fb-d251-4f43-9ef5-b7e5e342299f"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Bodega]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1624" y="0" width="102" height="20" uuid="df73f58f-7553-4ef2-ad0c-eaf8b83f8bef"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Código producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="2053" y="0" width="100" height="20" uuid="7d58ccc2-2361-47b2-a029-503fe81af95d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Modelo del producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1953" y="0" width="100" height="20" uuid="1a680845-96c9-4173-850a-93927faa2b59"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Marca de producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1726" y="0" width="227" height="20" uuid="da94cbbf-52e7-46c9-99d5-1e5d8259f39d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombre de producto]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="119" height="21" uuid="28d2c5bd-96b7-4b66-8eb7-8241b0a0a2f8"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{numero}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="573" y="0" width="102" height="21" uuid="0e99ad6a-6d02-47cb-9d5d-cd0fd4f71316"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{codigoproducto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="902" y="0" width="100" height="21" uuid="fe58367d-5fbb-4c68-96e5-c7a2553e513c"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{marca}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="675" y="0" width="227" height="21" uuid="d52975f1-3233-43b8-bfc0-3c37ad5cecee"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{nombreproducto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1002" y="0" width="100" height="21" uuid="5b39b82f-dc78-4107-883d-789b1a7d9fe2"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{modelo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1202" y="0" width="66" height="21" uuid="a310d0a8-9741-473a-870d-90e8f90244ad"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cliente}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1268" y="0" width="74" height="21" uuid="9c012f89-9c5b-431d-bd74-52eedfd076c6"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cantidadpresupuesto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1342" y="0" width="90" height="21" uuid="a822e361-2697-4e8f-aa5a-8fa3b2cd2ceb"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{numeropedidoventa}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="209" y="0" width="119" height="21" uuid="43126f45-480b-41c6-be1d-f9ade4439f78"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{vendedor}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="328" y="0" width="245" height="21" uuid="4af0b2e5-bb60-424d-8123-3aae4ae856c4"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{clientenombre}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1102" y="0" width="100" height="21" uuid="79071463-a18a-4c26-bb71-d66bd1c4cfb3"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{bodega}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2530" y="0" width="120" height="21" uuid="6647d36f-05ed-47fe-b63c-66ea2fb344f0"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{stockpresupuesto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2650" y="0" width="103" height="21" uuid="2982fe0a-6a93-44ca-96ef-432a378096db"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cumplimientofinal}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="119" y="0" width="90" height="21" uuid="66d221a9-7f37-4870-a817-0bec9ed505c6"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{fechapresupuesto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1524" y="0" width="100" height="21" uuid="40e17306-1b74-4cb4-8d52-887820fa93d9"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{fechaultimafactura}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2253" y="0" width="58" height="21" uuid="15daa401-b51e-4b56-9fdf-0352e0f4fafa"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cantidadpedido}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2311" y="0" width="67" height="21" uuid="a7347e69-154b-40fb-8fd5-33f1381e6e7b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cantidadfacturada}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2378" y="0" width="76" height="21" uuid="3e892f13-65bc-4d33-b62b-453d0a34418c"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cantidaddespachada}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2454" y="0" width="76" height="21" uuid="333f228c-e4bd-401e-bb56-6691e02e079d"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{cumplimiento}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="1432" y="0" width="92" height="21" forecolor="#000000" backcolor="#FFFFFF" uuid="09e7b202-a87d-4b3d-87ee-4ef8baed1d55"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{numeroultimafactura}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="1624" y="0" width="102" height="21" forecolor="#000000" backcolor="#FFFFFF" uuid="f5736dd4-3d66-44f3-8307-72f8321f0a67"/>
+				<box leftPadding="0">
+					<pen lineWidth="0.5"/>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{codigoproductopedido}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1726" y="0" width="227" height="21" uuid="f414b677-625d-403d-95a3-097f117ea702"/>
+				<box leftPadding="0">
+					<pen lineWidth="0.5"/>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{nombreproductopedido}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1953" y="0" width="100" height="21" uuid="8fc4e4dd-945f-4e90-bbe9-48e8cb6fafaf"/>
+				<box leftPadding="0">
+					<pen lineWidth="0.5"/>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{marcapedido}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2053" y="0" width="100" height="21" uuid="691c58f6-4ebb-40ca-b2f7-170247d7ffe1"/>
+				<box leftPadding="0">
+					<pen lineWidth="0.5"/>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{modelopedido}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="2153" y="0" width="100" height="21" uuid="02f7b3bc-5eca-4877-b9c7-ea946614c8ee"/>
+				<box leftPadding="0">
+					<pen lineWidth="0.5"/>
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{bodegapedido}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="1268" y="0" width="74" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="1e3fa816-f275-4288-8a4f-4189faf21ca2"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_cant_pre}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2650" y="0" width="103" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="8c153c8a-7560-4d77-9412-5e6c98d160c5"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[Double.valueOf($V{sum_cumplimiento1}.toString()) / Double.valueOf($V{cont_cumplimiento1}.toString())]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2530" y="0" width="120" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="d1b8c911-d659-4eb1-8d5f-78353dba8787"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sumastock}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2311" y="0" width="67" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="52b981fc-9bc3-477c-be4f-b573876c3eb5"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_cant_fact}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2378" y="0" width="76" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="b66e88ab-d659-4761-936b-be52ef31cdfe"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_cant_desp}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2454" y="0" width="76" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="55cb6b60-bf11-4168-8b81-20fb0dbec76b"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[Double.valueOf($V{sum_cumplimiento}.toString()) / Double.valueOf($V{cont_cumplimiento}.toString())]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="2253" y="0" width="58" height="20" forecolor="#000000" backcolor="#FFFFFF" uuid="ca37bde4-54fe-4771-9ffd-dfe8bd5f2d3e"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="0.5"/>
+					<leftPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_cant_pedido}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

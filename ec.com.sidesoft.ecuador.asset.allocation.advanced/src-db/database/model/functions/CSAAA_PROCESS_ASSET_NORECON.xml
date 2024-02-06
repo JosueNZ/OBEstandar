@@ -1,0 +1,228 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION CSAAA_PROCESS_ASSET_NORECON">
+    <function name="CSAAA_PROCESS_ASSET_NORECON" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+  Cur_Assets RECORD;
+  Cur_Concept RECORD;
+
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_AD_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_Record_ID VARCHAR2(32);
+  v_ApplActiveID VARCHAR2(60);
+  v_Ticket_ID VARCHAR2(32); 
+  v_Period_ID VARCHAR2(32);   
+  v_Concept_ID VARCHAR2(32);
+  V_BPARTNER_ID VARCHAR2(60);
+  v_payroll_type VARCHAR2(32);   
+  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+--  --valornull_exception  Exception;
+  v_amount NUMBER;
+  V_AMOUNT_CONCEP NUMBER;
+  
+  v_value NUMBER;
+
+  v_isliquidation CHARACTER(1);       --OBTG:VARCHAR2--
+  v_c_partner_id_payroll VARCHAR2(32);
+  v_InvTakingID VARCHAR2(32);
+  v_InvTakingOLDID VARCHAR2(32);
+  v_CustodiumOld_ID VARCHAR2(32);
+  v_applActive_ID  VARCHAR2(32);
+  v_SequenceID  VARCHAR2(32);
+  v_DocumentNO  VARCHAR2(32);
+  v_DocTypeID VARCHAR2(32);
+  V_idS VARCHAR2(4000);
+
+  v_SQLUpdate VARCHAR2(4000);
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    V_idS:='';
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_Record_ID := Cur_Parameter.Record_ID;	
+      v_AD_User_ID := Cur_Parameter.AD_User_ID;  
+      
+    END LOOP; -- Get Parameter
+
+	v_InvTakingID:= get_uuid();
+	v_InvTakingOLDID:='';
+	v_CustodiumOld_ID:= '';
+
+ FOR Cur_Assets IN(
+	SELECT
+	A_ASSET_ID
+	,citl.custodian_id as custodium_id 
+	,CIT.AD_ORG_ID
+	,CIT.AD_CLIENT_ID
+	,case when cit.custodian_id is not null then cit.custodian_id else  coalesce(citl.custodian2_id,citl.custodian_id) end as new_custodium
+	,case when cit.c_costcenter_id is not null then cit.c_costcenter_id else  coalesce(citl.c_costcenter2_id,citl.c_costcenter_id) end as c_costcenter_id
+	,case when cit.user1_id is not null then cit.user1_id else  coalesce(citl.user1_2_id,citl.user1_id) end as user1_id
+	,case when cit.user2_id is not null then cit.user2_id else  coalesce(citl.user2_2_id,citl.user2_id) end as user2_id
+	,case when cit.building_id is not null then cit.building_id else  coalesce(citl.building2_id,citl.building_id) end as building_id	
+	,case when cit.unit_id is not null then cit.unit_id else  coalesce(citl.unit2_id,citl.unit_id) end as unit_id	
+	,case when cit.department_id is not null then cit.department_id else  coalesce(citl.department2_id,citl.department_id) end as department_id
+	,a_asset_group_id
+	FROM csaaa_custodianline citl 
+	join csaaa_custodian cit on cit.csaaa_custodian_id = citl.csaaa_custodian_id
+	where citl.csaaa_custodian_id = v_Record_ID
+	order by 6
+    )LOOP
+
+	     if (v_CustodiumOld_ID<>Cur_Assets.new_custodium) then
+        
+	     	v_InvTakingID:= get_uuid();
+
+	     	V_idS := V_idS || '''' || v_InvTakingID || ''',';
+
+	     	SELECT COALESCE((select c_doctype_id from c_doctype where DocBaseType = 'SSAL_FIXED' and UPPER(name) like '%SOLICITUD%'),TO_CHAR('ND'))
+		INTO v_DocTypeID
+		FROM DUAL;
+
+	     	SELECT COALESCE((select DOCNOSEQUENCE_ID from c_doctype where DocBaseType = 'SSAL_FIXED' and UPPER(name) like '%SOLICITUD%'),TO_CHAR('ND'))
+		INTO v_SequenceID
+		FROM DUAL;
+
+		SELECT COALESCE((SELECT TO_CHAR(CURRENTNEXT) FROM AD_SEQUENCE WHERE AD_SEQUENCE_ID = v_SequenceID
+		),TO_CHAR('1'))
+		INTO v_DocumentNO
+		FROM DUAL;
+
+		update AD_SEQUENCE set CURRENTNEXT=( CURRENTNEXT + incrementno)
+		where AD_SEQUENCE_ID = v_SequenceID;
+
+	     	
+
+		INSERT INTO ssal_active_main(
+			    ad_client_id, ad_org_id, created, createdby, updated, updatedby, 
+			    isactive, ssal_active_main_id, m_product_id, c_doctype_id, c_costcenter_id, 
+			    user1_id, user2_id, c_bpartner_id, date_application, quantity, 
+			    value, justification, name, description, documentno, approved, 
+			    processed, cancel_processed, ssal_building_id, ssal_unit_id, 
+			    ssal_department_id, process_request, state, a_asset_id, a_asset_group_id, 
+			    date_transaction, description_mov, a_asset_cod_id, date_return, 
+			    motive_return, is_return, c_doctype_id_return, documentno_return, 
+			    startdate, enddate, c_custodian_id, a_asset_upc_id, a_asset_description_id)
+		    VALUES (Cur_Assets.AD_CLIENT_ID, Cur_Assets.AD_ORG_ID, NOW(), v_AD_User_ID , NOW(), v_AD_User_ID, 
+			    TO_CHAR('Y'),v_InvTakingID , NULL, v_DocTypeID, Cur_Assets.c_costcenter_id, 
+			    Cur_Assets.user1_id , Cur_Assets.user2_id, null, now(), 1, 
+			    null, 'Re-conciliación', null, null,v_DocumentNO, 'Y', 
+			    to_char('N'), to_char('N'), Cur_Assets.building_id, Cur_Assets.unit_id, 
+			    Cur_Assets.department_id, to_char('N'), to_char('3'), null, null, 
+			    NOW(), NULL, NULL, NULL, 
+			    NULL, to_char('N'), NULL, NULL, 
+			    NOW(), NOW(), Cur_Assets.new_custodium, NULL, NULL);
+
+		v_CustodiumOld_ID:=Cur_Assets.new_custodium;
+	
+	     end if;
+
+
+	     /*SELECT COALESCE((SELECT 
+	     ssal_appl_active_id
+	     FROM ssal_appl_active
+	     WHERE C_CUSTODIAN_ID = Cur_Assets.custodium_id AND
+	      A_ASSET_ID = Cur_Assets.A_ASSET_ID 
+	     AND STATE='3' and EM_CSAAA_ISCONCILIATION='N'
+	     ),TO_CHAR('ND'))
+	     INTO v_ApplActiveID
+	     FROM DUAL;
+
+	     IF (v_ApplActiveID<>'ND') THEN*/
+	     
+		    UPDATE SSAL_APPL_ACTIVE SET EM_CSAAA_ISCONCILIATION='Y' 
+		    WHERE C_CUSTODIAN_ID = Cur_Assets.custodium_id AND A_ASSET_ID = Cur_Assets.A_ASSET_ID; 
+
+          	     v_applActive_ID:= get_uuid();
+
+			INSERT INTO ssal_appl_active(
+				    ad_client_id, ad_org_id, created, createdby, updated, updatedby, 
+				    isactive, ssal_appl_active_id, m_product_id, c_doctype_id, c_costcenter_id, 
+				    user1_id, user2_id, c_bpartner_id, date_application, quantity, 
+				    value, justification, name, description, documentno, approved, 
+				    processed, cancel_processed, ssal_building_id, ssal_unit_id, 
+				    ssal_department_id, process_request, state, a_asset_id, a_asset_group_id, 
+				    date_transaction, description_mov, a_asset_cod_id, date_return, 
+				    motive_return, is_return, c_doctype_id_return, documentno_return, 
+				    startdate, enddate, c_custodian_id, a_asset_upc_id, a_asset_description_id, 
+				    ssal_active_main_id, em_csaaa_isconciliation)
+			    VALUES (Cur_Assets.AD_CLIENT_ID, Cur_Assets.AD_ORG_ID, NOW(), v_AD_User_ID , NOW(), v_AD_User_ID, 
+				    TO_CHAR('Y'),v_applActive_ID, null, v_DocTypeID, Cur_Assets.c_costcenter_id, 
+				    Cur_Assets.user1_id, Cur_Assets.user2_id, null, NOW(), 1, 
+				    NULL, NULL, NULL, 'RE-CONCILIACION', v_DocumentNO, TO_CHAR('Y'), 
+				    TO_CHAR('Y'), TO_CHAR('N'), Cur_Assets.building_id, Cur_Assets.unit_id, 
+				    Cur_Assets.department_id, TO_CHAR('N'), TO_CHAR('3'), Cur_Assets.a_asset_id , Cur_Assets.a_asset_group_id, 
+				    NOW(), NULL, Cur_Assets.a_asset_id, NULL, 
+				    NULL, TO_CHAR('N'), NULL, NULL, 
+				    NOW(), NOW(), Cur_Assets.custodium_id , Cur_Assets.a_asset_id, NULL, 
+				    v_InvTakingID, TO_CHAR('Y'));
+		     
+		     
+
+		     INSERT INTO csaaa_log_asset(
+			    csaaa_log_asset_id, ad_client_id, ad_org_id, isactive, created, 
+			    createdby, updated, updatedby, csaa_appl_active_id, date_conciliation)
+		     VALUES (GET_UUID(), Cur_Assets.AD_CLIENT_ID, Cur_Assets.AD_ORG_ID, 'Y', NOW(), 
+			    v_AD_User_ID, NOW(), v_AD_User_ID, v_applActive_ID , NOW());
+
+			    
+		     UPDATE SSAL_APPL_ACTIVE SET EM_CSAAA_ISCONCILIATION='Y', processed='Y'
+		     WHERE SSAL_APPL_ACTIVE_ID = v_ApplActiveID;
+
+
+     
+	v_n_insertions:=v_n_insertions+1;
+     END LOOP;	
+		    
+	IF (LENGTH(TRIM(v_SQLUpdate))>0 ) THEN
+	v_SQLUpdate := 'update ssal_active_main set processed= '''|| TO_CHAR('Y') || ''' WHERE ssal_active_main_ID IN (' || SUBSTR(V_idS,1,LENGTH(V_idS)-1) || ''')' ;
+	EXECUTE IMMEDIATE v_SQLUpdate;
+	END IF;
+
+	
+     UPDATE csaaa_custodian SET PROCESSED='Y' WHERE csaaa_custodian_id = v_Record_ID;
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END CSAAA_PROCESS_ASSET_NORECON
+]]></body>
+    </function>
+  </database>

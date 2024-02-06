@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSIPOTM_LOADLINES">
+    <function name="SSIPOTM_LOADLINES" type="VARCHAR">
+      <parameter name="vrecordid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vRecord RECORD;
+vLoop RECORD;
+BEGIN
+	BEGIN
+
+		SELECT * INTO vRecord FROM ssipotm_partial_dispatch WHERE ssipotm_partial_dispatch_id=vRecordID;
+
+		FOR vLoop IN (
+			SELECT
+				ol.c_orderline_id
+				,ol.ad_client_id
+				,ol.ad_org_id
+				,ol.created
+				,ol.createdby
+				,ol.updated
+				,ol.updatedby
+				,ol.isactive
+				,o.c_order_id
+				,o.documentno
+				,o.poreference
+				,o.dateordered
+				,o.datepromised
+				,o.m_warehouse_id
+				,o.c_bpartner_id
+				,ol.m_product_id
+				,ol.em_sprli_identifier
+				,ol.c_uom_id
+				,COALESCE(ol.qtyordered,0) qtyordered
+				,COALESCE(ol.qtydelivered,0) qtydelivered
+				,COALESCE(ol.qtyinvoiced,0) qtyinvoiced
+			FROM c_order o
+				JOIN c_orderline ol ON ol.c_order_id = o.c_order_id
+			WHERE o.issotrx = 'Y' AND o.docstatus = 'CO'
+				AND o.c_bpartner_id=vRecord.c_bpartner_id
+				--AND o.m_warehouse_id=vRecord.m_warehouse_id
+				AND ol.qtydelivered < ol.qtyordered
+				AND ol.c_orderline_id NOT IN (
+					SELECT c_orderline_id FROM ssipotm_orderline WHERE ssipotm_partial_dispatch_id=vRecordID
+				)
+		) LOOP
+			INSERT INTO ssipotm_orderline (
+				ssipotm_orderline_id
+				,c_orderline_id
+				,ad_client_id
+				,ad_org_id
+				,created
+				,createdby
+				,updated
+				,updatedby
+				,isactive
+				,ssipotm_partial_dispatch_id
+				,c_order_id
+				,poreference
+				,dateordered
+				,datepromised
+				,m_warehouse_id
+				,c_bpartner_id
+				,m_product_id
+				,c_uom_id
+				,qtyordered
+				,qtydelivered
+				,qtyinvoiced
+			) VALUES (
+				get_uuid()
+				,vLoop.c_orderline_id
+				,vLoop.ad_client_id
+				,vLoop.ad_org_id
+				,now()
+				,vLoop.createdby
+				,now()
+				,vLoop.updatedby
+				,vLoop.isactive
+				,vRecordID
+				,vLoop.c_order_id
+				,vLoop.poreference
+				,vLoop.dateordered
+				,vLoop.datepromised
+				,vRecord.m_warehouse_id
+				,vLoop.c_bpartner_id
+				,vLoop.m_product_id
+				,vLoop.c_uom_id
+				,vLoop.qtyordered
+				,vLoop.qtydelivered
+				,vLoop.qtyinvoiced
+			);
+		END LOOP;
+
+		-- Delete old lines
+		DELETE FROM ssipotm_accumulated 
+		WHERE ssipotm_partial_dispatch_id=vRecordID
+		AND m_product_id NOT IN ( SELECT m_product_id 
+		FROM ssipotm_orderline WHERE ssipotm_partial_dispatch_id=vRecordID);
+
+		RETURN 'OK';
+	END;
+	EXCEPTION WHEN OTHERS THEN
+	RETURN SQLERRM;
+END SSIPOTM_LOADLINES
+]]></body>
+    </function>
+  </database>

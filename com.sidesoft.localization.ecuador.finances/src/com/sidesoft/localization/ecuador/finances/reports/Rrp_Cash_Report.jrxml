@@ -1,0 +1,617 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rrp_Cash_Report" pageWidth="1300" pageHeight="595" orientation="Landscape" columnWidth="1260" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DateFrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DateTo" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="financial_account" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_DOCTYPE_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_DOCTYPE2_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select ci.ad_org_id as "organizationid",
+dt.printname as "tipoTrans",
+ci.documentno as "Numtrans",
+ci.description as "description",
+bp.name as "tercero",
+ci.grandtotal,
+(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='EFECTIVO') as "efectivo",
+(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='CHEQUE') as "cheque",
+(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='CHEQUE POSFECHADO') as "cheque_pos",
+(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='CRUCE') as "cruce",
+--(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='TARJETA') as "tarjeta",
+case when fpm.em_sswh_codeats = '19'
+     then ci.grandtotal
+     else 0 end as "tarjeta",
+(select coalesce(sum(amount),0) from SESCR_INVOICE_PAYMENT_V where c_invoice_id=ci.c_invoice_id and em_sswh_value='TRANSFERENCIA') as "transferencia",
+(select coalesce(sum(totalwhivaamt),0) from Ssws_Withholdingsale where c_invoice_id=ci.c_invoice_id ) as "retencion_iva",
+(select coalesce(sum(totalwhrentalamt),0) from Ssws_Withholdingsale where c_invoice_id=ci.c_invoice_id ) as "retencion_renta",
+fpm.name as "metodopagofact"
+from c_invoice ci
+left join c_doctype dt on dt.c_doctype_id=ci.c_doctype_id
+left join c_bpartner bp on bp.c_bpartner_id=ci.c_bpartner_id
+left join fin_paymentmethod fpm on ci.fin_paymentmethod_id = fpm.fin_paymentmethod_id
+where (ci.issotrx='Y' and ci.docstatus='CO' and ci.dateinvoiced between $P{DateFrom} and $P{DateTo})
+ and dt.ad_table_id = '318' AND dt.issotrx='Y' AND dt.ISACTIVE='Y'
+AND (ci.c_doctype_id IN ($P{C_DOCTYPE_ID}, $P{C_DOCTYPE2_ID}) OR ($P{C_DOCTYPE_ID} IS NULL OR $P{C_DOCTYPE2_ID} IS NULL))
+order by dt.printname,ci.documentno asc]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="tipoTrans" class="java.lang.String"/>
+	<field name="Numtrans" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="grandtotal" class="java.math.BigDecimal"/>
+	<field name="efectivo" class="java.math.BigDecimal"/>
+	<field name="cheque" class="java.math.BigDecimal"/>
+	<field name="cheque_pos" class="java.math.BigDecimal"/>
+	<field name="cruce" class="java.math.BigDecimal"/>
+	<field name="tarjeta" class="java.math.BigDecimal"/>
+	<field name="transferencia" class="java.math.BigDecimal"/>
+	<field name="retencion_iva" class="java.math.BigDecimal"/>
+	<field name="retencion_renta" class="java.math.BigDecimal"/>
+	<field name="metodopagofact" class="java.lang.String"/>
+	<variable name="recaudado" class="java.math.BigDecimal" resetType="None">
+		<variableExpression><![CDATA[((((((($F{efectivo}).add( $F{cheque} )).add( $F{cheque_pos} )).add( $F{cruce} ))
+.add( $F{tarjeta} )).add( $F{transferencia})).add( $F{retencion_iva} ))
+.add( $F{retencion_renta} )]]></variableExpression>
+	</variable>
+	<variable name="cxc" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[($F{grandtotal}).subtract($V{recaudado} )]]></variableExpression>
+	</variable>
+	<variable name="total_cxc" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{cxc}]]></variableExpression>
+	</variable>
+	<variable name="total_lines" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{grandtotal}]]></variableExpression>
+	</variable>
+	<variable name="total_efectivo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{efectivo}]]></variableExpression>
+	</variable>
+	<variable name="total_cheque" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cheque}]]></variableExpression>
+	</variable>
+	<variable name="total_cheque_pos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cheque_pos}]]></variableExpression>
+	</variable>
+	<variable name="total_tarjetas" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{tarjeta}]]></variableExpression>
+	</variable>
+	<variable name="total_transfer" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{transferencia}]]></variableExpression>
+	</variable>
+	<variable name="total_cruce" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{cruce}]]></variableExpression>
+	</variable>
+	<variable name="total_ret_renta" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{retencion_renta}]]></variableExpression>
+	</variable>
+	<variable name="total_ret_iva" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{retencion_iva}]]></variableExpression>
+	</variable>
+	<variable name="total_recaudado" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{recaudado}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="95" splitType="Stretch">
+			<staticText>
+				<reportElement x="169" y="0" width="802" height="24"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="17" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DIARIO DE CAJA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="79" width="89" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo transacción]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="89" y="79" width="70" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nº Transacción]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="159" y="79" width="153" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Descripción]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="312" y="79" width="178" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tercero]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="624" y="79" width="70" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="694" y="79" width="51" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Efectivo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="745" y="79" width="52" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cheque]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="797" y="79" width="67" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cheque Pos.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="864" y="79" width="49" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tarjeta Retención]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1202" y="79" width="54" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CxC]]></text>
+			</staticText>
+			<image>
+				<reportElement x="0" y="0" width="110" height="47"/>
+				<imageExpression class="java.lang.String"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="913" y="79" width="53" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Transfer.]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="501" y="27" width="68" height="20"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.util.Date"><![CDATA[$P{DateFrom}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="579" y="27" width="82" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.util.Date"><![CDATA[$P{DateTo}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="570" y="27" width="8" height="20"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[-]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="966" y="79" width="53" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cruce]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1019" y="79" width="61" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ret. Fuente]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1080" y="79" width="61" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ret. Iva]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1141" y="79" width="61" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Recaudado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="490" y="79" width="134" height="16"/>
+				<box>
+					<leftPen lineWidth="0.5"/>
+					<rightPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Método de Pago Factura]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="28" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="89" height="27"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipoTrans}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="159" y="0" width="153" height="27"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{description}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="312" y="0" width="178" height="27"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="694" y="0" width="51" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{efectivo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="797" y="0" width="67" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{cheque_pos}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="864" y="0" width="48" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{tarjeta}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="0" y="27" width="1148" height="1"/>
+				<graphicElement>
+					<pen lineWidth="0.25" lineStyle="Dashed"/>
+				</graphicElement>
+			</line>
+			<textField isBlankWhenNull="true">
+				<reportElement x="89" y="0" width="70" height="27"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{Numtrans}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="624" y="0" width="70" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{grandtotal}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="745" y="0" width="50" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{cheque}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="913" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{transferencia}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="966" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{cruce}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1026" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{retencion_renta}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1087" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{retencion_iva}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1149" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{recaudado}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1203" y="0" width="53" height="27"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{cxc}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="490" y="0" width="134" height="27"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{metodopagofact}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="48" splitType="Stretch">
+			<textField>
+				<reportElement x="9" y="23" width="80" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA["Página "+$V{PAGE_NUMBER}+" de"]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="92" y="23" width="40" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[" " + $V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="160" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="1203" y="0" width="53" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_cxc}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="624" y="0" width="70" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_lines}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="694" y="0" width="51" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_efectivo}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="745" y="0" width="50" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_cheque}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="797" y="0" width="67" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_cheque_pos}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="572" y="0" width="52" height="20"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTALES]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="866" y="0" width="46" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_tarjetas}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="913" y="0" width="53" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_transfer}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="966" y="0" width="53" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_cruce}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1026" y="0" width="54" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_ret_renta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1087" y="0" width="53" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_ret_iva}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1149" y="0" width="53" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{total_recaudado}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="339" y="143" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Recepcionista]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="339" y="70" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Elaborado]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="528" y="70" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Visto Bueno]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="528" y="143" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Gerencia]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="732" y="70" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Contabilidad]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="732" y="143" width="97" height="16"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Contador]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

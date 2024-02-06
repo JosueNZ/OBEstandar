@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ModifySalaryData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+		select reporte.fechamaxima,
+         reporte.rucempresa,
+         reporte.ciudad,
+         reporte.anio,
+         reporte.mes,
+         reporte.MSU,
+         reporte.taxid,
+         reporte.amount,
+         reporte.c_bpartner_id,
+         reporte.sspr_contract_id,
+         sfpr_evolution_salary.enddate as fechamaximalast,
+         sfpr_evolution_salary.amount as amountlast,
+         reporte.estcode,
+         cbp.name as terceros   
+        from  
+        (  
+        select max(sfpr_evolution_salary.startdate) as fechamaxima,
+         ad_orginfo.taxid as rucempresa,
+         c_city.em_sspr_value as ciudad,
+         extract(year from c_period.startdate) anio,
+         case when extract(month from c_period.startdate) = 1 then '01'  
+              when extract(month from c_period.startdate) = 2 then '02'  
+              when extract(month from c_period.startdate) = 3 then '03'  
+              when extract(month from c_period.startdate) = 4 then '04'  
+              when extract(month from c_period.startdate) = 5 then '05'  
+              when extract(month from c_period.startdate) = 6 then '06'  
+              when extract(month from c_period.startdate) = 7 then '07'  
+              when extract(month from c_period.startdate) = 8 then '08'  
+              when extract(month from c_period.startdate) = 9 then '09'  
+              when extract(month from c_period.startdate) = 10 then '10'  
+              when extract(month from c_period.startdate) = 11 then '11'  
+              when extract(month from c_period.startdate) = 12 then '12'  
+         end as mes,
+         'MSU' as MSU,
+         c_bpartner.taxid,
+         sfpr_evolution_salary.amount,
+         sfpr_evolution_salary.sspr_contract_id,
+         c_bpartner.c_bpartner_id, 
+         '0' || j.name as estcode  
+        from c_bpartner
+        left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'  
+        left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id  
+        left join ad_orginfo on ad_orginfo.ad_org_id = c_bpartner.ad_org_id   
+        left join c_city on c_city.c_city_id = c_bpartner.em_sspr_city  
+        left join c_period on c_period.c_period_id = ?  
+        left join sspr_establishmentcode j on j.sspr_establishmentcode_id = c_bpartner.em_sspr_establishmentcode_id  
+        where c_bpartner.isemployee = 'Y'  
+        and sfpr_evolution_salary.startdate >= (select startdate from c_period where c_period_id = ?)  
+        and sfpr_evolution_salary.startdate <= (select enddate from c_period where c_period_id = ?)  
+        group by sfpr_evolution_salary.amount,  
+        ad_orginfo.taxid,
+         c_city.em_sspr_value,
+         c_period.startdate,
+         c_bpartner.taxid,
+         sfpr_evolution_salary.sspr_contract_id,
+         c_bpartner.c_bpartner_id,
+         sfpr_evolution_salary.startdate, j.name
+         ) reporte   
+        left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = reporte.sspr_contract_id  
+        left join c_bpartner cbp on cbp.c_bpartner_id = reporte.c_bpartner_id  
+        where reporte.fechamaxima = (select max(sfpr_evolution_salary.startdate)   
+            from c_bpartner  
+            left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'  
+            left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id  
+            left join ad_orginfo on ad_orginfo.ad_org_id = c_bpartner.ad_org_id  
+            left join c_city on c_city.c_city_id = c_bpartner.em_sspr_city  
+            left join c_period on c_period.c_period_id = ?  
+            where c_bpartner.c_bpartner_id =  reporte.c_bpartner_id  
+            and c_bpartner.isemployee = 'Y'  
+            and sfpr_evolution_salary.startdate >= (select startdate from c_period where c_period_id = ?)  
+            and sfpr_evolution_salary.startdate <= (select enddate from c_period where c_period_id = ?)  
+            group by c_bpartner.c_bpartner_id)  
+        and sfpr_evolution_salary.enddate in (select max(sfpr_evolution_salary.enddate) as fechamaximaanterior  
+                 from c_bpartner  
+                 left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_contract.isactive = 'Y'  
+                 left join sfpr_evolution_salary on sfpr_evolution_salary.sspr_contract_id = sspr_contract.sspr_contract_id  
+                where c_bpartner.c_bpartner_id = reporte.c_bpartner_id  
+                and c_bpartner.isemployee = 'Y' 
+                 and sfpr_evolution_salary.enddate <= reporte.fechamaxima -1  
+                 and sfpr_evolution_salary.sspr_contract_id = reporte.sspr_contract_id
+                 )  
+        and reporte.amount <> sfpr_evolution_salary.amount 
+      ]]>
+    </Sql>
+    <Parameter name="c_period_id"/>
+    <Parameter name="c_period_id"/>
+    <Parameter name="c_period_id"/>
+    <Parameter name="c_period_id"/>
+    <Parameter name="c_period_id"/>
+    <Parameter name="c_period_id"/>
+  </SqlMethod>
+
+</SqlClass>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+<SqlClass name="RptRequestAdvanceData" package="com.sidesoft.hrm.payroll.indebtedness.ad_reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple" accessModifier="public">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[   
+	     select sspr_loans.ad_org_id as organizationid,
+       c_bpartner.name as nombreempleado,
+       to_char(sspr_loans.requestdate) as fechasolicitud,
+       c_doctype.name as tipodocumento,
+       sspr_loans.em_sfpr_documentno as nodocumento,
+       to_char(sspr_loans.firstdate) as primerpago,
+	sspr_loans.amount as montototal,
+	c_bpartner.taxid as ci,
+	sspr_loans.time as numerocuotas,
+	ssfi_banktransfer.name as nombrebanco,
+	C_BP_BankAccount.accountno as nocuenta,
+	case when C_BP_BankAccount.bankaccounttype = 'S' then 'Ahorros'
+	   when C_BP_BankAccount.bankaccounttype = 'C' then 'Corriente'
+	end as tipocuenta,
+	sspr_loans.description as descripcion,
+	c_bpartner.name as gerencia,
+	C_BPartner_Location.name as direccion,
+	C_BPartner_Location.phone as telefono,
+	to_char(c_bpartner.em_sspr_entrydate) as fechaingreso,
+	c_bpartner.em_sspr_currentsalary as ultimosueldo,
+	sspr_line_loans.line as numerolinea,
+	to_char(sspr_line_loans.paydate) as diapago,
+	sspr_line_loans.amount as valorletra
+	from sspr_loans
+	left join sspr_line_loans on sspr_line_loans.sspr_loans_id = sspr_loans.sspr_loans_id
+	left join c_bpartner on c_bpartner.c_bpartner_id = sspr_loans.c_bpartner_id
+	left join C_BPartner_Location on C_BPartner_Location.c_bpartner_id = c_bpartner.c_bpartner_id
+	left join c_doctype on c_doctype.c_doctype_id = sspr_loans.em_sfpr_c_doctype_id
+	left join c_bp_bankaccount on c_bp_bankaccount.c_bpartner_id = c_bpartner.c_bpartner_id
+	left join ssfi_banktransfer on ssfi_banktransfer.ssfi_banktransfer_id = c_bp_bankaccount.em_ssfi_banktransfer_id
+	left join c_costcenter on c_costcenter.c_costcenter_id = c_bpartner.em_sspr_costcenter_id
+	where sspr_loans.sspr_loans_id = ? 
+	and sspr_loans.status = 'ap'
+        ]]>
+        </Sql>
+        <Parameter name="sspr_loans_id"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

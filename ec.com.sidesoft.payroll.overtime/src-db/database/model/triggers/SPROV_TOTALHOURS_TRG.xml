@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPROV_TOTALHOURS_TRG">
+    <trigger name="SPROV_TOTALHOURS_TRG" table="SPROV_OVERTIME_LINE" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+v_subtype VARCHAR2(60);
+v_sspr_shift_id VARCHAR2(32);
+v_shifttype VARCHAR2(60);
+v_datemovement DATE;
+v_nohours NUMBER;
+v_exit_shift2 DATE;
+v_authorized_time DATE;
+
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;	
+
+     
+   IF (INSERTING) THEN   
+
+     select datemovement
+     into v_datemovement
+     from sprov_overtime
+     where sprov_overtime_id = :new.sprov_overtime_id;
+
+	v_nohours := round(to_number(((to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:new.authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))
+				 - (to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:new.exit_shift2,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))))* 24,2);
+     
+     update sprov_overtime 
+    -- set hours_auth = hours_auth + new.generated_time
+     set hours_auth = hours_auth +  v_nohours
+     where sprov_overtime_id = :new.sprov_overtime_id;
+
+     :new.generated_time := v_nohours;
+         
+   ELSIF (UPDATING) THEN
+
+   select datemovement
+     into v_datemovement
+     from sprov_overtime
+     where sprov_overtime_id = :new.sprov_overtime_id;
+
+
+    v_nohours := round(to_number(((to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:new.authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))
+			- (to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:new.exit_shift2,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS')))
+			- ((to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:old.authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))
+			- (to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:old.exit_shift2,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))))* 24,2);
+
+     update sprov_overtime 
+     --set hours_auth = hours_auth + (new.generated_time - :old.generated_time)
+     set hours_auth = hours_auth + v_nohours
+     where sprov_overtime_id = :new.sprov_overtime_id;
+
+     :new.generated_time := :old.generated_time + v_nohours;
+
+   ELSIF (DELETING) THEN   
+     select datemovement
+     into v_datemovement
+     from sprov_overtime
+     where sprov_overtime_id = :old.sprov_overtime_id;
+
+     update sprov_overtime 
+     --set hours_auth = hours_auth - :old.generated_time
+     set hours_auth = hours_auth - round(to_number(((to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:old.authorized_time,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))
+				 - (to_timestamp((to_char(v_datemovement,'YYYY-MM-DD') || ' ' || to_char(:old.exit_shift2,'HH24:MI:SS')),'yyyy-mm-dd HH24:MI:SS'))))* 24,2)
+     where sprov_overtime_id = :old.sprov_overtime_id;
+   
+   END IF;  
+
+   END SPROV_TOTALHOURS_TRG
+]]></body>
+    </trigger>
+  </database>

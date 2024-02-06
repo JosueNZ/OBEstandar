@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_TIMESHEET_END">
+    <function name="OPCRM_TIMESHEET_END" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+v_now DATE WITHOUT TIME ZONE;
+v_startdate DATE WITHOUT TIME ZONE; 
+v_enddate DATE WITHOUT TIME ZONE;
+v_currentsheet_id VARCHAR2(32);
+v_actstate_id VARCHAR2(32);
+v_acttype VARCHAR2(60);
+v_currentrecord RECORD;
+v_seconds NUMBER;
+v_minutes NUMBER;
+v_restmins NUMBER;
+v_hours NUMBER;
+
+v_numcases NUMBER;
+v_numclosed NUMBER;
+
+v_time_estimated_h NUMBER;
+v_time_estimated_m NUMBER;
+
+v_test1 VARCHAR(60);v_test2 VARCHAR(60);v_test3 VARCHAR(60);
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+-- Get record ID
+  SELECT i.Record_ID 
+  INTO v_currentsheet_id
+  FROM AD_PInstance i
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+
+  
+
+  v_now := current_timestamp;
+  
+  SELECT * INTO v_currentrecord FROM opcrm_cases WHERE opcrm_cases_id = v_currentsheet_id;
+
+  v_startdate := TO_TIMESTAMP( TO_CHAR(v_currentrecord.start_date,'YYYY-MM-DD')||' '||
+                               TO_CHAR(v_currentrecord.start_hour::numeric)||':'||
+                               TO_CHAR(v_currentrecord.start_minute::numeric),'YYYY-MM-DD HH24:MI');
+
+  v_enddate :=  TO_TIMESTAMP( TO_CHAR(v_now,'YYYY-MM-DD')||' '|| 
+                              TO_CHAR(extract(hour from v_now)::numeric)||':'||
+                              TO_CHAR(extract(minute from v_now)::numeric),'YYYY-MM-DD HH24:MI');
+                                          
+  
+  v_seconds := (EXTRACT(EPOCH FROM v_enddate) - EXTRACT(EPOCH FROM v_startdate));
+
+  v_minutes := (v_seconds/60)::integer;
+  v_hours := (v_minutes/60)::integer;
+
+  v_restmins := v_minutes - (v_hours*60)::integer;
+
+  select time_estimated_h, time_estimated_m
+  into v_time_estimated_h, v_time_estimated_m
+  from opcrm_case_estimated
+  where ad_org_id=v_currentrecord.ad_org_id
+  and opcrm_caseactivity_id=v_currentrecord.opcrm_caseactivity_id
+  and opcrm_worktype_id=v_currentrecord.opcrm_worktype_id;
+
+  UPDATE opcrm_cases
+   SET case_status='opcrmCaseClosed', 
+       end_date=v_now, 
+       end_hour=extract(hour from v_now), 
+       end_minute=extract(minute from v_now),
+       timespent_h=v_hours,
+       timespent_m=v_restmins,
+       time_final_h=v_hours,
+       time_final_m=v_restmins,
+       time_estimated_h=v_time_estimated_h,
+       time_estimated_m=v_time_estimated_m,
+       finished='Y'
+  WHERE opcrm_cases_id= v_currentsheet_id;
+
+v_numcases:=0; v_numclosed:=0;
+SELECT COUNT (c.opcrm_cases_id) INTO v_numcases FROM opcrm_cases c WHERE c.opcrm_activity_id = v_currentrecord.opcrm_activity_id;
+SELECT COUNT (c.opcrm_cases_id) INTO v_numclosed FROM opcrm_cases c WHERE c.opcrm_activity_id = v_currentrecord.opcrm_activity_id AND c.finished='Y';
+     
+  --IF THE CASE HAS A RELATED ACTIVITY AND ALL THE CASES WITH THAT ACTIVITY HAVE BEEN CLOSED, THE CLOSING PROCEDURE SETS THE ACTIVITY AS DONE BY GETTING ITS CLOSING STATE
+  IF( ( v_currentrecord.opcrm_activity_id IS NOT NULL ) AND ( v_numcases = v_numclosed ) ) THEN
+      SELECT act.activity_type INTO v_acttype FROM opcrm_activity act WHERE act.opcrm_activity_id = v_currentrecord.opcrm_activity_id;
+
+      IF(v_acttype IS NOT NULL) THEN
+          SELECT sf.opcrm_statusfilter_id INTO v_actstate_id 
+          FROM opcrm_statusfilter sf 
+          WHERE sf.activity_key = v_acttype AND sf.isclosingstate='Y';   
+      END IF;
+
+      IF(v_actstate_id IS NOT NULL) THEN
+          UPDATE opcrm_activity
+          SET activity_status=v_actstate_id
+          WHERE opcrm_activity_id=v_currentrecord.opcrm_activity_id;
+      END IF;
+      
+  END IF;
+  
+
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_SHEETENDOK@');
+END OPCRM_TIMESHEET_END
+]]></body>
+    </function>
+  </database>

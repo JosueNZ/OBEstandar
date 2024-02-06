@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SFPR_DATE_VALIDATE_TRG">
+    <trigger name="SFPR_DATE_VALIDATE_TRG" table="SFPR_EVOLUTION_SALARY" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_startdate 		     DATE;
+  v_enddate                  DATE;
+  v_result		     VARCHAR2(2);
+
+  BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+	
+
+  IF (INSERTING or UPDATING ) THEN
+
+	v_startdate := :new.startdate;
+	v_enddate := :new.enddate;
+
+		IF COALESCE(TO_CHAR(v_startdate),'ND') <>'ND' AND COALESCE(TO_CHAR(v_enddate),'ND')<>'ND' THEN
+
+		select
+		coalesce((select case when TO_DATE(to_char(:new.enddate,'dd/MM/yyyy')) <= TO_DATE(to_char(:new.startdate,'dd/MM/yyyy')) then 'OK' else 'ND' end from dual),'ND')
+		into v_result
+		from dual;
+		
+			IF v_result='OK' THEN
+				RAISE_APPLICATION_ERROR(-20000,'@Sfpr_ValidateDate@');
+			END IF;
+		END IF;
+
+ END IF;
+      
+  END SFPR_DATE_VALIDATE_TRG
+]]></body>
+    </trigger>
+  </database>

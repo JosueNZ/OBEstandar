@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Sspr_DetailVacationProvisionSummarizedByCostCenter" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="134"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<parameter name="C_PERIOD_FROM" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_PERIOD_TO" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT
+centrocosto
+,(case when (centrocosto.periodno)<=9 then '0' || to_char(centrocosto.periodno) else to_char(centrocosto.periodno) end) || '-' || periodo as periodo
+,((case when (centrocosto.c_period_id=vacacion.c_period_id) then amount_dc else 0 end)) as amount_dc
+FROM
+(select
+cp.c_period_id
+,co.c_costcenter_id
+,co.name as centrocosto
+,cp.periodno
+,cp.name as periodo
+,0 as valor
+from c_period cp,c_costcenter co
+where (cp.startdate>= ((select startdate from c_period where c_period_id =$P{C_PERIOD_FROM} ))
+and cp.enddate<= ((select enddate from c_period where c_period_id = $P{C_PERIOD_TO} )))
+
+order by co.name,cp.periodno,cp.name
+) centrocosto
+join
+(
+SELECT
+co.c_costcenter_id
+,co.name as costcenter
+,sp.c_period_id
+,sum((case when sc.concepttypepayroll = 'VA' then sptc.amount else 0 end)) as amount_dc
+,cp.name
+from sspr_payroll sp
+join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id
+join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join c_period cp on cp.c_period_id = sp.c_period_id
+left join c_costcenter co on co.c_costcenter_id = cbp.em_sspr_costcenter_id
+where
+eM_Ssph_Earned='N'
+and
+ sc.concepttypepayroll = 'VA'
+and (sp.ispayroll= 'N' and sp.isliquidation='N')
+ group by
+ co.c_costcenter_id
+,co.name
+,sp.c_period_id
+,cp.name
+,cp.periodno
+order by co.name , cp.periodno
+) vacacion on vacacion.c_costcenter_id = centrocosto.c_costcenter_id
+where ((case when (centrocosto.c_period_id=vacacion.c_period_id) then amount_dc else 0 end)) >0
+order by centrocosto,periodno]]>
+	</queryString>
+	<field name="centrocosto" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="amount_dc" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="50" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="802" height="48"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true" isItalic="false"/>
+				</textElement>
+				<text><![CDATA[Detalle de Provisión Vacaciones Resumido por centro de costo]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band splitType="Stretch"/>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="91" splitType="Stretch">
+			<crosstab>
+				<reportElement x="0" y="0" width="802" height="91"/>
+				<crosstabHeaderCell>
+					<cellContents>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="226" height="30"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font isBold="true"/>
+							</textElement>
+							<text><![CDATA[CENTRO DE COSTOS]]></text>
+						</staticText>
+					</cellContents>
+				</crosstabHeaderCell>
+				<rowGroup name="centrocosto" width="226" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{centrocosto}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#8FAFCC" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="226" height="25"/>
+								<textElement textAlignment="Left" verticalAlignment="Middle"/>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{centrocosto}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="226" height="25"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<columnGroup name="periodo" height="30" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{periodo}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents backcolor="#8FAFCC" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="30"/>
+								<textElement verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{periodo}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<staticText>
+								<reportElement x="0" y="0" width="90" height="30"/>
+								<textElement textAlignment="Center" verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL VACACIONES]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<measure name="amount_dcMeasure" class="java.math.BigDecimal" calculation="Sum">
+					<measureExpression><![CDATA[$F{amount_dc}]]></measureExpression>
+				</measure>
+				<crosstabCell width="73" height="25">
+					<cellContents>
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="25"/>
+							<textElement textAlignment="Right" verticalAlignment="Middle"/>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amount_dcMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="73" height="25" rowTotalGroup="centrocosto">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00;-#,##0.00">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="73" height="25"/>
+							<textElement>
+								<font isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amount_dcMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="90" columnTotalGroup="periodo">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="90" height="25"/>
+							<textElement textAlignment="Right" verticalAlignment="Middle"/>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amount_dcMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="90" height="25" rowTotalGroup="centrocosto" columnTotalGroup="periodo">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="90" height="25"/>
+							<textElement>
+								<font isBold="true"/>
+							</textElement>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{amount_dcMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+			</crosstab>
+		</band>
+	</summary>
+</jasperReport>

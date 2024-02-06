@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_PROCESS_PAYROLL">
+    <function name="SSPR_PROCESS_PAYROLL" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+  Cur_Validar0 RECORD;
+  CUR_PROCESSPAYROOLL RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_Payroll_ID VARCHAR2(32);
+  v_Processed VARCHAR2(60);
+  v_Ticket_ID VARCHAR2(32); 
+  v_Period_ID VARCHAR2(32);   
+  v_Concept_ID VARCHAR2(32);
+  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+--  --valornull_exception  Exception;
+  v_amount NUMBER;
+  V_AMOUNT_CONCEP NUMBER;
+  
+  v_value NUMBER;
+BEGIN
+
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_Payroll_ID := Cur_Parameter.Record_ID;	  
+     /* v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;  */   
+      
+    END LOOP; -- Get Parameter
+    
+    --OBTENGO DATOS GENERALES 
+    SELECT AD_CLIENT_ID INTO v_Client_ID FROM SSPR_Payroll   WHERE SSPR_Payroll_ID = v_Payroll_ID;
+    SELECT AD_ORG_ID INTO v_Org_ID FROM SSPR_Payroll   WHERE SSPR_Payroll_ID = v_Payroll_ID;
+    SELECT CREATEDBY INTO v_User_ID FROM SSPR_Payroll   WHERE SSPR_Payroll_ID = v_Payroll_ID;
+    
+    --OBTENGO DATOS DE LA NOMINA - PERIODO, ESTADO
+    SELECT C_Period_ID, Processed INTO v_Period_ID, v_Processed
+    FROM SSPR_Payroll
+    WHERE SSPR_Payroll_ID = v_Payroll_ID;
+
+    --VALIDACION DE DESPROCESO DE NOMINA
+
+    IF (v_Processed = 'Y') THEN
+      DELETE FROM SSPR_Payroll_Ticket_Concept WHERE SSPR_Payroll_Ticket_ID IN (
+
+      SELECT SSPR_Payroll_Ticket_ID 
+      FROM SSPR_Payroll_Ticket    
+      WHERE SSPR_Payroll_ID = v_Payroll_ID);
+
+      DELETE FROM SSPR_Payroll_Ticket WHERE SSPR_Payroll_ID = v_Payroll_ID;
+
+      v_ResultStr:='UpdatingRecord';
+      UPDATE SSPR_Payroll
+      SET    Processed = 'N',
+	     Updated = now(),          
+	     UpdatedBy=tO_CHAR(v_User_ID)
+      WHERE SSPR_Payroll_ID = v_Payroll_ID;
+    ELSE
+      --/****** @NUEVO DESARROLLO@ ******/
+
+      --OBTENGO DATOS DE ORDEN DE PROCESO DE GENERACION DE NOMINA
+      FOR CUR_PROCESSPAYROOLL IN (
+        SELECT * FROM SSPR_PROCESS_PAYROLL WHERE ISACTIVE='Y' ORDER BY LINE
+      )
+      LOOP
+
+        --*** PROCESO NOMINA - 
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='GP') THEN 
+
+	    --VALIDO ESTADO NOMINA
+	    IF (v_Processed = 'N') THEN
+
+	      FOR Cur_Employee IN
+	      (SELECT CBP.C_BPartner_ID, P.SSPR_Period_ID
+	       FROM C_BPartner CBP 
+	       LEFT JOIN SSPR_Period P ON CBP.C_BPartner_ID = P.C_BPartner_ID
+	       WHERE IsEmployee = 'Y' AND CBP.Ad_Client_ID = v_Client_ID AND CBP.Ad_Org_ID = v_Org_ID
+		     AND P.C_Period_ID = v_Period_ID AND CBP.ISACTIVE = 'Y'
+		     AND CBP.em_sspr_create_payroll = 'Y'
+	      )
+	      LOOP
+
+		DBMS_OUTPUT.PUT_LINE( 'empleado: ' || Cur_Employee.c_bpartner_id);
+
+		--Insert payroll tickets. 
+		/*SELECT SSPR_Payroll_Ticket_ID INTO v_Ticket_ID
+		FROM SSPR_Payroll_Ticket
+		WHERE SSPR_Payroll_ID = v_Payroll_ID 
+		      AND C_BPartner_ID = Cur_Employee.C_BPartner_ID;*/
+		      
+		SELECT TO_CHAR(COALESCE((SELECT TO_CHAR(SSPR_Payroll_Ticket_ID)
+		FROM SSPR_Payroll_Ticket
+		WHERE SSPR_Payroll_ID = v_Payroll_ID 
+		      AND C_BPartner_ID = Cur_Employee.C_BPartner_ID),'ND'))  INTO v_Ticket_ID FROM DUAL;
+		   
+		     
+		IF (v_Ticket_ID = TO_CHAR('ND') ) THEN
+
+		  v_Ticket_ID := get_uuid(); 
+		  INSERT INTO SSPR_Payroll_Ticket
+		  (SSPR_Payroll_Ticket_ID, AD_Client_ID, AD_Org_ID, IsActive,
+		  Created, CreatedBy, Updated, UpdatedBy,
+		  SSPR_Payroll_ID, C_BPartner_ID, totalincome, totalexpense, totalnet
+		  )
+		  VALUES
+		  (v_Ticket_ID, v_Client_ID, v_Org_ID, 'Y',
+		  now(), v_User_ID, now(), v_User_ID,
+		  v_Payroll_ID, Cur_Employee.C_BPartner_ID, 0, 0, 0
+		  );
+
+		  v_n_insertions := v_n_insertions + 1;
+
+		END IF;
+
+		--Insert concepts with amount.
+		
+		FOR Cur_Concept IN
+		(SELECT SSPR_Concept_ID
+		 FROM SSPR_Period_Concept
+		 WHERE SSPR_Period_ID = Cur_Employee.SSPR_Period_ID
+		)
+		LOOP
+
+		  /*SELECT SSPR_Payroll_Ticket_Concept_ID INTO v_Concept_ID
+		  FROM SSPR_Payroll_Ticket_Concept
+		  WHERE SSPR_Payroll_Ticket_ID = v_Ticket_ID 
+			AND SSPR_Concept_ID = Cur_Concept.SSPR_Concept_ID;*/
+	 
+		       
+		  SELECT TO_CHAR(COALESCE((SELECT TO_CHAR(SSPR_Payroll_Ticket_Concept_ID)
+		  FROM SSPR_Payroll_Ticket_Concept
+		  WHERE SSPR_Payroll_Ticket_ID = v_Ticket_ID 
+			AND SSPR_Concept_ID = Cur_Concept.SSPR_Concept_ID),'ND'))  INTO v_Concept_ID FROM DUAL;
+
+				    
+		  IF (v_Concept_ID = TO_CHAR('ND') ) THEN
+
+		    v_Concept_ID := get_uuid(); 
+	
+		    v_value:= SSPR_GET_BUSINESS_CONCEPT(Cur_Concept.SSPR_Concept_ID, v_Period_ID, Cur_Employee.C_BPartner_ID);
+		    
+	            --RAISE_APPLICATION_ERROR(-20000, 'new v_value' || v_value);
+		 
+		     
+		    IF (COALESCE(TO_NUMBER(v_value),0) = 0) THEN
+			v_value:=0;
+			 
+		    END IF;
+		    --RAISE_APPLICATION_ERROR(-20000, ' 2 NO HAY TIPO DE DOCUMENTO PARA GENERAR EL ASIENTO '||Cur_Concept.SSPR_Concept_ID||' '|| v_Period_ID||' '|| Cur_Employee.C_BPartner_ID);
+		     
+		   		   
+		    INSERT INTO SSPR_Payroll_Ticket_Concept
+		    (SSPR_Payroll_Ticket_Concept_ID, AD_Client_ID, AD_Org_ID, IsActive,
+		    Created, CreatedBy, Updated, UpdatedBy,
+		    SSPR_Payroll_Ticket_ID, SSPR_Concept_ID,
+		    Amount
+		    )
+		    VALUES
+		    (v_Concept_ID, v_Client_ID, v_Org_ID, 'Y',
+		    now(), v_User_ID, now(), v_User_ID,
+		    v_Ticket_ID, Cur_Concept.SSPR_Concept_ID,
+		    v_value
+		    );   
+		      
+		    --SSPR_GET_BUSINESS_CONCEPT(Cur_Concept.SSPR_Concept_ID, v_Period_ID, Cur_Employee.C_BPartner_ID)
+		    -- RAISE_APPLICATION_ERROR(-20000, 'new ' || v_Concept_ID);
+
+		  END IF;
+
+		END LOOP;
+
+	      END LOOP;
+	      
+
+	      v_ResultStr:='UpdatingRecord';
+	      
+	      UPDATE SSPR_Payroll
+	      SET    Processed = 'Y',
+		     Updated = now(),          
+		     UpdatedBy=TO_CHAR(v_User_ID)
+	      WHERE SSPR_Payroll_ID = v_Payroll_ID;
+	      
+		---ACTUALIZA A 0 EL CONCEPTO FONDO DE RESERVA SI EL EMPLEADOS TRABAJA < 1 AÑO
+		--EXECUTE IMMEDIATE 'SELECT SSPR_VALIDARESERVFOUND(' || v_Period_ID || ') FROM DUAL';
+	      SSPR_VALIDARESERVFOUND(v_Period_ID);
+		
+	      /* COMENTADO POR CAMBIO NUEVO DE NOMINA-UNIFICACION DE NOMINA
+	      ELSE  
+
+	      DELETE FROM SSPR_Payroll_Ticket_Concept WHERE SSPR_Payroll_Ticket_ID IN (
+		SELECT SSPR_Payroll_Ticket_ID 
+		FROM SSPR_Payroll_Ticket    
+		WHERE SSPR_Payroll_ID = v_Payroll_ID);
+
+	      DELETE FROM SSPR_Payroll_Ticket WHERE SSPR_Payroll_ID = v_Payroll_ID;
+
+	      v_ResultStr:='UpdatingRecord';
+	      UPDATE SSPR_Payroll
+	      SET    Processed = 'N',
+		     Updated = now(),          
+		     UpdatedBy=tO_CHAR(v_User_ID)
+	      WHERE SSPR_Payroll_ID = v_Payroll_ID; */
+
+	    END IF;
+        END IF;--*** FIN PROCESO NOMINA -
+
+        --*** PROCESO DIAS LABORABLES - WD
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='WD') THEN 
+          SSPR_UPDATE_WORKINGDAYS(v_Period_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTIN_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTOUT_ID,v_Client_ID,v_Org_ID,v_User_ID);
+        END IF;--*** FIN PROCESO DIAS LABORABLES - WD
+        
+        --*** PROCESO DIAS LABORADOS -WDD
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='WDD') THEN 
+
+		--RAISE NOTICE '%','*AQUI VA EL NUEVO DESARROLLO PARA DIAS LABORADOS';
+  
+	      SSPR_UPDATEWORKEDDAYS(v_Period_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTIN_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTOUT_ID,v_Client_ID,v_Org_ID,v_User_ID);
+          
+        END IF;--*** FIN PROCESO DIAS LABORADOS -WDD
+        
+        --*** PROCESO ACTUALIZAR SUELDO - US
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='US') THEN 
+          --RAISE NOTICE '%','*AQUI VA EL NUEVO DESARROLLO PARA ACTUALIZAR SUELDO' ;
+          SSPR_UPDATE_SALARY(v_Period_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTIN_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTOUT_ID,v_Client_ID,v_Org_ID,v_User_ID);
+        END IF;--*** FIN PROCESO ACTUALIZAR SUELDO - US
+        
+        --*** PROCESO FONDOS DE RESERVA - RF
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='RF') THEN 
+          SSPR_GENERATE_RESERVEFOUNDS2(v_Period_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTIN_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTOUT_ID,v_Client_ID,v_Org_ID,v_User_ID);
+        END IF;--*** FIN PROCESO FONDOS DE RESERVA - RF
+        
+        --*** PROCESO PRESTAMOS - LL
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='LL') THEN 
+          SSPR_LOAD_CONCEPT_LOAN2(v_Period_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTIN_ID,CUR_PROCESSPAYROOLL.SSPR_CONCEPTOUT_ID,v_Client_ID,v_Org_ID,v_User_ID);
+        END IF;--*** FIN PROCESO PRESTAMOS - LL
+                     
+        --*** PROCESO IMPUESTO A LA RENTA - IT 
+        IF (CUR_PROCESSPAYROOLL.PROCESSNAME='IT') THEN 
+          --PROCESO CARGAR ACUMULABLES
+          SSPR_ACUMULATIVECONCEPTS(NULL);
+
+          --PROCESO GENERAR IMPUESTO A LA RENTA
+          SSPR_INCOMETOTALS(NULL);
+
+        END IF;--*** FIN PROCESO IMPUESTO A LA RENTA - IT 
+        
+      END LOOP;
+      --/********************** @FIN NUEVO DESARROLLO-(FERNANDA IGUAMBA)@ ******/
+
+    END IF;    
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_PROCESS_PAYROLL
+]]></body>
+    </function>
+  </database>

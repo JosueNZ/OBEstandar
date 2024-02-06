@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="RptBankMovementData" package="ec.com.sidesoft.custom.inout.reports.ad_reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+	     select fa.ad_org_id as organizationid, case when ft.depositamt > 0 Then 'INGRESO ' when ft.paymentamt > 0 Then 'EGRESO ' end as typedocument
+		,to_char(ft.statementdate) as statementdate, upper(ft.description) as concept, gl.name as conceptacct, bp.name as name,
+		e.value as account, e.name as det, fta.amtsourcedr as debit, fta.amtsourcecr as credit, fp.documentno as documentno
+		from fin_financial_account fa
+		left join fin_finacc_transaction ft on ft.fin_financial_account_id = fa.fin_financial_account_id
+		left join c_glitem gl on gl.c_glitem_id = ft.c_glitem_id
+		left join fin_payment fp on fp.fin_payment_id = ft.fin_payment_id
+		left join c_bpartner bp on bp.c_bpartner_id = ft.c_bpartner_id
+		left join aprm_finacc_transaction_acct_v fta on fta.fin_finacc_transaction_id = ft.fin_finacc_transaction_id
+		left join c_elementvalue e on e.c_elementvalue_id = fta.c_elementvalue_id
+		where ft.fin_finacc_transaction_id  = ?
+		order by fta.seqno asc
+        ]]>
+        </Sql>
+        <Parameter name="fin_financial_account"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

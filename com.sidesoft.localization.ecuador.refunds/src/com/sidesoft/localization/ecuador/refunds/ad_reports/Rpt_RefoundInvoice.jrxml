@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_RefoundInvoice" pageWidth="815" pageHeight="792" columnWidth="775" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.2100000000000075"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String">
+		<defaultValueExpression><![CDATA["src"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREP_Rpt_RefoundInvoiceT" class="net.sf.jasperreports.engine.JREmptyDataSource">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[$P{BASE_DESIGN} + "/src/com/sidesoft/localization/ecuador/refunds/ad_reports/"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+		--Auditoria
+	(SELECT COALESCE(CB.NAME,AU.NAME) FROM AD_USER AU LEFT JOIN C_BPARTNER CB ON CB.C_BPARTNER_ID = AU.C_BPARTNER_ID WHERE AU.AD_USER_ID=$P{AD_USER}) AS "usuario", NOW() AS "fechaimpresion",
+		--Cabecera
+INV.c_invoice_id as "c_invoice_id",
+	INV.ad_org_id as "organizationid",
+	DCT.name as "tipo_doc",
+	INV.dateinvoiced as "fecha_fac",
+	INV.documentno as "documentno",
+	CBP.name as "tercero",
+	LVH.name as "tipo_comprob",
+	REF.value as "reembolso",
+	INV.POReference as "ref_proveedor",
+	CLH.name "cod_sustento",
+		--lineas
+	INVL.line as "linea",
+	PRO.name as "producto",
+	INVL.QtyInvoiced as "cant_factura",
+	INVL.PriceActual as "precio_unit",
+	(INVL.QtyInvoiced*INVL.PriceActual) as "valor_total"
+from c_invoice  INV
+inner join c_doctype DCT on DCT.c_doctype_id = INV.c_doctype_id
+inner join c_bpartner CBP on CBP.c_bpartner_id = INV.c_bpartner_id
+left join Sswh_Livelihoodt LVH on LVH.Sswh_Livelihoodt_id = INV.EM_Sswh_Livelihood
+left join ssre_refund REF on REF.ssre_refund_id = INV.em_ssre_refunded_id
+left join Sswh_Codelivelihoodt CLH on CLH.Sswh_Codelivelihoodt_id = INV.EM_Sswh_Codelivelihood
+left join C_InvoiceLine INVL on INVL.c_invoice_id = INV.c_invoice_id
+left join m_product PRO on PRO.m_product_id = INVL.m_product_id
+where INV.c_invoice_id = $P{DOCUMENT_ID}
+order by INVL.line ]]>
+	</queryString>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fechaimpresion" class="java.sql.Timestamp"/>
+	<field name="c_invoice_id" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="tipo_doc" class="java.lang.String"/>
+	<field name="fecha_fac" class="java.sql.Timestamp"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="tipo_comprob" class="java.lang.String"/>
+	<field name="reembolso" class="java.lang.String"/>
+	<field name="ref_proveedor" class="java.lang.String"/>
+	<field name="cod_sustento" class="java.lang.String"/>
+	<field name="linea" class="java.math.BigDecimal"/>
+	<field name="producto" class="java.lang.String"/>
+	<field name="cant_factura" class="java.math.BigDecimal"/>
+	<field name="precio_unit" class="java.math.BigDecimal"/>
+	<field name="valor_total" class="java.math.BigDecimal"/>
+	<variable name="subreportref" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} +  "/com/sidesoft/localization/ecuador/refunds/ad_reports/Rpt_RefoundInvoiceT.jasper"]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="143" splitType="Stretch">
+			<staticText>
+				<reportElement x="-10" y="25" width="785" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REEMBOLSO DE GASTOS]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="608" y="5" width="167" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isItalic="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["/ "+$F{usuario}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy / HH:mm:ss">
+				<reportElement x="0" y="5" width="608" height="20"/>
+				<box rightPadding="3"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isItalic="true"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaimpresion}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="63" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de  documento:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="83" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="103" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tercero:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="123" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo de comprobante:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="114" y="63" width="283" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipo_doc}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="397" y="63" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[No. Documento:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="397" y="83" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Reembolso:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="397" y="103" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Top">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Referencia proveedor:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="397" y="123" width="114" height="20"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Código sustento:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="114" y="83" width="283" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fecha_fac}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="511" y="63" width="264" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="114" y="103" width="283" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="114" y="123" width="283" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipo_comprob}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="511" y="83" width="264" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{reembolso}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="511" y="103" width="264" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Top">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ref_proveedor}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="511" y="123" width="264" height="20"/>
+				<box leftPadding="3" rightPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cod_sustento}]]></textFieldExpression>
+			</textField>
+			<image>
+				<reportElement x="0" y="0" width="136" height="63"/>
+				<imageExpression class="java.lang.String"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="2" splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="40" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="20" width="47" height="20"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Línea]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="47" y="20" width="475" height="20"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Producto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="522" y="20" width="83" height="20"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cant. Facturada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="605" y="20" width="84" height="20"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor Unitario]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="689" y="20" width="86" height="20"/>
+				<box>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor Total]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="775" height="20"/>
+				<box leftPadding="50"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DETALLE DE GASTOS REEMBOLSOS]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="19" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="47" height="18"/>
+				<box rightPadding="3"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{linea}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="47" y="0" width="475" height="18"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{producto}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="522" y="0" width="83" height="18"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{cant_factura}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="605" y="0" width="84" height="18"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{precio_unit}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="689" y="0" width="86" height="18"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valor_total}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="2" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="3" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="100" splitType="Stretch">
+			<subreport>
+				<reportElement x="0" y="0" width="775" height="100"/>
+				<subreportParameter name="c_invoice_id">
+					<subreportParameterExpression><![CDATA[$F{c_invoice_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$V{subreportref}]]></subreportExpression>
+			</subreport>
+		</band>
+	</summary>
+</jasperReport>

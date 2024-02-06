@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFPSI_CONSOLIDATE_PSD">
+    <function name="SFPSI_CONSOLIDATE_PSD" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[pRecordId VARCHAR(60);
+    pDocAction VARCHAR(60);
+    pUserID VARCHAR(60);
+    vResultStr VARCHAR2(2000):='';
+    cParams RECORD;
+    rInvoice RECORD;
+    vCheck NUMBER;
+BEGIN
+
+    FOR cParams IN (
+        SELECT *
+        FROM ad_ep_instance_para
+        WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+        IF cParams.parametername = 'DocAction' THEN
+            pDocAction := cParams.p_string;
+        ELSIF cParams.parametername = 'Record_ID' THEN
+            pRecordId := cParams.p_string;
+        ELSIF cParams.parametername = 'User' THEN
+            pUserID := cParams.p_string;
+        END IF;
+    END LOOP;
+    
+    SELECT c_invoice_id, c_bpartner_id, issotrx INTO rInvoice FROM c_invoice WHERE c_invoice_id = pRecordId;
+    
+    IF rInvoice.issotrx = 'Y' AND pDocAction = 'CO' THEN
+        SELECT COUNT(c_invoiceline_id) INTO vCheck
+        FROM c_invoiceline il
+            JOIN c_orderline ol ON ol.c_orderline_id = il.c_orderline_id
+            JOIN c_order o ON o.c_order_id = ol.c_order_id
+                AND o.c_bpartner_id != rInvoice.c_bpartner_id
+        WHERE il.c_invoice_id = pRecordId;
+        
+        IF vCheck > 0 THEN
+            UPDATE fin_payment_scheduledetail SET c_bpartner_id = rInvoice.c_bpartner_id
+            WHERE fin_payment_scheduledetail_id IN (
+                SELECT psd.fin_payment_scheduledetail_id
+                FROM fin_payment_scheduledetail psd
+                    JOIN fin_payment_schedule psi ON psi.fin_payment_schedule_id = psd.fin_payment_schedule_invoice
+                    JOIN c_invoice i ON i.c_invoice_id = psi.c_invoice_id
+                WHERE i.c_invoice_id = pRecordId AND psd.c_bpartner_id IS NOT NULL AND psd.c_bpartner_id != rInvoice.c_bpartner_id
+            );
+        END IF;
+    END IF;
+    
+    EXCEPTION WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('sfpsi_reconcile_psd exception: '|| v_ResultStr);
+    RAISE;
+END SFPSI_CONSOLIDATE_PSD
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GETDOCUMENT_INVOICE">
+    <function name="SESCR_GETDOCUMENT_INVOICE" type="VARCHAR">
+      <parameter name="p_inoutline_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_InoutLineID VARCHAR2(32);
+v_Documentno VARCHAR2(255);
+
+v_CountReg NUMBER; --OBTG:NUMBER--
+
+
+-- Parameter
+TYPE RECORD IS REF CURSOR;
+Cur_InoutLine RECORD;
+-- Parameter Variables
+begin 
+
+	v_Documentno:='';
+	v_CountReg:=0;
+	
+	FOR Cur_InoutLine IN (
+		/*select 
+		ci.documentno as factura
+		from m_inoutline mil
+		join m_inout mi on mi.m_inout_id = mil.m_inout_id
+		left join c_orderline col on col.c_orderline_id = mil.c_orderline_id
+		left join c_order co on co.c_order_id = col.c_order_id
+		left join c_invoice ci on ci.c_order_id = co.c_order_id				
+		where mil.m_inoutline_id = p_inoutline_id 
+		and mil.c_orderline_id is not null
+		group by ci.documentno*/
+		
+		select 
+		ci.documentno as factura
+		from m_inoutline mil
+		join m_inout mi on mi.m_inout_id = mil.m_inout_id
+		left join c_orderline col on col.c_orderline_id = mil.c_orderline_id
+		--left join c_order co on co.c_order_id = col.c_order_id
+		left join c_invoiceline cil on cil.c_orderline_id = col.c_orderline_id
+		left join c_invoice ci on ci.c_invoice_id = cil.c_invoice_id				
+		where mil.m_inoutline_id = p_inoutline_id  and 
+		mil.c_orderline_id is not null
+		and ci.docstatus='CO'
+		group by ci.documentno
+	)
+	LOOP
+		v_Documentno:= v_Documentno || Cur_InoutLine.factura || ',';
+		v_CountReg:=v_CountReg+1;
+	END LOOP;
+	
+	IF (v_CountReg>0) THEN
+	
+		v_Documentno:= SUBSTR(v_Documentno,1,(LENGTH(v_Documentno)-1));
+	END IF;
+
+RETURN v_Documentno;
+END SESCR_GETDOCUMENT_INVOICE
+]]></body>
+    </function>
+  </database>

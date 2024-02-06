@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_CALCULATE_COSTING_LDM">
+    <function name="SSWH_CALCULATE_COSTING_LDM" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+CUR_PRODUCTIONPLAN  RECORD;
+CUR_PRODUCTIONLINE RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_Record_ID VARCHAR2(32) ;
+  v_ResultStr VARCHAR2(2000) := '';  
+
+
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  V_MOVEMENTDATE DATE;
+  V_AMOUNT_PRODUCT NUMBER; -- CAPTURA EL VALOR DEL PRODUCTIONLINE
+  OPERACION_PRODUCTO NUMBER; -- VALOR DE LA OPERACION DEL PRODUCTO (COSTE MEDIO MATERIA PRIMA * CANTIDAD MATERIA PRIMA)
+  V_SUM_AMOUNT_PRODUCT NUMBER; -- TOTAL DE LOS PROMEDIOS DE CADA PRODUCTO MATERIA PRIMA
+  V_TOTAL_PRODUCCION NUMBER; -- TOTAL COSTO DEL PRODUCTO FABRICADO
+  v_rowcount NUMBER;
+  
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+      FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = pinstance_id  
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_User_ID:=Cur_Parameter.AD_User_ID;
+      v_Client_ID:=Cur_Parameter.AD_Client_ID;
+      v_Org_ID:=Cur_Parameter.AD_Org_ID;
+    END LOOP; -- Get Parameter    	  
+	
+
+    SELECT MOVEMENTDATE INTO V_MOVEMENTDATE 
+    FROM M_PRODUCTION WHERE M_PRODUCTION_ID = v_Record_ID;
+    
+    --TRUNCATE TABLE SSWH_AMOUNTLDM;
+    
+    SELECT COUNT(*) INTO v_rowcount 
+    FROM M_PRODUCTIONPLAN
+   	WHERE M_PRODUCTION_ID = v_Record_ID;
+
+	IF (v_rowcount <= 0) THEN 
+	 RAISE NO_DATA_FOUND;
+	END IF ;
+	
+	FOR CUR_PRODUCTIONPLAN IN 
+		(   SELECT * FROM M_PRODUCTIONPLAN WHERE M_PRODUCTION_ID = v_Record_ID )
+		LOOP
+			
+			IF CUR_PRODUCTIONPLAN.M_PRODUCTIONPLAN_ID IS NULL THEN 
+			 RAISE NO_DATA_FOUND;
+			ELSIF CUR_PRODUCTIONPLAN.M_PRODUCTIONPLAN_ID IS NOT NULL THEN 
+				
+				FOR CUR_PRODUCTIONLINE IN
+					(SELECT * FROM M_PRODUCTIONLINE 
+					WHERE M_PRODUCTIONPLAN_ID = CUR_PRODUCTIONPLAN.M_PRODUCTIONPLAN_ID
+					AND M_PRODUCTIONLINE.M_PRODUCT_ID <> CUR_PRODUCTIONPLAN.M_PRODUCT_ID
+					AND M_PRODUCTIONLINE.MOVEMENTQTY < 0 )
+					LOOP
+						IF CUR_PRODUCTIONLINE.M_PRODUCTIONLINE_ID IS NULL THEN 
+						 RAISE NO_DATA_FOUND;
+						ELSE
+							--OBTENER VALOR DEL PRODUCTO
+							V_AMOUNT_PRODUCT := m_get_product_cost (CUR_PRODUCTIONLINE.M_PRODUCT_ID, V_MOVEMENTDATE ,'AV');
+							OPERACION_PRODUCTO :=  CUR_PRODUCTIONLINE.MOVEMENTQTY * V_AMOUNT_PRODUCT;
+							--INSERT INTO SSWH_AMOUNTLDM  VALUES (OPERACION_PRODUCTO); ----TO FIX
+						END IF;
+						-- SUMARIZADO DE PROMEDIO DE PRODUCTOS MATERIA PRIMA
+						V_SUM_AMOUNT_PRODUCT :=  V_SUM_AMOUNT_PRODUCT + OPERACION_PRODUCTO;
+				
+					END LOOP;--FIN LINEAS PRODUCCION
+				
+				--RESULTADO COSTO PROMEDIO DEL PRODUCTO FABRICADO
+				V_TOTAL_PRODUCCION := V_SUM_AMOUNT_PRODUCT  / CUR_PRODUCTIONPLAN.PRODUCTIONQTY;
+				
+				-- INSERT M_COSTING DEL PRODUCTO FABRICADO
+				INSERT INTO m_costing(m_costing_id, created, createdby, updated, updatedby, ad_client_id, 
+					    ad_org_id, m_product_id, datefrom, dateto, ismanual, qty, price
+                        --, cumqty
+                        ,cumstock
+                        , costtype, ispermanent, 
+					    cost, isproduction, isactive)
+			       VALUES (GET_UUID(), now(), v_User_ID, now(), v_User_ID, v_Client_ID, 
+					    v_Org_ID, CUR_PRODUCTIONPLAN.M_PRODUCT_ID, now(), '31-12-9999', 'Y',1 
+                        ,V_TOTAL_PRODUCCION, 1 , 'AV', 'N',V_TOTAL_PRODUCCION,
+					     'N','Y');  
+			END IF;
+		
+			       
+		END LOOP;--FIN CABECERA
+		
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSWH_CALCULATE_COSTING_LDM
+]]></body>
+    </function>
+  </database>

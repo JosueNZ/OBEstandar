@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SLOSPCU_UNLOCK_ACCT">
+    <function name="SLOSPCU_UNLOCK_ACCT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+v_record_id VARCHAR2(32);
+v_ad_user_id VARCHAR2(32);
+
+BEGIN
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,
+	i.AD_User_ID, 
+	i.AD_Client_ID,
+	i.AD_Org_ID                    
+	FROM AD_PInstance i      
+	WHERE i.AD_PInstance_ID = PInstance_ID      
+	)
+	LOOP
+		v_record_id := Cur_Parameter.Record_ID;
+		v_ad_user_id := Cur_Parameter.AD_User_ID;	
+	END LOOP;
+	
+  	UPDATE c_invoice SET posted='N', updatedby = v_ad_user_id, updated = now()
+	WHERE c_invoice_id = v_record_id;
+	
+	AD_UPDATE_PINSTANCE(pinstance_id, NULL, 'N', 1, '') ;
+    RETURN;
+END SLOSPCU_UNLOCK_ACCT
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_AUTORIZATION_TRG">
+    <trigger name="SSWH_AUTORIZATION_TRG" table="C_INVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+ v_reference               VARCHAR2(20);   
+ v_contador NUMBER:= 0;
+ v_cantidad NUMBER:= 0;
+ v_sub                     CHAR(1);
+ v_contador2 NUMBER:= 0;
+ V_AUT                     VARCHAR2(40);    
+ v_shell                   VARCHAR2(3);    
+ v_stablishment            VARCHAR2(3);    
+ V_NUMBERFROM              NUMBER;
+ V_NUMBERTO                NUMBER;
+ V_DATETO                  DATE;
+ V_ImplementAut            VARCHAR2(1);    
+ v_sswh_withholding_vendor VARCHAR2(32);   
+ v_establecimiento         VARCHAR2(3);    
+ v_box                     VARCHAR2(3);    
+ v_NoFactura               NUMBER;
+ v_message_a               VARCHAR2(2000); 
+ V_authorizationmanual  VARCHAR2(1);    
+ V_authorizationFact 	   VARCHAR2(255);   
+ V_authorizationRet 	   VARCHAR2(40);   
+ V_NEWSTATUS        VARCHAR2(32);
+ V_OLDSTATUS        VARCHAR2(32);
+ v_length_aut		   NUMBER;
+ v_AUTFACT		   VARCHAR2(255);
+ V_dateFact		   DATE;
+ v_isreturn		CHAR(1);
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+  
+  /* Search for document type and validate that check for authorization is required. */
+    SELECT em_sswh_implementautoriza,isreturn INTO  V_ImplementAut , v_isreturn
+    FROM C_DOCTYPE  
+    WHERE C_DOCTYPE_ID = :new.c_doctypetarget_id;
+
+   
+    /*****COMPLETAR*****/
+    IF (:new.issotrx = 'N' AND V_ImplementAut = 'Y' AND v_isreturn ='N') THEN
+      IF(:NEW.Docstatus='CO')THEN
+        
+        IF(:OLD.Docstatus<>:NEW.Docstatus)THEN
+
+          --RECUPERO VALORES
+          V_NEWSTATUS:=:NEW.Docstatus ; 
+          V_OLDSTATUS:=:OLD.Docstatus ;
+
+          --VALIDO NUEVO ESTADO DE LA FACTURA
+          IF(V_NEWSTATUS = 'CO')THEN
+            --VALIDO AUTHORIZATION 
+            V_authorizationFact := :NEW.EM_Sswh_Nroauthorization;
+            v_AUTFACT:= replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(V_authorizationFact,'0',''),'1',''),'2',''),'3',''),'4',''),'5',''),'6',''),'7',''),'8',''),'9','');
+            v_length_aut := LENGTH(V_authorizationFact);
+            V_dateFact := :NEW.EM_Sswh_expirationdate;
+
+            IF (V_authorizationFact IS NULL OR V_authorizationFact = '') THEN 
+
+              RAISE_APPLICATION_ERROR(-20000, '@EEI_Authorization@');
+    				
+            END IF;	
+
+            IF (V_dateFact IS NULL) THEN 
+              RAISE_APPLICATION_ERROR(-20000, '@Fecha de Caducidad es Obligatoria@');
+            END IF;		
+            
+            IF (v_AUTFACT <> '') THEN
+              RAISE_APPLICATION_ERROR(-20000, '@No.Autorizacion Factura debe ser numérico.@');
+            END IF;
+    	    
+            IF NOT (v_length_aut = 10 OR v_length_aut = 37 OR v_length_aut = 49) THEN
+              RAISE_APPLICATION_ERROR(-20000, '@No.Autorizacion Factura debe tener 10 o 37 o 49 digitos.@');
+            END IF;
+          END IF;
+        END IF;
+      END IF; 
+    END IF; 
+  END IF;  /* END TG -INSERT OR UPDATE */
+ 
+  END SSWH_AUTORIZATION_TRG
+]]></body>
+    </trigger>
+  </database>

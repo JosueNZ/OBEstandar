@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION EEI_REACTIVATECONTROLINVOICE">
+    <function name="EEI_REACTIVATECONTROLINVOICE" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+
+v_status         VARCHAR2(60);       	
+v_status2        VARCHAR2(60);       	
+v_issotrx	 CHAR(1);
+
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+v_reactivate	CHAR(1):='N';
+
+BEGIN
+
+  SELECT em_eei_reactivate_auth_docs INTO v_reactivate FROM ad_org WHERE ad_orgtype_id = '1';
+
+  IF(v_reactivate = 'N') THEN
+  
+	  FOR Cur_Params IN (
+	    SELECT *
+	    FROM ad_ep_instance_para
+	    WHERE ad_ep_instance_id = p_ep_instance
+	    ) LOOP
+	    IF (cur_params.parametername LIKE 'DocAction') THEN
+	      p_docaction := Cur_Params.p_string;
+	    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+	      p_record_id := cur_params.p_string;
+	    END IF;
+	  END LOOP;
+
+	SELECT em_eei_status,em_eei_status_2,issotrx INTO v_status,v_status2,v_issotrx FROM c_invoice where c_invoice_id = p_record_id;
+
+	IF ( p_docaction='RE' AND ((v_issotrx='N' AND (v_status='AU' OR v_status2='AU')) OR (v_status='AU' AND v_issotrx='Y'))) THEN
+		RAISE_APPLICATION_ERROR(-20000, '@Eei_ReactivateNotValid@');
+	END IF;
+	
+  END IF;
+END EEI_REACTIVATECONTROLINVOICE
+]]></body>
+    </function>
+  </database>

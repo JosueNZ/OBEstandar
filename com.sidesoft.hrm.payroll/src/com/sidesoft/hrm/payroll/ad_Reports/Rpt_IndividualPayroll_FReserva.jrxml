@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptm_IndividualPayroll" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREP_Rpt_IndividualPayrollIng" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/opt/OpenbravoERP-3.0/openbravo-erp/modules/com.sidesoft.hrm.payroll/src/com/sidesoft/hrm/payroll/ad_Reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select d.c_bpartner_id as c_bpartner_id,'SUELDO '||c.name as period, d.name as partner,a.totalincome, a.totalexpense,(a.totalincome - a.totalexpense)AS totalrecibir ,a.totalnet,
+C.STARTDATE, C.ENDDATE,
+case extract(month from C.STARTDATE)
+when 1 then 'SUELDO ENERO'
+when 2 then 'SUELDO FEBRERO'
+when 3 then 'SUELDO MARZO'
+when 4 then 'SUELDO ABRIL'
+when 5 then 'SUELDO MAYO'
+when 6 then 'SUELDO JUNIO'
+when 7 then 'SUELDO JULIO'
+when 8 then 'SUELDO AGOSTO'
+when 9 then 'SUELDO SEPTIEMBRE'
+when 10 then 'SUELDO OCTUBRE'
+when 11 then 'SUELDO NOVIEMBRE'
+when 12 then 'SUELDO DICIEMBRE'
+end as  mes,
+d.taxid as cedula,
+b.documentno as documentno,
+(select activity from sspr_contract where c_bpartner_id = d.c_bpartner_id) as departament,
+pst.name as cargo,
+c.name as periodo
+from sspr_payroll_ticket a
+left join sspr_payroll b on a.sspr_payroll_id = b.sspr_payroll_id
+left join c_period c on b.c_period_id = c.c_period_id
+left join c_bpartner d on a.c_bpartner_id = d.c_bpartner_id
+left join sspr_contract ct on ct.c_bpartner_id = d.c_bpartner_id
+left join sspr_contract_position ctp on ctp.sspr_contract_id = ct.sspr_contract_id
+left join sspr_position pst on ctp.sspr_position_id = pst.sspr_position_id
+left join sspr_payroll_ticket_concept on  sspr_payroll_ticket_concept.sspr_payroll_ticket_id = a.sspr_payroll_ticket_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+where b.documentno =  $P{documentno}
+and (d.c_bpartner_id= $P{c_bpartner_id} or $P{c_bpartner_id} is null)
+and b.ispayroll = 'Y'
+and sspr_concept.concepttypepayroll = 'RF']]>
+	</queryString>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="period" class="java.lang.String"/>
+	<field name="partner" class="java.lang.String"/>
+	<field name="totalincome" class="java.math.BigDecimal"/>
+	<field name="totalexpense" class="java.math.BigDecimal"/>
+	<field name="totalrecibir" class="java.math.BigDecimal"/>
+	<field name="totalnet" class="java.math.BigDecimal"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="cedula" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="departament" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<group name="Group Partner" isStartNewPage="true">
+		<groupExpression><![CDATA[$F{c_bpartner_id}]]></groupExpression>
+		<groupHeader>
+			<band height="23"/>
+		</groupHeader>
+		<groupFooter>
+			<band height="97">
+				<staticText>
+					<reportElement x="34" y="35" width="96" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[ELABORADO POR]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="198" y="35" width="96" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[APROBADO POR]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="354" y="35" width="96" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[RECIBI CONFORME]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="354" y="79" width="17" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CI]]></text>
+				</staticText>
+				<line>
+					<reportElement x="355" y="75" width="100" height="1"/>
+				</line>
+				<textField isBlankWhenNull="true">
+					<reportElement x="375" y="79" width="100" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+				</textField>
+				<subreport>
+					<reportElement x="369" y="0" width="200" height="25"/>
+					<subreportParameter name="c_bpartner_id">
+						<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+					</subreportParameter>
+					<subreportParameter name="documentno">
+						<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+					</subreportParameter>
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<subreportExpression class="java.lang.String"><![CDATA["/opt/OpenbravoERP-3.0/openbravo-erp/modules/com.sidesoft.hrm.payroll/src/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollTot_FReserva.jasper"]]></subreportExpression>
+				</subreport>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="89" splitType="Stretch">
+			<staticText>
+				<reportElement x="23" y="43" width="42" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Código:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="14" y="55" width="51" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombres:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="360" y="43" width="52" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Oficicina:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="344" y="55" width="68" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Departamento:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="370" y="66" width="42" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cargo:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="72" y="56" width="260" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{partner}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="329" y="1" width="76" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ROL INDIVIDUAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="490" y="29" width="42" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Sobre # ]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="72" y="43" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="422" y="66" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cargo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="421" y="54" width="148" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{departament}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="408" y="0" width="90" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fondos de Reserva]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="501" y="1" width="68" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{enddate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="532" y="29" width="37" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="40" splitType="Stretch">
+			<subreport>
+				<reportElement x="2" y="0" width="277" height="37"/>
+				<subreportParameter name="c_bpartner_id">
+					<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="documentno">
+					<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA["/opt/OpenbravoERP-3.0/openbravo-erp/modules/com.sidesoft.hrm.payroll/src/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollIng_FReserva.jasper"]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="279" y="0" width="293" height="37"/>
+				<subreportParameter name="c_bpartner_id">
+					<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="documentno">
+					<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA["/opt/OpenbravoERP-3.0/openbravo-erp/modules/com.sidesoft.hrm.payroll/src/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollIEgr_FReserva.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="35" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

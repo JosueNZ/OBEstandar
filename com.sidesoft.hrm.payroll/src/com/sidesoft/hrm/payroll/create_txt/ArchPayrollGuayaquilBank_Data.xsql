@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+<SqlClass name="ArchPayrollGuayaquilBankData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+    SELECT CASE WHEN bankaccounttype='S' THEN 'A'  ELSE 'C' END || 
+    LPAD(to_char(accountno),10,'0') || 
+    LPAD(replace(to_char(round(totalnet,2)),'.',''),15,'0')||
+    'XX'||
+    'Y'||
+    '01' as cuenta
+    ,RPAD(substr(upper(cb.name2),0,19),18,' ')||'EEV' as cliente
+    FROM sspr_payroll p 
+    JOIN sspr_payroll_ticket  t on t.sspr_payroll_id=p.sspr_payroll_id
+    JOIN c_bpartner cb on cb.c_bpartner_id=t.c_bpartner_id
+    JOIN c_bp_bankaccount c on c.c_bpartner_id=t.c_bpartner_id
+    WHERE p.sspr_payroll_id = ?
+    AND EM_SSPR_Typeofincome='D'
+    AND em_ssfi_banktransfer_id=?
+    ORDER BY 2
+      ]]>
+    </Sql>
+    <Parameter name="id"/>
+    <Parameter name="bank"/>
+  </SqlMethod>
+
+</SqlClass>

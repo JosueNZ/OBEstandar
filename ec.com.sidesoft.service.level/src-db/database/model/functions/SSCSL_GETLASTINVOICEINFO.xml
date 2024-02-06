@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSCSL_GETLASTINVOICEINFO">
+    <function name="SSCSL_GETLASTINVOICEINFO" type="VARCHAR">
+      <parameter name="p_order_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_code" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_ResultStr VARCHAR2(2000):='';
+  v_stock NUMBER:=0; 
+  
+  TYPE RECORD IS REF CURSOR;
+  Cur_Invoices RECORD;
+BEGIN
+
+
+    FOR Cur_Invoices IN
+      (select to_char(TO_DATE(dateinvoiced,'dd-MM-yyyy')) as dateinvoiced,documentno from c_invoice where issotrx='Y' AND c_order_id =p_order_id order by created asc
+      )
+    LOOP
+     IF (p_code ='1') THEN
+	v_ResultStr:= Cur_Invoices.dateinvoiced;
+     ELSIF (p_code ='2') THEN
+	v_ResultStr:= Cur_Invoices.documentno;
+     END IF;
+	
+    END LOOP; 
+RETURN v_ResultStr;
+END SSCSL_GETLASTINVOICEINFO
+]]></body>
+    </function>
+  </database>

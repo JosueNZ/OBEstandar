@@ -1,0 +1,240 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPI_CHANGE_STATUS">
+    <function name="SSPI_CHANGE_STATUS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_indebtedness RECORD;
+
+  v_status VARCHAR(32);   -- ALMACENA EL ESTADO ATADO A LA RAZON DE LA OT
+  v_ResultStr VARCHAR2(2000):='';
+  v_StatusDocumento_P VARCHAR(60);--OBTG:VARCHAR2--
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_Record_ID  VARCHAR2(32);
+  v_Message VARCHAR2(2000):='';  
+  v_control_debt VARCHAR2(1);
+  v_requestdate DATE;
+  v_c_bpartner_id VARCHAR2(32);
+  v_amount_ing NUMBER;
+  v_amount_egr NUMBER;
+  v_amount_concept_ing NUMBER;
+  v_amount_concept_egr NUMBER;
+  v_totalindebtedness NUMBER;
+  v_percentage_debt NUMBER;
+  v_em_sspi_debtresult VARCHAR(60);--OBTG:VARCHAR2--
+  v_ConceptID VARCHAR2(32);
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  
+  BEGIN --BODY
+
+   FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+      p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy   
+      FROM AD_PInstance i 
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo       
+      )
+    LOOP
+
+	    IF (Cur_Parameter.ParameterName = 'statusdoc') THEN
+		v_StatusDocumento_P := Cur_Parameter.P_String;      
+		v_Record_ID := Cur_Parameter.Record_ID;	
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.CreatedBy;
+            ELSE  
+		DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	    END IF;       
+    END LOOP; -- End Get Parameter
+
+   
+    /*Datos Basicos para la inserccion de cabeceras*/
+    SELECT A.status,-- A.requestdate,
+		 case when to_number(to_char(A.requestdate,'mm')) > 1 Then TO_DATE(to_char(A.requestdate,'dd') || to_char('-') || to_char(to_number(to_char(A.requestdate,'mm'))-1) || to_char('-') || to_char(A.requestdate,'yyyy'))
+	    when to_number(to_char(A.requestdate,'mm')) = 1 Then TO_DATE(to_char(A.requestdate,'dd') || to_char('-') || to_char('12') || to_char('-') || to_char(to_number(to_char(A.requestdate,'yyyy'))-1))
+	    end as requestdate, A.c_bpartner_id
+    into v_status, v_requestdate, v_c_bpartner_id
+    FROM sspr_loans A
+    WHERE A.sspr_loans_id = v_Record_ID;
+    
+
+	If(v_status = 'dr' AND (v_StatusDocumento_P = 'cl' or v_StatusDocumento_P = 'ad'))Then
+	
+		--Estado borrador para aplicar el prestamo
+
+		  --Recupera si el submodulo controla endeudamiento
+		    select coalesce((select control_debt
+			    from sspi_indebtedness),'N')
+		    into v_control_debt
+		    from dual;
+
+		    v_Message := '';
+
+			If(v_control_debt = 'Y')Then
+				
+			select percentage_debt
+			into v_percentage_debt
+			from sspi_indebtedness;
+				
+				v_amount_concept_ing := 0;
+				v_amount_concept_egr := 0;
+				v_totalindebtedness := 0;
+
+				For Cur_indebtedness in 
+					(select sspr_concept_id
+					from sspi_indebtedness a
+					left join sspi_indebtednessline b on b.sspi_indebtedness_id = a.sspi_indebtedness_id)
+				Loop
+					--Total de Ingresos
+					v_amount_ing := 0;
+					select coalesce((select ptc.amount
+						from c_period p
+						left join sspr_payroll sp on sp.c_period_id = p.c_period_id
+						left join sspr_payroll_ticket pt on pt.sspr_payroll_id = sp.sspr_payroll_id
+						left join sspr_payroll_ticket_concept ptc on ptc.sspr_payroll_ticket_id = pt.sspr_payroll_ticket_id
+						left join sspr_concept c on c.sspr_concept_id = ptc.sspr_concept_id
+						where v_requestdate between p.startdate and p.enddate
+						--where '26-05-2016' between p.startdate and p.enddate
+						and sp.ispayroll = 'Y' and sp.isliquidation = 'N'
+						and pt.c_bpartner_id = v_c_bpartner_id-- 'AA5427C324214128B522480AD8D23EB7' --v_c_bpartner_id
+						and ptc.sspr_concept_id = Cur_indebtedness.sspr_concept_id
+						and c.conceptsubtype = 'In'),0)
+					into v_amount_ing
+					from dual;
+
+					v_amount_concept_ing := v_amount_concept_ing + v_amount_ing;
+					
+					--Total de Egresos
+					v_amount_egr := 0;
+					select coalesce((select ptc.amount
+						from c_period p
+						left join sspr_payroll sp on sp.c_period_id = p.c_period_id
+						left join sspr_payroll_ticket pt on pt.sspr_payroll_id = sp.sspr_payroll_id
+						left join sspr_payroll_ticket_concept ptc on ptc.sspr_payroll_ticket_id = pt.sspr_payroll_ticket_id
+						left join sspr_concept c on c.sspr_concept_id = ptc.sspr_concept_id
+						where v_requestdate between p.startdate and p.enddate
+						--where '26-05-2016' between p.startdate and p.enddate
+						and sp.ispayroll = 'Y' and sp.isliquidation = 'N'
+						and pt.c_bpartner_id = v_c_bpartner_id-- 'AA5427C324214128B522480AD8D23EB7' --v_c_bpartner_id
+						and ptc.sspr_concept_id = Cur_indebtedness.sspr_concept_id
+						and c.conceptsubtype = 'Out'),0)
+					into v_amount_egr
+					from dual;
+
+					v_amount_concept_egr := v_amount_concept_egr + v_amount_egr;
+				End Loop;
+
+				If(v_amount_concept_ing > 0)Then
+					v_totalindebtedness := ((v_amount_concept_egr/v_amount_concept_ing)*100);
+				Else
+				RAISE_APPLICATION_ERROR(-20000,'@El empleado no tiene ingresos para el calculo@');
+				End If;
+
+				If(v_totalindebtedness > v_percentage_debt) Then
+
+					--Actualiza campo “resultado cálculo endeudamiento” = rechazado (Campo nuevo que se creará con el objetivo de almacenar el resultado de la comparación)
+					update sspr_loans 
+					set em_sspi_debtresult = 'RE', em_sspi_approved_loan='RE'
+					where sspr_loans_id = v_Record_ID;
+					--v_Message := 'No se recomienda aprobar el préstamo'; --old
+					v_Message := '@Sspi_FailedApproveLoan@';
+					
+				Else
+					--Actualiza campo “resultado cálculo endeudamiento” = Aprobado (Campo nuevo que se creará con el objetivo de almacenar el resultado de la comparación)
+					update sspr_loans 
+					set em_sspi_debtresult = 'AP',em_sspi_approved_loan='AP'
+					where sspr_loans_id = v_Record_ID;
+					
+					v_Message := '';
+				End If ;
+				 
+			End If;
+
+		UPDATE sspr_loans 
+		SET status= v_StatusDocumento_P , Updated = now(), UpdatedBy=v_User_ID 
+		WHERE sspr_loans_id = v_Record_ID;
+
+	elsIF v_status = v_StatusDocumento_P THEN
+	    --Si seleccion el mismo estado en el que se encuentra
+		RAISE_APPLICATION_ERROR(-20000,'@El prestamo ya se encuentra en estado Seleccionado@');
+	elsIF(v_status = 'dr' AND v_StatusDocumento_P = 'ap') THEN
+
+	   --Si el estado del permiso es borrador y seleccion aprobar primero se debe aplicar la solicitud de prestamos
+		RAISE_APPLICATION_ERROR(-20000,'@Debe aplicarse primero el prestamo@');
+
+	elsIf (v_status = 'ad' AND (v_StatusDocumento_P = 'ap' or v_StatusDocumento_P = 'cl')) THEN
+
+		-- INICIO :Validar Concepto
+
+		SELECT 
+		   COALESCE((SELECT sspr_concept_id
+		             FROM sspr_loans A
+		             WHERE A.sspr_loans_id = v_Record_ID
+		             ),'ND')
+		INTO v_ConceptID
+		FROM DUAL;
+
+		IF (v_ConceptID='ND') THEN
+
+		    RAISE_APPLICATION_ERROR(-20000,'@Seleccione el concepto, para continuar con la aprobación del préstamo@');
+
+		END IF; -- FIN :Validar Concepto
+    
+		--Si el prestamo esta aplicado y listo para aprobar o rechazar
+		select coalesce((select em_sspi_debtresult
+		from sspr_loans 
+		where sspr_loans_id = v_Record_ID),'AP')
+		into v_em_sspi_debtresult
+		from dual;
+
+		If(v_em_sspi_debtresult = 'RE')Then
+			v_Message := '@Sspi_LoanRefused@';
+		Else
+			v_Message := '';
+		End If;
+
+		UPDATE sspr_loans 
+		SET status= v_StatusDocumento_P , Updated = now(), UpdatedBy=v_User_ID 
+		WHERE sspr_loans_id = v_Record_ID;
+
+	elsIf (v_status = 'ap' AND v_StatusDocumento_P = 'cl') THEN
+
+		UPDATE sspr_loans 
+		SET status= v_StatusDocumento_P , Updated = now(), UpdatedBy=v_User_ID 
+		WHERE sspr_loans_id = v_Record_ID;
+
+	END IF;
+	
+   
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPI_CHANGE_STATUS
+]]></body>
+    </function>
+  </database>

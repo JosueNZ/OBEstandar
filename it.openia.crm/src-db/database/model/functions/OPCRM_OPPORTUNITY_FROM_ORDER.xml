@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_OPPORTUNITY_FROM_ORDER">
+    <function name="OPCRM_OPPORTUNITY_FROM_ORDER" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_order_ID VARCHAR(32);
+v_user_ID VARCHAR(32);
+v_client_ID VARCHAR(32);
+v_org_ID VARCHAR(32);
+v_order_record RECORD;
+v_opportunity_id VARCHAR(32);
+v_currency_id VARCHAR(32);
+v_sumtotal NUMBER;
+v_nomecount NUMBER;
+p_subject VARCHAR(60);
+p_closedate DATE WITHOUT TIME ZONE;
+p_probabilitypercent NUMBER;
+
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+  -- Get record ID and parameters
+  SELECT i.Record_ID, i.Ad_User_ID, i.ad_client_id, i.ad_org_id, pa.p_string, pb.p_date, pc.p_number
+  INTO v_order_ID, v_user_ID, v_client_ID, v_org_ID, p_subject, p_closedate, p_probabilitypercent
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'subject'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'closedate'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'probability'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+  
+  SELECT * INTO v_order_record FROM c_order o WHERE o.c_order_id = v_order_ID;
+  SELECT c_currency_id INTO v_currency_id FROM ad_client WHERE ad_client_id = v_client_ID;
+
+  v_sumtotal := 0;
+
+  SELECT totallines INTO v_sumtotal
+  FROM c_order 
+  WHERE c_order_id = v_order_ID; 
+  
+  v_opportunity_id = get_uuid();
+
+
+  INSERT INTO opcrm_opportunities(
+            opcrm_opportunities_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, opportunity_name, opportunity_amount, 
+            expected_close_date, c_currency_id,
+            assigned_to, c_bpartner_id, c_order_id, probability)
+    VALUES (v_opportunity_id, v_client_id, v_org_id, 'Y', current_timestamp, 
+            v_user_ID, current_timestamp, v_user_ID, p_subject, v_sumtotal, 
+            p_closedate, v_currency_id,
+            v_user_id, v_order_record.c_bpartner_id, v_order_record.c_order_id, p_probabilitypercent);
+  
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_OPPORTUNITYOK@');
+END OPCRM_OPPORTUNITY_FROM_ORDER
+]]></body>
+    </function>
+  </database>

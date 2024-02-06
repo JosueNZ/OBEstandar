@@ -1,0 +1,870 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSswh_Withholding_Electronic" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isIgnorePagination="true">
+	<property name="ireport.zoom" value="1.2100000000000035"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="28"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT i.c_invoice_id as "c_invoice_id",
+ i.ad_org_id as "organizationid",
+ aoi.taxid as "organization_taxid",
+ EEI_RETURNDOCUMENTNO(i.EM_Sswh_Withholdingref) as "ref_invoice",
+ coalesce(to_char(clo.address1),to_char(clo.address2)) as "dir_matriz",
+ coalesce(to_char(clo.address1),to_char(clo.address2)) as "dir_sucursal",
+ i.ad_org_id as "organization_id",
+ org.name AS "name_org",org.social_name as  "social_name_org",bp.AD_language as "bp_language",bp.c_bpartner_id as "idpartner"
+ ,bp.name as "bp_client",cl.address1 as "bp_address",i.poreference as "referenceno",bp.name2 AS "bp_fiscalname",
+ bp.taxid as "bp_taxid", i.documentno as "documentno",to_char(i.em_sswh_datewithhold) AS "datewithholding",
+to_char(i.em_sswh_datewithhold,'yyyy') as "year_withholding", TO_CHAR('') AS "vatname",
+ i.em_sswh_withholdingref as "em_sswh_withholdingref" , i.em_sswh_authorization as "em_sswh_authorization",
+ part_A.rate as "rate",
+ part_A.TaxBaseAmt as "taxtbaseamt",
+ part_A.TaxAmt as "taxamt",
+ 'RENTA' as "impuesto",
+ i.EM_Eei_Fechaautotext as "fecha_autorizacion",
+ coalesce(to_char(i.EM_Eei_Rsi_Auth_No),to_char(i.EM_Eei_Numauto)) as "num_autorizacion",
+ coalesce(to_char(i.EM_Eei_Fechaautotext),'') as "num_autorizacion",
+ coalesce(to_char(i.EM_Eei_Codigo),'') as "cod_acceso",
+ bp.ad_language as "ad_language",
+case
+(select environment from EEI_Param_Facturae)
+when '1' then 'Pruebas'
+when '2' then 'Producción'
+end as "environment",
+case
+(select Sending_Type from EEI_Param_Facturae)
+when '1' then 'Normal'
+when '2' then 'Indisponibilidad de Sistema/Contingencia'
+end as "emision",
+au.email as "bp_mail",
+to_char(now(),'dd-MM-yyyy') as "fecha_actual",
+coalesce(to_char(cbl.phone),to_char(cbl.phone2)) as "phone",
+i.poreference as "ref_invoice2",
+i.dateinvoiced as "date_emision",
+to_char(i.dateinvoiced,'MM/yyyy') as "fiscal_date",
+cd.name as "comprobante"
+FROM C_INVOICE i
+ LEFT JOIN C_BPARTNER bp ON i.C_BPARTNER_ID = bp.C_BPARTNER_ID
+ LEFT JOIN c_bpartner_location cbl on cbl.c_bpartner_location_id = I.c_bpartner_location_id and cbl.isbillto = 'Y'
+ LEFT JOIN c_location cl on cl.c_location_id = cbl.c_location_id
+ LEFT JOIN AD_ORG ORG ON ORG.AD_ORG_ID = I.AD_ORG_ID
+ LEFT JOIN ad_orginfo aoi on aoi.ad_org_id = i.ad_org_id
+ LEFT JOIN c_location clo on clo.c_location_id = aoi.c_location_id
+ left join ad_user au on au.c_bpartner_id = bp.C_bpartner_id
+ left join
+(SELECT C_INVOICE_id,cod_tax, (Rate * (-1)) as rate ,
+ (sum(TaxBaseAmt)) AS TaxBaseAmt, (sum(TaxAmt) * (-1)) AS TaxAmt FROM
+ (
+ SELECT
+ iti.C_Tax_ID, iti.TaxBaseAmt, iti.TaxAmt,rate
+,t.description as cod_tax,il.C_INVOICE_id
+FROM C_INVOICELINE il
+ LEFT JOIN C_INVOICETAX iti ON il.EM_SSWH_INVOICETAX_INCOME_ID = iti.C_INVOICETAX_ID
+ LEFT JOIN C_INVOICE i ON il.C_INVOICE_ID = i.C_INVOICE_ID,C_TAX t
+ WHERE iti.C_TAX_ID = t.C_TAX_ID AND il.C_INVOICE_ID = $P{DOCUMENT_ID}
+ AND t.rate <> 0
+ ) A
+ GROUP BY  Rate,cod_tax,C_INVOICE_id
+ ) part_A on part_A.C_INVOICE_ID = i.C_INVOICE_ID
+ left join c_doctype cd on cd.c_doctype_id = i.c_doctype_id
+ WHERE i.C_INVOICE_ID = $P{DOCUMENT_ID}
+ union all
+
+ SELECT i.c_invoice_id as "c_invoice_id",
+ i.ad_org_id as "organizationid",
+ aoi.taxid as "organization_taxid",
+ EEI_RETURNDOCUMENTNO(i.EM_Sswh_Withholdingref) as "ref_invoice",
+ coalesce(to_char(clo.address1),to_char(clo.address2)) as "dir_matriz",
+ coalesce(to_char(clo.address1),to_char(clo.address2)) as "dir_sucursal",
+ i.ad_org_id as "organization_id",
+ org.name AS "name_org",org.social_name as  "social_name_org",bp.AD_language as "bp_language",bp.c_bpartner_id as "idpartner"
+ ,bp.name as "bp_client",cl.address1 as "bp_address",i.poreference as "referenceno",bp.name2 AS "bp_fiscalname",
+ bp.taxid as "bp_taxid", i.documentno as "documentno",to_char(i.em_sswh_datewithhold) AS "datewithholding",
+to_char(i.em_sswh_datewithhold,'yyyy') as "year_withholding", TO_CHAR('') AS "vatname",
+ i.em_sswh_withholdingref as "em_sswh_withholdingref" , i.em_sswh_authorization as "em_sswh_authorization",
+ part_A.rate as "rate",
+ part_A.TaxBaseAmt as "taxtbaseamt",
+ part_A.TaxAmt as "taxamt",
+ 'IVA' as "impuesto",
+ i.EM_Eei_Fechaautotext as "fecha_autorizacion",
+ coalesce(to_char(i.EM_Eei_Rsi_Auth_No),to_char(i.EM_Eei_Numauto)) as "num_autorizacion",
+ coalesce(to_char(i.EM_Eei_Fechaautotext),'') as "num_autorizacion",
+ coalesce(to_char(i.EM_Eei_Codigo),'') as "cod_acceso",
+ bp.ad_language as "ad_language",
+case
+(select environment from EEI_Param_Facturae)
+when '1' then 'Pruebas'
+when '2' then 'Producción'
+end as "environment",
+case
+(select Sending_Type from EEI_Param_Facturae)
+when '1' then 'Normal'
+when '2' then 'Indisponibilidad de Sistema/Contingencia'
+end as "emision",
+au.email as "bp_mail" ,
+to_char(now(),'dd-MM-yyyy') as "fecha_actual",
+coalesce(to_char(cbl.phone),to_char(cbl.phone2)) as "phone",
+i.poreference as "ref_invoice2",
+i.dateinvoiced as "date_emision",
+to_char(i.dateinvoiced,'MM/yyyy') as "fiscal_date",
+cd.name as "comprobante"
+ FROM C_INVOICE i
+ LEFT JOIN C_BPARTNER bp ON i.C_BPARTNER_ID = bp.C_BPARTNER_ID
+ LEFT JOIN c_bpartner_location cbl on cbl.c_bpartner_location_id = I.c_bpartner_location_id and cbl.isbillto = 'Y'
+ LEFT JOIN c_location cl on cl.c_location_id = cbl.c_location_id
+ LEFT JOIN AD_ORG ORG ON ORG.AD_ORG_ID = I.AD_ORG_ID
+ LEFT JOIN ad_orginfo aoi on aoi.ad_org_id = i.ad_org_id
+ LEFT JOIN c_location clo on clo.c_location_id = aoi.c_location_id
+ left join ad_user au on au.c_bpartner_id = bp.C_bpartner_id
+ left join
+(
+ SELECT cil.c_invoice_id,
+SUM(CIL.LINENETAMT) AS TAXBASEAMT2,
+CIL.C_TAX_ID,
+CTX.NAME,
+(case when CTX.RATE <0 then (CTX.RATE * (-1)) else CTX.RATE end) as RATE2,
+CTXI.NAME AS IMP2,
+(case when CTXI.RATE <0 then (CTXI.RATE * (-1)) else CTXI.RATE end) as RATE,
+SUM((case when CT.TAXAMT <0 then (CT.TAXAMT * (-1)) else CT.TAXAMT end)) AS TAXAMT
+,SUM(CT.TAXBASEAMT) AS TAXBASEAMT,
+CTXI.description as cod_tax
+FROM C_INVOICELINE CIL
+LEFT JOIN C_INVOICETAX CT ON CIL.EM_SSWH_INVOICETAX_VAT_ID = CT.C_INVOICETAX_ID
+LEFT JOIN C_TAX CTX ON CTX.C_TAX_ID = CIL.C_TAX_ID
+LEFT JOIN C_TAX CTXI ON CTXI.C_TAX_ID = CT.C_TAX_ID
+WHERE
+CIL.C_INVOICE_ID =  $P{DOCUMENT_ID}
+AND CT.TAXAMT <>0
+GROUP BY
+CIL.C_TAX_ID, CTX.NAME,CTXI.NAME , CTX.RATE,CTXI.RATE,CTXI.description, cil.c_invoice_id
+) part_A on part_A.C_INVOICE_ID = i.C_INVOICE_ID
+left join c_doctype cd on cd.c_doctype_id = i.c_doctype_id
+WHERE i.C_INVOICE_ID = $P{DOCUMENT_ID} AND TAXAMT <>0]]>
+	</queryString>
+	<field name="c_invoice_id" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="organization_taxid" class="java.lang.String"/>
+	<field name="ref_invoice" class="java.lang.String"/>
+	<field name="dir_matriz" class="java.lang.String"/>
+	<field name="dir_sucursal" class="java.lang.String"/>
+	<field name="organization_id" class="java.lang.String"/>
+	<field name="name_org" class="java.lang.String"/>
+	<field name="social_name_org" class="java.lang.String"/>
+	<field name="bp_language" class="java.lang.String"/>
+	<field name="idpartner" class="java.lang.String"/>
+	<field name="bp_client" class="java.lang.String"/>
+	<field name="bp_address" class="java.lang.String"/>
+	<field name="referenceno" class="java.lang.String"/>
+	<field name="bp_fiscalname" class="java.lang.String"/>
+	<field name="bp_taxid" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="datewithholding" class="java.lang.String"/>
+	<field name="year_withholding" class="java.lang.String"/>
+	<field name="vatname" class="java.lang.String"/>
+	<field name="em_sswh_withholdingref" class="java.lang.String"/>
+	<field name="em_sswh_authorization" class="java.lang.String"/>
+	<field name="rate" class="java.math.BigDecimal"/>
+	<field name="taxtbaseamt" class="java.math.BigDecimal"/>
+	<field name="taxamt" class="java.math.BigDecimal"/>
+	<field name="impuesto" class="java.lang.String"/>
+	<field name="fecha_autorizacion" class="java.lang.String"/>
+	<field name="num_autorizacion" class="java.lang.String"/>
+	<field name="cod_acceso" class="java.lang.String"/>
+	<field name="ad_language" class="java.lang.String"/>
+	<field name="environment" class="java.lang.String"/>
+	<field name="emision" class="java.lang.String"/>
+	<field name="bp_mail" class="java.lang.String"/>
+	<field name="fecha_actual" class="java.lang.String"/>
+	<field name="phone" class="java.lang.String"/>
+	<field name="ref_invoice2" class="java.lang.String"/>
+	<field name="date_emision" class="java.sql.Timestamp"/>
+	<field name="fiscal_date" class="java.lang.String"/>
+	<field name="comprobante" class="java.lang.String"/>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band height="316" splitType="Stretch">
+			<rectangle radius="10">
+				<reportElement x="298" y="0" width="270" height="309"/>
+			</rectangle>
+			<rectangle radius="10">
+				<reportElement x="-15" y="118" width="309" height="191"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="307" y="15" width="53" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[R.U.C.:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="15" width="53" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[TAXID:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="35" width="253" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[C O M P R O B A N T E   D E  R E T E N C I Ó N]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="35" width="253" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[W I T H H O L D I N G]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="55" width="26" height="20"/>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="75" width="137" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[NÚMERO DE AUTORIZACIÓN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="75" width="137" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[NUMBER OF AUTHORIZATION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="118" width="98" height="25">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[FECHA Y HORA DE
+AUTORIZACIÓN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="118" width="98" height="25">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[DATE AND TIME OF
+AUTHORIZATION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="154" width="73" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[AMBIENTE:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="154" width="73" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[ENVIROMENT:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-5" y="165" width="69" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[Dir. Matriz:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-5" y="165" width="69" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[Addr. Matrix:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="179" width="73" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[EMISION:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="179" width="73" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[ISSUANCE:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="206" width="100" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[ACCESS KEY]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="307" y="206" width="100" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[CLAVE DE ACCESO:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-5" y="198" width="100" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[Addr. Sucursal:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-5" y="198" width="113" height="14">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[Dir. Sucursal:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="108" y="168" width="175" height="25"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{dir_matriz}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="108" y="200" width="175" height="26"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{dir_sucursal}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="456" y="55" width="104" height="20"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ref_invoice}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="456" y="15" width="104" height="20"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organization_taxid}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="307" y="98" width="253" height="20"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{num_autorizacion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="455" y="118" width="100" height="23"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_autorizacion}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="456" y="154" width="100" height="14"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{environment}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="456" y="179" width="100" height="15"/>
+				<textElement>
+					<font isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{emision}]]></textFieldExpression>
+			</textField>
+			<componentElement>
+				<reportElement x="300" y="226" width="262" height="50"/>
+				<jr:barbecue xmlns:jr="http://jasperreports.sourceforge.net/jasperreports/components" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports/components http://jasperreports.sourceforge.net/xsd/components.xsd" type="Code128" drawText="false" checksumRequired="false">
+					<jr:codeExpression><![CDATA[$F{cod_acceso}!=null ? $F{cod_acceso}:"12345678910111213141516171819202122232425262728293"]]></jr:codeExpression>
+				</jr:barbecue>
+			</componentElement>
+			<textField>
+				<reportElement x="307" y="262" width="253" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cod_acceso}!=null ? $F{cod_acceso}:"12345678910111213141516171819202122232425262728293"]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Right" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="29" y="5" width="173" height="108"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="78" splitType="Stretch">
+			<rectangle>
+				<reportElement x="180" y="58" width="74" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="-15" y="1" width="583" height="49"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="-11" y="1" width="152" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Razón Social / Nombre y Apellidos:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-11" y="1" width="152" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Social Name / Reason Name]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-11" y="33" width="203" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de Emisión:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-11" y="33" width="203" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date of issue:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="421" y="1" width="71" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Identificación:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="421" y="1" width="71" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Identification:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="382" y="33" width="91" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Guide Remission:]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="-15" y="58" width="68" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="382" y="33" width="91" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Guía de Remisión:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-15" y="58" width="68" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Comprobante]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="53" y="58" width="61" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="53" y="58" width="61" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="114" y="58" width="66" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="114" y="58" width="67" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha Emisión]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="254" y="58" width="126" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="255" y="58" width="125" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Base Imponible para
+la retención]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="380" y="58" width="56" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="436" y="58" width="62" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="436" y="58" width="62" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Porcentaje Retención]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="381" y="58" width="54" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[IMPUESTO]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="498" y="58" width="70" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="500" y="58" width="67" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor
+Retenido]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="-15" y="58" width="68" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Voucher]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="53" y="58" width="61" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Number]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="114" y="58" width="66" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Date Emission]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="254" y="58" width="126" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Taxable Base Retention]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="381" y="58" width="54" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TAX]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="436" y="58" width="62" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Percent Retention]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="500" y="58" width="67" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Retained Value]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="141" y="1" width="280" height="20"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bp_client}]]></textFieldExpression>
+			</textField>
+			<textField pattern="MM/dd/yyyy" isBlankWhenNull="true">
+				<reportElement x="192" y="33" width="118" height="17"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{date_emision}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="483" y="1" width="85" height="17"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bp_taxid}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="180" y="58" width="74" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ejercicio Fiscal]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="181" y="58" width="74" height="20">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fiscal Year]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="22" splitType="Stretch">
+			<rectangle>
+				<reportElement x="498" y="0" width="70" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="380" y="0" width="56" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="254" y="0" width="126" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="180" y="0" width="74" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="-15" y="0" width="68" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="101" y="0" width="79" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="436" y="0" width="62" height="22"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="53" y="0" width="61" height="22"/>
+			</rectangle>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="255" y="0" width="82" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{taxtbaseamt}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="385" y="0" width="47" height="22"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{impuesto}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="444" y="0" width="37" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{rate}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="500" y="0" width="50" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{taxamt}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="53" y="1" width="61" height="21"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ref_invoice2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="-15" y="0" width="68" height="22"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{comprobante}]]></textFieldExpression>
+			</textField>
+			<textField pattern="MM/dd/yyyy" isBlankWhenNull="true">
+				<reportElement x="114" y="0" width="61" height="22"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{date_emision}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="181" y="0" width="61" height="22"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fiscal_date}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="155">
+			<rectangle>
+				<reportElement x="18" y="24" width="345" height="81"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="25" y="48" width="96" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Dirección:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="18" y="26" width="345" height="21"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Información Adicional]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="25" y="88" width="97" height="11"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Email:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="141" y="68" width="214" height="13"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{phone}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="25" y="48" width="96" height="17">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Address:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="25" y="68" width="89" height="15">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("es_EC")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Teléfono:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="141" y="48" width="214" height="17"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bp_address}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="25" y="68" width="89" height="15">
+					<printWhenExpression><![CDATA[$F{ad_language}.equals("en_US")]]></printWhenExpression>
+				</reportElement>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Phone:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="141" y="88" width="214" height="11"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bp_mail}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+</jasperReport>

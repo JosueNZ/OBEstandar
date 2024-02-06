@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_DATEASECONDADMISSION">
+    <function name="SSPR_DATEASECONDADMISSION" type="VARCHAR">
+      <parameter name="c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_BpartnerID VARCHAR(32); 	--OBTG:VARCHAR2--
+V_DateTemp DATE;
+V_DateAdmission VARCHAR(10); 	--OBTG:VARCHAR2--
+V_DateExit	VARCHAR(10); 	--OBTG:VARCHAR2--
+V_Count  NUMBER; 	--OBTG:NUMBER--
+BEGIN
+V_BpartnerID:= c_bpartner_id;
+
+SELECT max(startdate)
+into V_DateTemp
+ FROM sspr_contract sc
+ left join c_bpartner cbp on cbp.c_bpartner_id = sc.c_bpartner_id
+where --(cbp.em_sspr_status ='A' or enddate is null) and
+sc.c_bpartner_id = V_BpartnerID;
+
+V_DateAdmission:= to_char(V_DateTemp,'dd/MM/yyyy'); 
+
+
+SELECT
+COALESCE((SELECT COUNT(*) FROM SSPR_CONTRACT WHERE SSPR_CONTRACT.C_BPARTNER_ID = V_BpartnerID),0)
+INTO V_Count
+FROM DUAL;
+
+IF V_Count>1 THEN
+
+	SELECT MAX(STARTDATE)
+	INTO V_DateTemp
+	 FROM sspr_contract sc
+	 left join c_bpartner cbp on cbp.c_bpartner_id = sc.c_bpartner_id
+	where --(cbp.em_sspr_status ='A' or enddate is null) and
+	sc.c_bpartner_id = V_BpartnerID 
+	and to_char(STARTDATE,'dd/MM/yyyy')<> V_DateAdmission;
+	
+V_DateAdmission:= to_char(V_DateTemp,'dd/MM/yyyy'); 
+
+ELSE
+
+V_DateAdmission:= null; 
+END IF;
+
+
+
+return coalesce(V_DateAdmission,null);
+END SSPR_DATEASECONDADMISSION
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAD_A_AMORTIZATIONLINE_TRG">
+    <trigger name="SSAD_A_AMORTIZATIONLINE_TRG" table="A_AMORTIZATIONLINE" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+
+  v_Costcenter_ID varchar2(32);
+  v_User1_ID varchar2(32);
+  v_User2_ID varchar2(32);
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+    IF (INSERTING) THEN
+
+      BEGIN
+        SELECT c_costcenter_id, user1_id, user2_id
+        INTO v_Costcenter_ID, v_User1_ID, v_User2_ID
+        FROM A_Asset
+        WHERE a_asset_id = :NEW.a_asset_id;
+      EXCEPTION WHEN NO_DATA_FOUND THEN
+        v_Costcenter_ID := null;
+        v_User1_ID := null;
+        v_User2_ID := null;
+      END;
+      
+      :NEW.c_costcenter_id := v_Costcenter_ID;
+      :NEW.user1_id := v_User1_ID;
+      :NEW.user2_id := v_User2_ID;
+      
+    END IF;
+
+END SSAD_A_AMORTIZATIONLINE_TRG]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSIN_INOUT_PROC_LINECHK_TRG">
+    <trigger name="SSIN_INOUT_PROC_LINECHK_TRG" table="M_INOUT" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+    /*************************************************************************
+    * The contents of this file are subject to the Openbravo  Public  License
+    * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+    * Version 1.1  with a permitted attribution clause; you may not  use this
+    * file except in compliance with the License. You  may  obtain  a copy of
+    * the License at http://www.openbravo.com/legal/license.html
+    * Software distributed under the License  is  distributed  on  an "AS IS"
+    * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+    * License for the specific  language  governing  rights  and  limitations
+    * under the License.
+    * The Original Code is Openbravo ERP.
+    * The Initial Developer of the Original Code is Openbravo SLU
+    * All portions are Copyright (C) 2001-2012 Openbravo SLU
+    * All Rights Reserved.
+    * Contributor(s):  Maykel González <mgonzalez@sidesoft.com.ec>.
+    ************************************************************************/
+
+  Cur_RepeatedLines RECORD;
+  Cur_RepeatedLinesEco RECORD;
+  v_Message varchar2(2000):='';
+  V_HaveRepeatedLines BOOLEAN:=FALSE;
+  V_ContinueBlock BOOLEAN:=FALSE;
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  IF (UPDATING) THEN
+    IF(:old.Processed='N') AND :new.Processed='Y' THEN
+
+      v_Message := 'Líneas repetidas: ';
+      FOR Cur_RepeatedLines IN
+      (
+        select count(iol.m_inoutline_id) as repeat, iol.c_orderline_id, iol.m_locator_id, iol.m_attributesetinstance_id
+        from m_inoutline iol
+        where iol.m_inout_id = :new.m_inout_id
+              and iol.c_orderline_id is not null
+        group by iol.c_orderline_id, iol.m_locator_id, iol.m_attributesetinstance_id
+        having count(iol.m_inoutline_id) > 1
+        order by count(iol.m_inoutline_id) desc
+      )
+      LOOP
+
+        if V_HaveRepeatedLines then
+          v_Message := v_Message || ' - ';
+        end if;
+
+        V_HaveRepeatedLines := TRUE;
+
+        FOR Cur_RepeatedLinesEco IN
+        (
+          select iol.line
+          from m_inoutline iol
+          where iol.c_orderline_id = Cur_RepeatedLines.c_orderline_id
+                and iol.m_locator_id = Cur_RepeatedLines.m_locator_id
+                and (iol.m_attributesetinstance_id is null and Cur_RepeatedLines.m_attributesetinstance_id is null or iol.m_attributesetinstance_id = Cur_RepeatedLines.m_attributesetinstance_id)
+                and iol.m_inout_id = :new.m_inout_id
+          order by iol.line
+        )
+        LOOP
+          if V_ContinueBlock then
+            v_Message := v_Message || ',';
+          end if;
+          V_ContinueBlock := TRUE;
+          v_Message := v_Message || Cur_RepeatedLinesEco.line;
+        end loop;
+        V_ContinueBlock := FALSE;
+      end loop;
+
+      if V_HaveRepeatedLines then
+        RAISE_APPLICATION_ERROR(-20000, v_Message) ;
+      end if;
+
+    END IF;
+  END IF;
+
+  END SSIN_INOUT_PROC_LINECHK_TRG
+]]></body>
+    </trigger>
+  </database>

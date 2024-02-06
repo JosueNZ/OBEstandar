@@ -1,0 +1,1857 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CalculoLiquidacionDecimoCuarto" pageWidth="1350" pageHeight="842" whenNoDataType="NoDataSection" columnWidth="1310" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="4eedbb89-b4f6-4469-9ab6-f642a1688cf7">
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="ireport.zoom" value="1.2100000000000006"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w1" value="161"/>
+	<property name="com.jaspersoft.studio.data.sql.SQLQueryDesigner.sash.w2" value="828"/>
+	<property name="net.sf.jasperreports.awt.ignore.missing.font" value="true"/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="com.jaspersoft.studio.report.description" value=""/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
+	<import value="org.openbravo.erpCommon.utility.OBDateUtils"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<import value="org.apache.commons.lang.StringUtils"/>
+	<style name="default" fontName="Bitstream Vera Sans" fontSize="10"/>
+	<style name="Report_Title" fontName="Bitstream Vera Sans" fontSize="18">
+		<box leftPadding="5"/>
+	</style>
+	<style name="Group_Data_Label" fontName="Bitstream Vera Sans" fontSize="11" isBold="true"/>
+	<style name="Report_Subtitle" forecolor="#555555" fontName="Bitstream Vera Sans" fontSize="14">
+		<box leftPadding="5"/>
+	</style>
+	<style name="Total_Field" mode="Opaque" forecolor="#000000" backcolor="#CCCCCC">
+		<box leftPadding="5"/>
+	</style>
+	<style name="Detail_Header" mode="Opaque" forecolor="#FFFFFF" backcolor="#555555">
+		<box leftPadding="5">
+			<leftPen lineWidth="1.0" lineStyle="Solid" lineColor="#FFFFFF"/>
+			<rightPen lineWidth="1.0" lineStyle="Solid" lineColor="#FFFFFF"/>
+		</box>
+	</style>
+	<style name="GroupHeader_DarkGray" mode="Opaque" forecolor="#FFFFFF" backcolor="#555555" fontName="Bitstream Vera Sans" fontSize="14">
+		<box leftPadding="5"/>
+	</style>
+	<style name="GroupHeader_Gray" mode="Opaque" backcolor="#999999"/>
+	<style name="Detail_Line">
+		<conditionalStyle>
+			<conditionExpression><![CDATA[new Boolean($V{REPORT_COUNT}.intValue()%2==1)]]></conditionExpression>
+			<style mode="Opaque" backcolor="#CCCCCC"/>
+		</conditionalStyle>
+	</style>
+	<style name="Total_Gray" mode="Opaque" forecolor="#000000" backcolor="#CCCCCC"/>
+	<parameter name="AMOUNTFORMAT" class="java.text.DecimalFormat"/>
+	<parameter name="YEAR_ID" class="java.lang.String"/>
+	<parameter name="REGIMEN_ID" class="java.lang.String"/>
+	<parameter name="c_bpartner_id" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+	cb."name" as bp_name,
+	sum( case when sp.datedoc < (select max(slrd.startdate + interval '1 month') as end_date
+								  from sspr_labor_regime_detail slrd
+								  where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+								   and slrd.typeconcept = '14TH'
+								   and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+					  			)
+			  then sptc.amount else 0 end
+	   ) as month1,
+	 sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '1 month') as end_date
+									  from sspr_labor_regime_detail slrd
+									  where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									   and slrd.typeconcept = '14TH'
+									   and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			) and
+	 				sp.datedoc < (select max(slrd.startdate + interval '2 month') as end_date
+								   from sspr_labor_regime_detail slrd
+								   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+								    and slrd.typeconcept = '14TH'
+								    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+					  			 ))
+			  then sptc.amount else 0 end
+	   ) as month2,
+	  sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '2 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) and
+	  				 sp.datedoc < (select max(slrd.startdate + interval '3 month') as end_date
+								   from sspr_labor_regime_detail slrd
+								   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+								    and slrd.typeconcept = '14TH'
+								    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+					  			 ))
+			  then sptc.amount else 0 end
+	   ) as month3,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '3 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   				  sp.datedoc < (select max(slrd.startdate + interval '4 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month4,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '4 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) and
+	   				   sp.datedoc < (select max(slrd.startdate + interval '5 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month5,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '5 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   				   sp.datedoc < (select max(slrd.startdate + interval '6 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month6,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '6 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '7 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month7,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '7 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '8 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month8,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '8 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '9 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month9,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '9 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '10 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month10,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '10 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '11 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month11,
+	   sum( case when (sp.datedoc >= (select max(slrd.startdate + interval '11 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ) AND
+	   					sp.datedoc < (select max(slrd.startdate + interval '12 month') as end_date
+									   from sspr_labor_regime_detail slrd
+									   where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+									    and slrd.typeconcept = '14TH'
+									    and (cast (extract(year from slrd.enddate) as character varying))
+								                = (select cy."year"
+													from c_year cy
+													where cy.c_year_id = $P{YEAR_ID})
+						  			 ))
+			  then sptc.amount else 0 end
+	   ) as month12,
+	   max(coalesce(grp_pay.monthly_payrolls_current, 0)) as monthly_payrolls_current,
+	   max(coalesce(grp_pay.monthly_payrolls_next, 0)) as monthly_payrolls_next,
+	   max(coalesce(grp_adv_pay.adv_payment_current, 0)) as adv_payment_current,
+	   max(coalesce(grp_adv_pay.adv_payment_next, 0)) as adv_payment_next,
+	   max(coalesce(grp_liq.liq_current, 0)) as liq_current,
+	   max(coalesce(grp_liq.liq_next, 0)) as liq_next,
+	   CASE WHEN $P{REGIMEN_ID} IS NULL THEN 'TODOS'
+	   ELSE (select slr."name" from sspr_labor_regime slr
+	   					  where slr.sspr_labor_regime_id = $P{REGIMEN_ID} ) END as regimen,
+	   (select cy2."year" from c_year cy2 where cy2.c_year_id = $P{YEAR_ID}) as selected_year,
+	   (select cb2."name" from c_bpartner cb2 where cb2.c_bpartner_id =  $P{c_bpartner_id}) as selected_bp,
+	   max(sp.ad_org_id) as org_id,
+	   (select TO_CHAR(max(to_number(cy2."year") - 1)) from c_year cy2 where cy2.c_year_id = $P{YEAR_ID}) as prev_year
+
+from sspr_payroll sp
+left join sspr_payroll_ticket spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+join c_bpartner cb on cb.c_bpartner_id = spt.c_bpartner_id
+join sspr_contract sc on cb.c_bpartner_id = sc.c_bpartner_id
+join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+join sspr_concept pc on sptc.sspr_concept_id = pc.sspr_concept_id
+left join (
+	select
+
+		spt2.c_bpartner_id,
+	    sum(
+	    	case when sp2.datedoc < (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+				 then sptc2.amount else 0 end
+	    ) as monthly_payrolls_current,
+	    sum(
+	    	case when sp2.datedoc >= (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+										from c_year cy
+
+										where cy.c_year_id = $P{YEAR_ID})
+				 then sptc2.amount else 0 end
+	    ) as monthly_payrolls_next
+	from sspr_payroll_ticket spt2
+	join sspr_payroll sp2 on sp2.sspr_payroll_id = spt2.sspr_payroll_id
+	join sspr_payroll_ticket_concept sptc2 on spt2.sspr_payroll_ticket_id = sptc2.sspr_payroll_ticket_id
+	join sspr_concept pc2 on sptc2.sspr_concept_id = pc2.sspr_concept_id
+	where sp2.ispayroll = 'Y'
+	and sp2.datedoc >= (select max(slrd.startdate)
+						from sspr_labor_regime_detail slrd
+						where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+						and slrd.typeconcept = '14TH'
+						and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+					  )
+	and sp2.datedoc <= (select max(slrd.enddate)
+						from sspr_labor_regime_detail slrd
+						where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+						and slrd.typeconcept = '14TH'
+						and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+
+										where cy.c_year_id = $P{YEAR_ID})
+					  )
+	and pc2.concepttypepayroll = 'DC'
+	group by spt2.c_bpartner_id
+) as grp_pay on grp_pay.c_bpartner_id = spt.c_bpartner_id
+left join (
+	select
+		fp2.c_bpartner_id,
+		sum(
+	    	case when fp2.paymentdate < (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+											from c_year cy
+
+											where cy.c_year_id = $P{YEAR_ID})
+				 then fps.amount else 0 end
+	    ) as adv_payment_current,
+	    sum(
+	    	case when fp2.paymentdate >= (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+											from c_year cy
+
+											where cy.c_year_id = $P{YEAR_ID})
+				 then fps.amount else 0 end
+	    ) as adv_payment_next
+	from fin_payment fp2
+	left join fin_payment_detail fpd on fpd.fin_payment_id = fp2.fin_payment_id
+	left join fin_payment_scheduledetail fps on fpd.fin_payment_detail_id = fps.fin_payment_detail_id
+	join c_glitem cg on cg.c_glitem_id = fpd.c_glitem_id
+	left join sspr_concept sc3 on sc3.sspr_concept_id = cg.em_sspr_concept_id
+	where fp2.isactive = 'Y'
+	and fp2.paymentdate >= (select max(slrd.startdate)
+							 from sspr_labor_regime_detail slrd
+							 where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+							  and slrd.typeconcept = '14TH'
+							  and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+						  	)
+	and fp2.paymentdate <= (select max(slrd.enddate)
+							 from sspr_labor_regime_detail slrd
+							 where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+							  and slrd.typeconcept = '14TH'
+							  and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+
+										where cy.c_year_id = $P{YEAR_ID})
+						  	)
+	and cg.em_ssph_adv_pay_thirteenth = 'Y'
+	and sc3.concepttypepayroll = 'DC'
+	group by fp2.c_bpartner_id
+) as grp_adv_pay on grp_adv_pay.c_bpartner_id = spt.c_bpartner_id
+left join (
+	select
+		ss.c_bpartner_id,
+		sum(
+	    	case when ss.movementdate < (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+											from c_year cy
+											where cy.c_year_id = $P{YEAR_ID})
+				 then ss2.amount else 0 end
+	    ) as liq_current,
+	    sum(
+	    	case when ss.movementdate >= (select  to_date(concat(cy."year",  to_char('0101')),'YYYYMMDD')
+											from c_year cy
+
+											where cy.c_year_id = $P{YEAR_ID})
+				 then ss2.amount else 0 end
+	    ) as liq_next
+	from sspr_settlement ss
+	left join sspr_settlementline ss2 on ss.sspr_settlement_id = ss2.sspr_settlement_id
+	left join sspr_concept sc2 on sc2.sspr_concept_id = ss2.sspr_concept_id
+	where ss.isactive = 'Y'
+	and ss.movementdate >= (select max(slrd.startdate)
+							 from sspr_labor_regime_detail slrd
+							 where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+							  and slrd.typeconcept = '14TH'
+							  and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+						  	)
+	and ss.movementdate <= (select max(slrd.enddate)
+							 from sspr_labor_regime_detail slrd
+							 where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+							  and slrd.typeconcept = '14TH'
+							  and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+
+										where cy.c_year_id = $P{YEAR_ID})
+						  	)
+	and sc2.concepttypepayroll = 'DC'
+	group by ss.c_bpartner_id
+) as grp_liq on grp_liq.c_bpartner_id = spt.c_bpartner_id
+where sp.ispayroll = 'N'
+and cb.isemployee = 'Y'
+and (sc.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+and sp.datedoc >= (select max(slrd.startdate)
+					from sspr_labor_regime_detail slrd
+					where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+					and slrd.typeconcept = '14TH'
+					and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+				  )
+and sp.datedoc <= (select max(slrd.enddate)
+					from sspr_labor_regime_detail slrd
+					where (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} OR $P{REGIMEN_ID} IS NULL )
+					and slrd.typeconcept = '14TH'
+					and (cast (extract(year from slrd.enddate) as character varying))
+					                = (select cy."year"
+										from c_year cy
+										where cy.c_year_id = $P{YEAR_ID})
+				  )
+and pc.concepttypepayroll = 'DC'
+and (cb.c_bpartner_id = $P{c_bpartner_id} or $P{c_bpartner_id} is null)
+group by cb."name"]]>
+	</queryString>
+	<field name="bp_name" class="java.lang.String"/>
+	<field name="month1" class="java.math.BigDecimal"/>
+	<field name="month2" class="java.math.BigDecimal"/>
+	<field name="month3" class="java.math.BigDecimal"/>
+	<field name="month4" class="java.math.BigDecimal"/>
+	<field name="month5" class="java.math.BigDecimal"/>
+	<field name="month6" class="java.math.BigDecimal"/>
+	<field name="month7" class="java.math.BigDecimal"/>
+	<field name="month8" class="java.math.BigDecimal"/>
+	<field name="month9" class="java.math.BigDecimal"/>
+	<field name="month10" class="java.math.BigDecimal"/>
+	<field name="month11" class="java.math.BigDecimal"/>
+	<field name="month12" class="java.math.BigDecimal"/>
+	<field name="monthly_payrolls_current" class="java.math.BigDecimal"/>
+	<field name="monthly_payrolls_next" class="java.math.BigDecimal"/>
+	<field name="adv_payment_current" class="java.math.BigDecimal"/>
+	<field name="adv_payment_next" class="java.math.BigDecimal"/>
+	<field name="liq_current" class="java.math.BigDecimal"/>
+	<field name="liq_next" class="java.math.BigDecimal"/>
+	<field name="regimen" class="java.lang.String"/>
+	<field name="selected_year" class="java.lang.String"/>
+	<field name="selected_bp" class="java.lang.String"/>
+	<field name="org_id" class="java.lang.String"/>
+	<field name="prev_year" class="java.lang.String"/>
+
+	<variable name="sum_m1" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month1}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m2" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month2}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m3" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month3}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m4" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month4}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m5" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month5}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m6" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month6}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m7" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month7}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m8" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month8}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m9" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month9}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m10" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month10}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m11" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month11}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_m12" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{month12}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_months" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{month1}.add($F{month2}.add($F{month3}.add($F{month4}.add($F{month5}.add($F{month6}.add($F{month7}.add($F{month8}.add($F{month9}.add($F{month10}.add($F{month11}.add($F{month12})))))))))))]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_total_months" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{sum_months}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_month_prl_cur" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{monthly_payrolls_current}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_month_prl_next" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{monthly_payrolls_next}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_adv_pymt_cur" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{adv_payment_current}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_adv_pymt_next" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{adv_payment_next}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_liq_current" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{liq_current}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_liq_next" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{liq_next}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="pago_julio" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$V{sum_months}.subtract($F{monthly_payrolls_current}).subtract($F{monthly_payrolls_next}).subtract($F{adv_payment_current}).subtract($F{adv_payment_next}).subtract( $F{liq_current}).subtract($F{liq_next})]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="sum_pago_jul" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{pago_julio}]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ZERO]]></initialValueExpression>
+	</variable>
+	<variable name="row_count" class="java.math.BigDecimal" calculation="Count">
+		<variableExpression><![CDATA[$V{row_count}.add(BigDecimal.ONE)]]></variableExpression>
+		<initialValueExpression><![CDATA[BigDecimal.ONE]]></initialValueExpression>
+	</variable>
+	<group name="Gruppo1">
+		<groupExpression><![CDATA[(int)($V{REPORT_COUNT}/15)]]></groupExpression>
+		<groupFooter>
+			<band>
+				<property name="local_mesure_unitheight" value="pixel"/>
+				<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			</band>
+		</groupFooter>
+	</group>
+	<title>
+		<band height="73" splitType="Stretch">
+			<property name="local_mesure_unitheight" value="pixel"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<property name="com.jaspersoft.studio.layout"/>
+			<staticText>
+				<reportElement x="0" y="0" width="425" height="25" uuid="e622555d-198b-4ccd-a4a1-c59c53304058">
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Left">
+					<font fontName="Calibri" size="16" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[Reporte de Liquidación Décimo Cuarto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="175" y="25" width="100" height="16" uuid="2348c1b8-5bd7-418e-8040-cb0e75f389c7">
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[     Regimen Laboral]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="175" y="41" width="100" height="16" uuid="aa048a0e-a325-4a68-95dd-a2cfa5d4fd67">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[     Ejercicio]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="175" y="57" width="100" height="16" uuid="b6ab7888-11a4-4a0e-9031-3f24c467a9e1">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<printWhenExpression><![CDATA[$P{c_bpartner_id} != null]]></printWhenExpression>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true"/>
+				</textElement>
+				<text><![CDATA[     Empleado]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+
+				<reportElement x="275" y="25" width="150" height="16" uuid="dc1a30d0-557a-4edb-9857-dbc626eb5eef">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri"/>
+				</textElement>
+
+				<textFieldExpression><![CDATA[$F{regimen}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="275" y="41" width="150" height="16" uuid="85f88aaa-de3a-431f-8d37-57f0cfbab656">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri"/>
+				</textElement>
+
+				<textFieldExpression><![CDATA[$F{selected_year}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="275" y="57" width="150" height="16" uuid="8f5c88dd-fb4e-4534-8d38-01a490888603">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri"/>
+				</textElement>
+
+				<textFieldExpression><![CDATA[$F{selected_bp}]]></textFieldExpression>
+			</textField>
+			<image hAlign="Center" vAlign="Middle">
+				<reportElement x="0" y="25" width="175" height="48" uuid="f912efd5-6833-461c-aa68-90a68c72c12d">
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal",$F{org_id})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="41">
+			<property name="local_mesure_unitheight" value="pixel"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<staticText>
+				<reportElement x="0" y="0" width="25" height="41" uuid="9093bcab-c835-4662-a30a-668b67e11474">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[No.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="25" y="0" width="150" height="41" uuid="d29b7b07-4249-417f-a89a-225a250fab8a">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[Nombre]]></text>
+			</staticText>
+			<textField>
+				<reportElement mode="Transparent" x="175" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="c97a67a2-ccb4-4214-999b-c74ae986e1ea"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["ago-" + $F{prev_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="225" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="906d740a-3456-4f87-a83d-869f14add0a4"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["sept-" + $F{prev_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="275" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="0ae48505-0011-485e-a31d-2d708112b87e"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["oct-" + $F{prev_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="325" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="d84347b0-bcf4-498e-8b37-4f5d2f81ae18"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["nov-" + $F{prev_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="375" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="3dfa7024-d0eb-4776-b381-fef775e9a036"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["dic-" + $F{prev_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="425" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="b42f2d35-4549-4cf8-9bbb-6b02b28862c9"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["ene-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="475" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="94574783-f81b-403a-b8d8-cd537635a214"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["feb-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="525" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="160d01be-b8bb-4b66-8fb3-54c677570ace"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["mar-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="575" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="ab7bb7ad-bcb5-4ecc-973b-ec3ed6ee6b6b"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["abr-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="625" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="2dcf9ad7-f751-421c-9307-8ac5325b5a79"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["may-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="675" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="5eb80085-194e-42a0-9db5-2a8ea2f3bdf3"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["jun-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="725" y="0" width="50" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="b39d7609-7d1c-444a-817d-98a64426fa80"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["jul-" + $F{selected_year}.substring(2,4)]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="775" y="0" width="100" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="a4b59bff-a0ca-47d7-9c6b-bbe66277d0db">
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+				</reportElement>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="0.5" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Décimo Cuarto sueldo prov. de ago " + $F{prev_year} + " a jul " + $F{selected_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="875" y="0" width="60" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="039c91ba-f338-48a4-84c2-d8faae4a6b96"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Pagos mensual año " + $F{prev_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="935" y="0" width="60" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="a9efd6d9-27c3-410f-8f72-126ba3719f51"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Anticipos entregados año " + $F{prev_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="995" y="0" width="70" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="9c206a88-72ea-44d5-a56b-ad0b9a210c19"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Liquidaciones de haberes año " + $F{prev_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="1065" y="0" width="60" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="c4181502-b4ba-4d63-8617-7af61f5bd4dd"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Pagos mensual año " + $F{selected_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="1125" y="0" width="60" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="2fd5e3f6-e232-4f99-9dcd-61a12d808bbd"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Anticipos entregados año " + $F{selected_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="1185" y="0" width="70" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="bd10e7a8-93a5-49a6-8259-0e0f39811402"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Liquidaciones de haberes año " + $F{selected_year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement mode="Transparent" x="1255" y="0" width="80" height="41" forecolor="#000000" backcolor="#FFFFFF" uuid="fb7bce95-5dc4-4d94-805a-da46a349fd53"/>
+				<box padding="0" topPadding="0" leftPadding="0" bottomPadding="0" rightPadding="0">
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle" rotation="None" markup="none">
+					<font fontName="Calibri" size="9" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+
+					<paragraph lineSpacing="Single" lineSpacingSize="1.0" firstLineIndent="0" leftIndent="0" rightIndent="0" spacingBefore="0" spacingAfter="0" tabStopWidth="40"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Pago julio " + $F{selected_year}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="16">
+			<property name="local_mesure_unitheight" value="pixel"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="175" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="f7c3e918-77ba-4aac-9d2c-0378edc43281">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month1}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="225" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="9486a663-18f8-4fc5-8f09-c4cfe62ad3f8">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month2}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="425" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="8e7af2a1-6e11-447f-93d1-3d10f8ac4d89">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month6}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="475" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="dc7358ff-8231-4bd5-b268-888976024111">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month7}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="525" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="da17a0db-dc52-444c-a23a-7cb9c4a1ebdd">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month8}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="575" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="42858a4c-7613-4b69-8df7-dc41ddb6be34">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month9}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="625" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="54a85263-95c5-4cb1-a989-902eb252ec84">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month10}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="275" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="4de68e25-28c6-4ab8-9070-9f92c5b29042">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month3}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="325" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="5b8b4eab-2ba0-4311-a186-2547487c133b">
+
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month4}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="675" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="7dac7e43-49d7-4f50-bbbe-547fa5f4d1a7">
+
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month11}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="725" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="53db2fa1-3f7a-4516-9f06-5314f90c2f1d">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month12}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="775" y="0" width="100" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="e1bb0be5-5c6e-4ac0-8b52-81d9314b764d">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_months}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="875" y="0" width="60" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="342737c4-e622-4501-a2a7-4276ab0debb5">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{monthly_payrolls_current}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="935" y="0" width="60" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="db43e08e-9418-47ae-a241-64303cac6746">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{adv_payment_current}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="995" y="0" width="70" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="f5faba69-f7be-4d0c-99a7-eb19f0ba8f3c">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{liq_current}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1065" y="0" width="60" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="d9c84442-c87c-4b77-a597-01bcac81d6af">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{monthly_payrolls_next}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1125" y="0" width="60" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="375c02a5-a6da-438a-9c92-7648f127ba23">
+
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{adv_payment_next}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1185" y="0" width="70" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="de2963cc-d016-4ec7-a337-2d843c7f823c">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{liq_next}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1255" y="0" width="80" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="748a37b5-6c06-421d-a4cc-85b259cf78fb">
+
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{pago_julio}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00#;(#,##0.00#-)" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="375" y="0" width="50" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="f795a1db-f074-43ea-ae2b-b9bb76d7880b">
+
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{month5}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,###.###" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="25" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="1011d16b-37f9-4e8f-a975-24e2d63cb7cd">
+
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{row_count}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="25" y="0" width="150" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="6cc8e7bd-6920-4429-ac22-9486bac6072b">
+
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+
+				<textFieldExpression><![CDATA[$F{bp_name}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<lastPageFooter>
+		<band height="16">
+			<property name="local_mesure_unitheight" value="pixel"/>
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="175" y="0" width="50" height="16" uuid="13557ee3-49cb-487a-b584-6ebe3aa26b47">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m1}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="225" y="0" width="50" height="16" uuid="d1e3bbe0-1796-4ddd-85dc-9c159c040aa9">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m2}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="275" y="0" width="50" height="16" uuid="9e301f4f-c32e-4d0f-bb0e-c53a4d5df337">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m3}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="325" y="0" width="50" height="16" uuid="f7ae4d73-7029-4528-913b-51211e0fd9fd">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m4}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="375" y="0" width="50" height="16" uuid="ef99715d-90eb-457a-8458-0b715fdffe7d">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m5}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="425" y="0" width="50" height="16" uuid="dee8e7b6-4cb4-4d75-bd5a-4b41c094d8fc">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m6}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="475" y="0" width="50" height="16" uuid="fba3257d-dc59-4c0d-81a3-b52b4a476ebd">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m7}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="525" y="0" width="50" height="16" uuid="6797521e-4e5f-4207-9344-14ee04270c2a">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m8}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="575" y="0" width="50" height="16" uuid="0e8c01d7-20af-4431-9fa4-1d9412c122c8">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m9}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="625" y="0" width="50" height="16" uuid="4de20865-1a26-4036-a9cb-ee1f15773b23">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m10}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="675" y="0" width="50" height="16" uuid="46d7ed09-2b5c-4ede-8fb5-9a253f8126bf">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m11}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="725" y="0" width="50" height="16" uuid="3bf2a5cc-3490-430d-94c2-edcbba318430">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_m12}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="775" y="0" width="100" height="16" uuid="50acb30e-3a0d-4a4e-a3b4-f914c1f65a9a">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_total_months}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="875" y="0" width="60" height="16" uuid="94da245f-cd1c-45f5-82dd-026e437273ac">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_month_prl_cur}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="935" y="0" width="60" height="16" uuid="64c5bacc-acd3-4314-a6c6-1579af23f105">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_adv_pymt_cur}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="995" y="0" width="70" height="16" uuid="667b6fa2-fde9-4b32-983a-2c5f147f9d02">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_liq_current}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="1065" y="0" width="60" height="16" uuid="ec3a1d78-4819-43f2-9cc7-32e3c66ea653">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_month_prl_next}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="1125" y="0" width="60" height="16" uuid="882d71d6-d853-4482-baeb-f8cc6a571854">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_adv_pymt_next}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#-)">
+				<reportElement x="1185" y="0" width="70" height="16" uuid="4c6fa6eb-bd4d-46fa-ab64-4d93ac6c9ecc">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_liq_next}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00#;(#,##0.00#)" isBlankWhenNull="true">
+				<reportElement x="1255" y="0" width="80" height="16" uuid="d90f9a1c-12c2-4f47-be88-64ea8d11cec5">
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unity" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="local_mesure_unitheight" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+				</reportElement>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sum_pago_jul}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="175" height="16" isRemoveLineWhenBlank="true" isPrintWhenDetailOverflows="true" uuid="02f0ae33-7ec8-48b5-84d8-13a4041a4136">
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="com.jaspersoft.studio.unit.y" value="px"/>
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="9" isBold="true" isPdfEmbedded="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["TOTALES"]]></textFieldExpression>
+
+			</textField>
+		</band>
+	</lastPageFooter>
+	<noData>
+		<band height="30">
+			<property name="com.jaspersoft.studio.unit.height" value="px"/>
+			<staticText>
+				<reportElement x="0" y="0" width="775" height="30" uuid="0e99dc9b-8c23-49fd-8f29-ddb1d7188f41">
+					<property name="com.jaspersoft.studio.unit.width" value="px"/>
+					<property name="com.jaspersoft.studio.unit.height" value="px"/>
+					<property name="local_mesure_unitx" value="pixel"/>
+					<property name="com.jaspersoft.studio.unit.x" value="px"/>
+					<property name="local_mesure_unitwidth" value="pixel"/>
+				</reportElement>
+				<box>
+					<bottomPen lineWidth="1.0" lineColor="#CCCCCC"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="18" isBold="true"/>
+
+				</textElement>
+				<text><![CDATA[NO SE ENCONTRARON DATOS PARA LOS FILTROS SELECCIONADOS]]></text>
+			</staticText>
+		</band>
+	</noData>
+</jasperReport>

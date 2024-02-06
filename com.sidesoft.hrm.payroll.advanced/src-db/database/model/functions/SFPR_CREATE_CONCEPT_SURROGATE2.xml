@@ -1,0 +1,219 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SFPR_CREATE_CONCEPT_SURROGATE2">
+    <function name="SFPR_CREATE_CONCEPT_SURROGATE2" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+  Cur_EmpSurrogate RECORD;
+  CurSurrogateDetail RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);  
+  v_SSconcept_ID VARCHAR2(32);  
+  
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_Period_ID VARCHAR2(32); 
+  v_PRollTemplate_ID VARCHAR2(32);  
+  v_n_insertions NUMBER;	--OBTG:NUMBER--
+  v_count NUMBER;		--OBTG:NUMBER--
+  v_Message VARCHAR2(2000):='';
+  v_countsg NUMBER;		--OBTG:NUMBER--
+  V_Concept VARCHAR2(32);
+  v_bpartnerS VARCHAR2(32);
+  v_conceptS VARCHAR2(32);
+  v_nodays NUMBER;		--OBTG:NUMBER--
+  v_grandtotalS NUMBER;		--OBTG:NUMBER--
+  v_surrogate_detail_ID  VARCHAR2(32);
+  v_descriptionS VARCHAR2(2000):='';
+  v_amountS NUMBER;		--OBTG:NUMBER--
+  
+BEGIN
+  --  Update AD_PInstance
+  --RAISE NOTICE '%','Updating PInstance - Processing ' || PInstance_ID ;
+  --v_ResultStr := 'PInstanceNotFound';
+  --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;    
+
+	/*FOR Cur_Parameter IN
+	(SELECT i.Record_ID,
+	p.ParameterName,
+	p.P_String,
+	p.P_Number,
+	p.P_Date,
+	p.AD_Client_ID,
+	p.AD_Org_ID,
+	p.CreatedBy        
+	FROM AD_PInstance i
+	LEFT JOIN AD_PInstance_Para p
+	   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+	WHERE i.AD_PInstance_ID = PInstance_ID
+	ORDER BY p.SeqNo
+	)
+	LOOP      	  
+
+	IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+	
+		v_StartPeriod_ID := Cur_Parameter.P_String;      
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.CreatedBy;
+
+	ELSE  
+	DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	END IF;     
+
+	END LOOP; */-- Get Parameter
+
+
+
+	/*IF (v_StartPeriod_StartDate > v_EndPeriod_StartDate) THEN
+
+	RAISE_APPLICATION_ERROR(-20000, '@SSPR_EndStartPeriod@');
+
+	END IF;*/
+
+	--VARIABLES
+	v_StartPeriod_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+
+
+	IF (v_StartPeriod_ID IS NOT NULL) THEN
+    
+		--Create the RVE and Copy Concepts by employee
+    
+    select coalesce(((select count(*) from
+    (SELECT DISTINCT CONCEPT_SURROGATE FROM SFPR_SURROGATE_DETAIL) SG)),0) into v_countsg from dual;
+    
+    IF (v_countsg>1)THEN
+      
+      RAISE_APPLICATION_ERROR(-20000, 'ERROR');
+    
+    ELSIF (v_countsg=1) THEN
+        
+        SELECT DISTINCT CONCEPT_SURROGATE INTO V_Concept FROM SFPR_SURROGATE_DETAIL;
+        
+        DELETE FROM SSPR_Concept_Amount WHERE  SSPR_Concept_ID = V_Concept
+        AND C_Period_ID = v_StartPeriod_ID;
+    
+    END IF;
+
+    For Cur_EmpSurrogate IN
+    (
+	SELECT C_BPARTNER_ID,CONCEPT_SURROGATE FROM SFPR_SURROGATE_DETAIL
+	WHERE STATUS_SURROGATE='CO' AND PROCESSED = 'N'
+    )
+    LOOP
+    
+    v_bpartnerS:= Cur_EmpSurrogate.C_BPARTNER_ID;
+    v_surrogate_detail_ID:='';
+    v_descriptionS:='';
+    v_amountS:=0;
+    
+	FOR CurSurrogateDetail IN
+	(
+		SELECT  SFPR_EMPLOYEE_SURROGATE_ID,SFPR_SURROGATE_DETAIL_ID,DESCRIPTION FROM SFPR_SURROGATE_DETAIL
+		WHERE STATUS_SURROGATE='CO' AND PROCESSED = 'N' AND
+		C_BPARTNER_ID=v_bpartnerS
+	)
+	LOOP
+	    
+	    v_conceptS:=Cur_EmpSurrogate.CONCEPT_SURROGATE;
+	    v_surrogate_detail_ID:= CurSurrogateDetail.SFPR_SURROGATE_DETAIL_ID;
+	    v_descriptionS:= v_descriptionS || CurSurrogateDetail.DESCRIPTION;
+	END LOOP; 
+    
+		FOR Cur_Period IN 
+		(SELECT sum(GRANDTOTAL) as GRANDTOTAL
+		 FROM SFPR_SURROGATE_DETAIL
+		 WHERE STATUS_SURROGATE='CO' AND PROCESSED = 'N'
+		 AND C_BPARTNER_ID = v_bpartnerS
+		)
+		LOOP
+
+		v_amountS:= Cur_Period.GRANDTOTAL;
+
+		END LOOP;
+
+		IF v_amountS>0 THEN
+
+			INSERT INTO SSPR_Concept_Amount
+			(SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+			Created, CreatedBy, Updated, UpdatedBy,
+			SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount,EM_SFPR_SURROGATE_DETAIL_ID
+			,EM_SFPR_DESCRIPTION)
+			VALUES
+			(get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			now(), v_User_ID, now(), v_User_ID,
+			v_conceptS,v_bpartnerS, v_StartPeriod_ID, v_amountS
+			,v_surrogate_detail_ID,v_descriptionS);
+			
+			UPDATE SFPR_EMPLOYEE_SURROGATE SET PROCESSED = 'Y'
+			WHERE SFPR_EMPLOYEE_SURROGATE_ID IN (SELECT SFPR_EMPLOYEE_SURROGATE_ID FROM SFPR_EMPLOYEE_SURROGATE
+							WHERE PROCESSED = 'Y'
+							AND C_BPARTNER_ID = v_bpartnerS);
+              
+      /*UPDATE SFPR_EMPLOYEE_SURROGATE SET PROCESSED = 'Y'
+			WHERE SFPR_EMPLOYEE_SURROGATE_ID IN (SELECT SFPR_EMPLOYEE_SURROGATE_ID FROM SFPR_EMPLOYEE_SURROGATE
+							WHERE STATUS_SURROGATE='CO' AND PROCESSED = 'Y'
+						  AND C_PERIOD_ID = v_StartPeriod_ID
+							AND C_BPARTNER_ID = v_bpartnerS);*/
+							
+			v_n_insertions:= v_n_insertions +1;
+
+		END IF;
+					
+	END LOOP;
+
+		UPDATE SFPR_SURROGATE_DETAIL SET PERIOD_PROCESSED = v_StartPeriod_ID
+		,STATUS_SURROGATE='CO', PROCESSED = 'Y'
+		WHERE STATUS_SURROGATE='CO' AND PROCESSED = 'N' ;		   
+
+	END IF;
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --END BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SFPR_CREATE_CONCEPT_SURROGATE2
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_VacationsSummary" pageWidth="1020" pageHeight="612" orientation="Landscape" columnWidth="980" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="0.9090909090909098"/>
+	<property name="ireport.x" value="280"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select sspr_vacations.ad_org_id as organizationid,
+	c_bpartner.name as empleado,
+	c_bpartner.em_sspr_entrydate as fechaingreso,
+	sum(round(sspr_vacations.earneddays,2)) as diasvacaciones,
+	sum(round(sspr_vacations.nodaystomados,2)) as diastomados,
+	sum(round(sspr_vacations.nodays,2)) as saldo,
+	sum(round(sspr_vacations.earneddays_add,2)) as diasadicionales,
+	sum(round(sspr_vacations.noadditionaltomados,2)) as diasadicionalestomados,
+	sum(round(sspr_vacations.noadditionaltotal,2)) as diasadicinalestotales,
+	sum(round(sspr_vacations.nodaystotal,2)) as diastotales,
+	sum(round(sspr_vacations.nodayspending,2)) as diaspendientes,
+	now() as fechaimpresión,
+	co.name as centro_costo,
+	c_bpartner.EM_SSPR_DocumentNo as identificador
+
+from sspr_vacations
+left join c_bpartner on c_bpartner.c_bpartner_id = sspr_vacations.c_bpartner_id
+left join c_costcenter co on co.c_costcenter_id = c_bpartner.em_sspr_costcenter_id
+where sspr_vacations.c_bpartner_id = $P{c_bpartner_id} or $P{c_bpartner_id} is null
+and c_bpartner.em_sspr_status = 'A'
+group by sspr_vacations.ad_org_id,
+	c_bpartner.name,
+	c_bpartner.em_sspr_entrydate
+,co.name
+,c_bpartner.EM_SSPR_DocumentNo
+order by co.name,c_bpartner.name]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="empleado" class="java.lang.String"/>
+	<field name="fechaingreso" class="java.sql.Timestamp"/>
+	<field name="diasvacaciones" class="java.math.BigDecimal"/>
+	<field name="diastomados" class="java.math.BigDecimal"/>
+	<field name="saldo" class="java.math.BigDecimal"/>
+	<field name="diasadicionales" class="java.math.BigDecimal"/>
+	<field name="diasadicionalestomados" class="java.math.BigDecimal"/>
+	<field name="diasadicinalestotales" class="java.math.BigDecimal"/>
+	<field name="diastotales" class="java.math.BigDecimal"/>
+	<field name="diaspendientes" class="java.math.BigDecimal"/>
+	<field name="fechaimpresión" class="java.sql.Timestamp"/>
+	<field name="centro_costo" class="java.lang.String"/>
+	<field name="identificador" class="java.lang.String"/>
+	<variable name="v_sub_diasvacaciones" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasvacaciones}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_diastomados" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diastomados}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_saldo" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_diasadicionales" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicionales}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_diasadicionalestomadas" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicionalestomados}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_diasadicionalestotales" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicinalestotales}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_diastotales" class="java.math.BigDecimal" resetType="Group" resetGroup="CentroCosto" calculation="Sum">
+		<variableExpression><![CDATA[$F{diastotales}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diasvacaciones" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasvacaciones}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diastomados" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diastomados}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_saldo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{saldo}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diasadicionales" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicionales}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diasadicionalestomadas" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicionalestomados}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diasadicionalestotales" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diasadicinalestotales}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_diastotales" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{diastotales}]]></variableExpression>
+	</variable>
+	<group name="CentroCosto">
+		<groupExpression><![CDATA[$F{centro_costo}]]></groupExpression>
+		<groupHeader>
+			<band/>
+		</groupHeader>
+		<groupFooter>
+			<band height="28">
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="914" y="0" width="66" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diastotales}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="849" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diasadicionalestotales}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="784" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diasadicionalestomadas}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="719" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diasadicionales}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="654" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_saldo}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="589" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diastomados}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.000;-###0.000">
+					<reportElement x="524" y="0" width="65" height="28"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_diasvacaciones}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="524" height="28"/>
+					<textElement verticalAlignment="Middle">
+						<font isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA["TOTAL " + ($F{centro_costo}==null?"":$F{centro_costo})]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="62" splitType="Stretch">
+			<staticText>
+				<reportElement x="246" y="22" width="734" height="26"/>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VACACIONES RESUMEN]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="246" height="62"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<line>
+				<reportElement x="0" y="4" width="980" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="86" y="6" width="242" height="12"/>
+				<textElement>
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMPLEADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="470" y="6" width="54" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FECH ING]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="524" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D VACACNS]]></text>
+			</staticText>
+			<line>
+				<reportElement x="0" y="18" width="980" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="589" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D TOMADOS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="654" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D TOTAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="719" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D AD VACNS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="784" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D AD TOMAD]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="849" y="6" width="65" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D AD TOTAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="914" y="6" width="66" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[D AD SALDO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="5" width="86" height="15"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[IDENTIFICADOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="328" y="6" width="142" height="12"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CENTRO DE COSTO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="86" y="0" width="242" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{empleado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="470" y="0" width="54" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaingreso}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="524" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasvacaciones}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="589" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diastomados}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="654" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{saldo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="719" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicionales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="784" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicionalestomados}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="849" y="0" width="65" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diasadicinalestotales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement stretchType="RelativeToBandHeight" x="914" y="0" width="66" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diastotales}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="86" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{identificador}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="328" y="0" width="142" height="12"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{centro_costo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="29">
+			<staticText>
+				<reportElement x="784" y="8" width="130" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de impresión:  ]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy h.mm a">
+				<reportElement x="914" y="8" width="66" height="12"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaimpresión}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="140" splitType="Stretch">
+			<staticText>
+				<reportElement positionType="Float" x="524" y="107" width="130" height="12"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Aprobado por]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="246" y="107" width="163" height="12"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Elaborado por]]></text>
+			</staticText>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="914" y="0" width="66" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diastotales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="719" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diasadicionales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="849" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diasadicionalestotales}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="784" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diasadicionalestomadas}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="589" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diastomados}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="524" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_diasvacaciones}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.000;-###0.000">
+				<reportElement x="654" y="0" width="65" height="22"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_saldo}]]></textFieldExpression>
+			</textField>
+			<rectangle>
+				<reportElement x="0" y="22" width="980" height="82" forecolor="#FFFFFF"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="0" y="0" width="524" height="22"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

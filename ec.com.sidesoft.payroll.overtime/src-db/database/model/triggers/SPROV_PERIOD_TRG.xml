@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPROV_PERIOD_TRG">
+    <trigger name="SPROV_PERIOD_TRG" table="SPROV_PERIOD" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[	V_Status VARCHAR2(60);
+	vCheck NUMBER;
+BEGIN
+	IF (DELETING) THEN
+		IF (:OLD.status = '1') THEN
+			RAISE_APPLICATION_ERROR(-20000, '@SPROV_Processed@') ;
+		ELSE
+			RETURN OLD;
+		END IF;
+	END IF;
+
+	IF (INSERTING) THEN
+		SELECT COUNT(*) INTO vCheck FROM sprov_period WHERE c_period_id=:NEW.c_period_id;
+		IF (vCheck > 0)  THEN
+			RAISE_APPLICATION_ERROR(-20000, '@SPROV_DuplicatePeriod@') ;
+		END IF;
+	END IF;
+
+	IF (UPDATING) THEN
+		SELECT COUNT(*) INTO vCheck FROM sprov_period WHERE c_period_id=:NEW.c_period_id;
+		IF (vCheck > 0) AND (:OLD.c_period_id != :NEW.c_period_id) THEN
+			RAISE_APPLICATION_ERROR(-20000, '@SPROV_DuplicatePeriod@') ;
+		END IF;
+	END IF;
+	
+	RETURN NEW;
+END SPROV_PERIOD_TRG
+]]></body>
+    </trigger>
+  </database>

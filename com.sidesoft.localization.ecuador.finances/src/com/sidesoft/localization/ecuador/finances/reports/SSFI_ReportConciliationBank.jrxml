@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ReportReconciliation" pageWidth="1000" pageHeight="842" columnWidth="900" leftMargin="50" rightMargin="50" topMargin="50" bottomMargin="50">
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="163"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<style name="Gray" mode="Opaque" forecolor="#000000" backcolor="#CCCCCC"/>
+	<style name="DarkGray" mode="Opaque" forecolor="#FFFFFF" backcolor="#555555" vAlign="Middle" fontName="Bitstream Vera Sans" fontSize="18" isBold="true">
+		<box leftPadding="5"/>
+	</style>
+	<parameter name="DATE" class="java.util.Date" isForPrompting="false"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false"/>
+	<parameter name="ACC_BAL_OB" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="ADJ_ACC_BAL_OB" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="FINACCOUNT_INFO" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="RECONCILIATION_ID" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="DATEFORMAT" class="java.text.SimpleDateFormat" isForPrompting="false"/>
+	<parameter name="END_BALANCE" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="REPORT_TYPE" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["DETAIL"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AMT_OUT_PAYMENT" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="AMT_OUT_DEPOSIT" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="AMT_UNREC_BSLINE" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="SHOW_BAND_PAYMENT" class="java.lang.Boolean" isForPrompting="false"/>
+	<parameter name="SHOW_BAND_DEPOSIT" class="java.lang.Boolean" isForPrompting="false"/>
+	<parameter name="SHOW_BAND_BSLINE" class="java.lang.Boolean" isForPrompting="false"/>
+	<parameter name="ORGANIZATIONID" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="ORGANIZATIONNAME" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="START_BALANCE" class="java.math.BigDecimal" isForPrompting="false"/>
+	<parameter name="GENERIC_ACCOUNT" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="EMISSION_DATE" class="java.util.Date" isForPrompting="false"/>
+	<parameter name="BASE_WEB" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT    org.name as organizacion,
+	fr.fin_reconciliation_id,
+	fp.fin_financial_account_id,
+	fp.paymentdate as fechapagocobro,
+	fr.statementdate as fechareconciliacion,
+	fpm.name as tipopago,
+	fp.documentno as numerodocumento,
+	cbp.name as beneficiario,
+	fp.description as detalle,
+	CASE WHEN fp.isReceipt='Y' THEN amount ELSE 0 END as deposito,
+	CASE WHEN fp.isReceipt='N' THEN amount ELSE 0 END as reintegro
+FROM fin_reconciliation fr
+LEFT JOIN FIN_Payment fp ON fp.fin_financial_account_id = fr.fin_financial_account_id
+LEFT JOIN c_bpartner cbp ON cbp.c_bpartner_id = fp.c_bpartner_id
+LEFT JOIN fin_paymentmethod fpm ON fpm.fin_paymentmethod_id = fp.fin_paymentmethod_id
+LEFT JOIN ad_org org ON org.ad_org_id = fr.ad_org_id
+WHERE fr.fin_reconciliation_id = $P{RECONCILIATION_ID}
+AND (fp.status = 'PPM' OR fp.status = 'RPR' OR fp.status ='RPPC')
+AND fp.paymentdate <= fr.statementdate]]>
+	</queryString>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="fin_reconciliation_id" class="java.lang.String"/>
+	<field name="fin_financial_account_id" class="java.lang.String"/>
+	<field name="fechapagocobro" class="java.sql.Timestamp"/>
+	<field name="fechareconciliacion" class="java.sql.Timestamp"/>
+	<field name="tipopago" class="java.lang.String"/>
+	<field name="numerodocumento" class="java.lang.String"/>
+	<field name="beneficiario" class="java.lang.String"/>
+	<field name="detalle" class="java.lang.String"/>
+	<field name="deposito" class="java.math.BigDecimal"/>
+	<field name="reintegro" class="java.math.BigDecimal"/>
+	<variable name="SUM_DEPOSITO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{deposito}]]></variableExpression>
+	</variable>
+	<variable name="SUM_PAGOS" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{reintegro}]]></variableExpression>
+	</variable>
+	<group name="Opening Balance">
+		<groupExpression><![CDATA[]]></groupExpression>
+	</group>
+	<group name="OutstandingDeposits">
+		<groupExpression><![CDATA[]]></groupExpression>
+		<groupFooter>
+			<band splitType="Stretch"/>
+		</groupFooter>
+	</group>
+	<group name="UnreconciledBankStmt">
+		<groupExpression><![CDATA[]]></groupExpression>
+		<groupFooter>
+			<band splitType="Stretch"/>
+		</groupFooter>
+	</group>
+	<title>
+		<band height="37" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="1" y="2" width="900" height="35"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="99" splitType="Stretch">
+			<textField isBlankWhenNull="false">
+				<reportElement key="textField-11" x="350" y="48" width="357" height="18"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{FINACCOUNT_INFO}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="110" height="18"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold" isPdfEmbedded="false"/>
+				</textElement>
+				<text><![CDATA[Fecha de Emisión:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="297" y="49" width="50" height="18"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold" isPdfEmbedded="false"/>
+				</textElement>
+				<text><![CDATA[Banco:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="false">
+				<reportElement key="textField" x="409" y="67" width="215" height="18"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{DATEFORMAT}.format($P{DATE})]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="810" y="0" width="46" height="18"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold" isPdfEmbedded="false"/>
+				</textElement>
+				<text><![CDATA[Página:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="false">
+				<reportElement key="textField" x="856" y="0" width="43" height="18"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement key="staticText-26" x="1" y="18" width="898" height="30">
+					<printWhenExpression><![CDATA[new Boolean($P{REPORT_TYPE}.equalsIgnoreCase("DETAIL"))]]></printWhenExpression>
+				</reportElement>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="DejaVu Sans" size="14" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[Conciliación Bancaria]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="387" y="67" width="22" height="18"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold" isPdfEmbedded="false"/>
+				</textElement>
+				<text><![CDATA[Al:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="false">
+				<reportElement key="textField" x="110" y="0" width="410" height="18"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{DATEFORMAT}.format($P{EMISSION_DATE})]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="26" splitType="Stretch">
+			<staticText>
+				<reportElement x="70" y="0" width="68" height="26"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tipo Pago]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="138" y="0" width="90" height="26"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Número Documento]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="756" y="0" width="66" height="26"/>
+				<box leftPadding="0">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Importe del Deposito]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="822" y="0" width="77" height="26"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Importe del Reintegro]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1" y="0" width="69" height="26"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="228" y="0" width="238" height="26"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Beneficiario]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="467" y="0" width="289" height="26"/>
+				<box leftPadding="5">
+					<topPen lineWidth="0.5"/>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Detalle]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="18" splitType="Stretch">
+			<textField pattern="">
+				<reportElement x="0" y="0" width="70" height="18"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{DATEFORMAT}.format($F{fechapagocobro})]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="467" y="0" width="289" height="18"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{detalle}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="756" y="0" width="66" height="18"/>
+				<box leftPadding="5" rightPadding="5"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{deposito}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="822" y="0" width="77" height="18"/>
+				<box leftPadding="5" rightPadding="5">
+					<pen lineWidth="0.0"/>
+					<topPen lineWidth="0.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{reintegro}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="70" y="0" width="68" height="18"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipopago}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="138" y="0" width="90" height="18"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{numerodocumento}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="228" y="0" width="238" height="18"/>
+				<box leftPadding="5"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{beneficiario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="399">
+			<subreport>
+				<reportElement positionType="Float" x="1" y="0" width="654" height="103"/>
+				<subreportParameter name="FIN_FINANCIAL_ACCOUNT_ID">
+					<subreportParameterExpression><![CDATA[$F{fin_financial_account_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="SUM_PAGOS">
+					<subreportParameterExpression><![CDATA[$V{SUM_PAGOS}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="FIN_RECONCILIATION_ID">
+					<subreportParameterExpression><![CDATA[$P{RECONCILIATION_ID}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="StatementDate">
+					<subreportParameterExpression><![CDATA[$F{fechareconciliacion}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="SUM_DEPOSITO">
+					<subreportParameterExpression><![CDATA[$V{SUM_DEPOSITO}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="END_BALANCE">
+					<subreportParameterExpression><![CDATA[$P{END_BALANCE}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$P{BASE_WEB}.replace("web","src-loc/design") + "/com/sidesoft/localization/ecuador/finances/reports/Ssfi_SubRepConciliationBank.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</summary>
+</jasperReport>

@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_GET_CONVERSION_UNIDADES">
+    <function name="SSWH_GET_CONVERSION_UNIDADES" type="NUMERIC">
+      <parameter name="p_c_uom_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_cantidad" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_unidad VARCHAR2(60);
+  v_m NUMBER;
+  
+BEGIN
+SELECT name INTO v_unidad
+FROM c_uom
+WHERE c_uom_id=p_c_uom_id;
+IF v_unidad <> 'UNIDAD' THEN
+   IF v_unidad <> 'GRAMO' THEN
+      SELECT multiplyrate INTO v_m
+	  FROM c_uom_conversion
+      WHERE c_uom_id=p_c_uom_id;
+      RETURN v_m*p_cantidad;
+   ELSE
+   		RETURN p_cantidad;   
+   END IF;
+ELSE
+    RETURN p_cantidad;   
+END IF;
+END SSWH_GET_CONVERSION_UNIDADES
+]]></body>
+    </function>
+  </database>

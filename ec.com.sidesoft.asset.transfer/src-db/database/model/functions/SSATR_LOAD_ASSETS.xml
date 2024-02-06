@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSATR_LOAD_ASSETS">
+    <function name="SSATR_LOAD_ASSETS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Assets RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_Result NUMBER:=1; -- Success
+
+  v_Record_ID  VARCHAR2(32);
+  v_Message VARCHAR2(2000):='';
+  
+  v_asset_group_id VARCHAR(32);
+  v_subcategory_id VARCHAR(32);
+  v_custodian_id VARCHAR(32);
+  v_building_id VARCHAR(32); 
+  v_unit_id VARCHAR(32); 
+  v_department_id VARCHAR(32);  
+  v_asset_id VARCHAR(32);
+  v_count NUMBER:=0;
+  v_name VARCHAR(100); 
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID,
+        i.AD_Client_ID,
+        i.AD_Org_ID 
+                          
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Record_ID := Cur_Parameter.Record_ID;      
+      v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- End Get Parameter
+
+	SELECT a_asset_group_id, ssasl_subcategory_id, custodian_id, em_ssal_building_id, em_ssal_unit_id, em_ssal_department_id, a_asset_id
+	INTO v_asset_group_id, v_subcategory_id, v_custodian_id, v_building_id, v_unit_id, v_department_id, v_asset_id
+	FROM ssatr_asset_transfer WHERE ssatr_asset_transfer_id = v_Record_ID;
+
+	SELECT count(*) INTO v_count FROM a_asset
+	WHERE 
+	CASE WHEN  v_asset_group_id IS NOT NULL THEN a_asset_group_id = v_asset_group_id ELSE 1=1 END
+	AND CASE WHEN  v_subcategory_id IS NOT NULL THEN em_ssasl_subcategory_id = v_subcategory_id ELSE 1=1 END
+	AND CASE WHEN  v_custodian_id IS NOT NULL THEN em_ssal_custodio_id = v_custodian_id ELSE 1=1 END
+	AND CASE WHEN  v_building_id IS NOT NULL THEN em_ssal_building_id = v_building_id ELSE 1=1 END
+	AND CASE WHEN  v_unit_id IS NOT NULL THEN em_ssal_unit_id = v_unit_id ELSE 1=1 END
+	AND CASE WHEN  v_department_id IS NOT NULL THEN em_ssal_department_id = v_department_id ELSE 1=1 END
+	AND CASE WHEN  v_asset_id IS NOT NULL THEN a_asset_id = v_asset_id ELSE 1=1 END;
+
+	BEGIN
+		DELETE FROM ssatr_asset_detail WHERE ssatr_asset_transfer_id = v_Record_ID;
+	END;
+	
+	IF (COALESCE(v_count,0)=0) THEN
+		IF(v_asset_id IS NOT NULL) THEN
+			SELECT name INTO v_name FROM a_asset WHERE a_asset_id = v_asset_id;
+			RAISE_APPLICATION_ERROR(-20000,'No se encontraró el activo especificado: '|| COALESCE(v_name,''));
+		ELSE
+			RAISE_APPLICATION_ERROR(-20000,'No se encontraron activos con las características especificadas (Grupo - Subcategoría - Custodio - Edificio - Unidad - Departamento).');
+		END IF;
+	END IF;
+
+	FOR Cur_Assets IN(
+		SELECT * FROM a_asset
+		WHERE 
+		CASE WHEN v_asset_id IS NOT NULL THEN a_asset_id = v_asset_id ELSE
+		(CASE WHEN  v_asset_group_id IS NOT NULL THEN a_asset_group_id = v_asset_group_id ELSE 1=1 END
+		AND CASE WHEN  v_subcategory_id IS NOT NULL THEN em_ssasl_subcategory_id = v_subcategory_id ELSE 1=1 END
+		AND CASE WHEN  v_custodian_id IS NOT NULL THEN em_ssal_custodio_id = v_custodian_id ELSE 1=1 END
+		AND CASE WHEN  v_building_id IS NOT NULL THEN em_ssal_building_id = v_building_id ELSE 1=1 END
+		AND CASE WHEN  v_unit_id IS NOT NULL THEN em_ssal_unit_id = v_unit_id ELSE 1=1 END
+		AND CASE WHEN  v_department_id IS NOT NULL THEN em_ssal_department_id = v_department_id ELSE 1=1 END) END
+	)LOOP
+	
+		INSERT INTO ssatr_asset_detail(
+		    ssatr_asset_detail_id, ad_client_id, ad_org_id, isactive, created, 
+		    createdby, updated, updatedby, ssatr_asset_transfer_id, a_asset_id, 
+		    code, name, a_asset_group_id, ssasl_subcategory_id, em_ssal_building_id, 
+		    em_ssal_unit_id, em_ssal_department_id,custodian_id)
+		VALUES (get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), 
+		    v_User_ID, now(), v_User_ID, v_Record_ID, Cur_Assets.a_asset_id, 
+		    Cur_Assets.value, Cur_Assets.name, Cur_Assets.a_asset_group_id, Cur_Assets.em_ssasl_subcategory_id, Cur_Assets.em_ssal_building_id, 
+		    Cur_Assets.em_ssal_unit_id, Cur_Assets.em_ssal_department_id,Cur_Assets.em_ssal_custodio_id);		
+
+	END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSATR_LOAD_ASSETS
+]]></body>
+    </function>
+  </database>

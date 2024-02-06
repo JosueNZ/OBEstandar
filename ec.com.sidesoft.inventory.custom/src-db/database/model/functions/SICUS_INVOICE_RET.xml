@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SICUS_INVOICE_RET">
+    <function name="SICUS_INVOICE_RET" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+    Cur_invoice RECORD;
+    cur_params          RECORD;
+
+    p_record_id         VARCHAR2(60);      
+    p_docaction         VARCHAR2(60);      
+    v_ResultStr         VARCHAR2(2000):='';
+    v_order_id VARCHAR2(32);      
+    v_documentno_dev VARCHAR2(60);      
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para 
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    END IF;
+  END LOOP;
+
+    select COALESCE(c_order_id,'') 
+    INTO v_order_id
+    from c_invoice where c_invoice_id = p_record_id;
+
+    IF(v_order_id != '') THEN 
+        For Cur_invoice In(
+            select co.c_order_id , dt.DocSubTypeSO , COALESCE(co.EM_Sicus_Invoice_Ret_ID, '') as EM_Sicus_Invoice_Ret_ID , co.documentno
+            from c_order co 
+            inner join c_doctype dt on dt.c_doctype_id = co.c_doctype_id
+            where co.c_order_id = v_order_id
+        )
+        Loop
+
+            IF (Cur_invoice.EM_Sicus_Invoice_Ret_ID != '' AND Cur_invoice.DocSubTypeSO  = 'WR' ) THEN
+                update c_invoice
+                set EM_Scnr_Isref_Inv = 'Y', EM_Scnr_Invoice_ID = Cur_invoice.EM_Sicus_Invoice_Ret_ID 
+                    , em_eei_is_inv_ref = 'Y' , em_eei_ref_inv_id = Cur_invoice.EM_Sicus_Invoice_Ret_ID
+                    , description = ('Devolución de factura: ' ||  Cur_invoice.documentno)
+                where c_invoice_id = p_record_id;
+
+            END IF;
+
+        End Loop;
+    END IF;
+  
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+  RAISE;
+END SICUS_INVOICE_RET
+]]></body>
+    </function>
+  </database>

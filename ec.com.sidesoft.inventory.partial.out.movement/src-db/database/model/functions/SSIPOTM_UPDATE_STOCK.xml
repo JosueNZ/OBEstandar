@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSIPOTM_UPDATE_STOCK">
+    <function name="SSIPOTM_UPDATE_STOCK" type="VARCHAR">
+      <parameter name="vrecordid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vStock NUMBER;
+	vRequired NUMBER;
+	--  Parameter
+	TYPE RECORD IS REF CURSOR;
+	vOrderLine RECORD;
+	vRecord RECORD;
+	vLoop RECORD;
+BEGIN
+	BEGIN
+
+	
+		FOR vLoop IN (
+			SELECT pd.m_warehouse_id, pd.m_locator_id, ac.m_product_id
+			FROM ssipotm_accumulated AS ac
+			JOIN ssipotm_partial_dispatch AS pd ON pd.ssipotm_partial_dispatch_id=ac.ssipotm_partial_dispatch_id
+			WHERE pd.ssipotm_partial_dispatch_id=vRecordID
+		) LOOP
+			SELECT SUM(sd.qtyonhand) AS stock INTO vRecord
+			FROM m_storage_detail AS sd
+				JOIN m_locator AS l ON l.m_locator_id=sd.m_locator_id
+			WHERE
+				sd.m_product_id=vLoop.m_product_id
+				AND sd.qtyonhand>0
+				AND l.m_warehouse_id=vLoop.m_warehouse_id
+				AND CASE
+					WHEN vLoop.m_locator_id IS NOT NULL THEN sd.m_locator_id=vLoop.m_locator_id
+					ELSE TRUE
+				END;
+			
+			UPDATE ssipotm_accumulated 
+			SET stock = coalesce(vRecord.stock,0)
+			,despatch = CASE WHEN despatch <> 0 AND stock = coalesce(vRecord.stock,0) THEN despatch ELSE coalesce(vRecord.stock,0) END
+			WHERE ssipotm_partial_dispatch_id=vRecordID 
+			AND m_product_id=vLoop.m_product_id
+			AND m_warehouse_id = vLoop.m_warehouse_id;
+
+			UPDATE ssipotm_accumulated SET quantity=coalesce(two.quantity,0)
+			FROM (
+				SELECT ssipotm_partial_dispatch_id, m_product_id, c_uom_id, m_warehouse_id, 
+				SUM(COALESCE(qtyordered,0)-COALESCE(qtydelivered,0)) quantity
+				FROM ssipotm_orderline
+				WHERE ssipotm_partial_dispatch_id=vRecordID
+				AND m_product_id = vLoop.m_product_id
+				AND m_warehouse_id = vLoop.m_warehouse_id
+				GROUP BY ssipotm_partial_dispatch_id, m_product_id, c_uom_id, m_warehouse_id
+			) two
+			WHERE ssipotm_accumulated.ssipotm_partial_dispatch_id = two.ssipotm_partial_dispatch_id 
+			AND ssipotm_accumulated.m_product_id = two.m_product_id
+			AND ssipotm_accumulated.m_warehouse_id = two.m_warehouse_id;
+
+		END LOOP;
+		
+		UPDATE ssipotm_orderline SET suggesteddelivery = 0
+		WHERE ssipotm_partial_dispatch_id=vRecordID;
+		
+		FOR vLoop IN (
+			SELECT *
+			FROM ssipotm_accumulated
+			WHERE ssipotm_partial_dispatch_id=vRecordID AND stock>0
+		) LOOP
+			IF vLoop.despatch > 0 THEN
+				vStock := vLoop.despatch;
+			ELSE
+				vStock := vLoop.stock;
+			END IF;
+			
+			FOR vOrderLine IN (
+				SELECT *
+				FROM ssipotm_orderline os
+				INNER JOIN c_order o on o.c_order_id=os.c_order_id
+				WHERE ssipotm_partial_dispatch_id=vRecordID
+					AND m_product_id=vLoop.m_product_id
+					AND os.m_warehouse_id=vLoop.m_warehouse_id
+				ORDER BY os.dateordered ASC, o.documentno ASC
+			) LOOP
+				IF vStock>0 THEN
+					vRequired := COALESCE(vOrderLine.qtyordered,0)-COALESCE(vOrderLine.qtydelivered,0);
+					UPDATE ssipotm_orderline SET suggesteddelivery=CASE WHEN vRequired>vStock THEN vStock ELSE vRequired END
+					WHERE ssipotm_orderline_id=vOrderLine.ssipotm_orderline_id;
+					vStock := vStock-vRequired;
+				END IF;
+			END LOOP;
+		END LOOP;
+		
+		-- Delete old lines with product not in lines
+		DELETE FROM ssipotm_accumulated 
+		WHERE ssipotm_partial_dispatch_id=vRecordID
+		AND m_product_id NOT IN ( SELECT m_product_id 
+		FROM ssipotm_orderline WHERE ssipotm_partial_dispatch_id=vRecordID);
+		
+		RETURN 'OK';
+	END;
+	EXCEPTION WHEN OTHERS THEN
+	RETURN SQLERRM;
+END SSIPOTM_UPDATE_STOCK
+]]></body>
+    </function>
+  </database>

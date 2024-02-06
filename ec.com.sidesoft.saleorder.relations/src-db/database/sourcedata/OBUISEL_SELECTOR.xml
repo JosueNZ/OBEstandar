@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+<!--4CB459696BC342828703DB1214A0BBF1--><OBUISEL_SELECTOR>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <OBUISEL_SELECTOR_ID><![CDATA[4CB459696BC342828703DB1214A0BBF1]]></OBUISEL_SELECTOR_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <AD_CLIENT_ID><![CDATA[0]]></AD_CLIENT_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <AD_ORG_ID><![CDATA[0]]></AD_ORG_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <AD_MODULE_ID><![CDATA[88B817706EA84A139B5B3B09BE2AFCD7]]></AD_MODULE_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <NAME><![CDATA[Invoice Order By ]]></NAME>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <AD_REFERENCE_ID><![CDATA[F483B80934A943DCB00F09AEA766C9C8]]></AD_REFERENCE_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <AD_TABLE_ID><![CDATA[318]]></AD_TABLE_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <FILTER_EXPRESSION><![CDATA["( e.businessPartner.id = \'"+ OB.getParameters().get('inpcBpartnerId') +"\' and e.organization.id = \'"+ OB.getParameters().get('inpadOrgId') + "\'  and e.id <> \'"+ OB.getParameters().get('inpcInvoiceId') +"\')"]]></FILTER_EXPRESSION>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <OBCLKER_TEMPLATE_ID><![CDATA[9314DE8599AD44E7BFC4CC50699042AB]]></OBCLKER_TEMPLATE_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <ISACTIVE><![CDATA[Y]]></ISACTIVE>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <VALUEFIELD_ID><![CDATA[731D0AF961FF4CFE84BCD25A0376EBA6]]></VALUEFIELD_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <DISPLAYFIELD_ID><![CDATA[DFFD1BD35C1D487F8755951594F8D609]]></DISPLAYFIELD_ID>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <SUGGESTIONTEXTMATCHSTYLE><![CDATA[substring]]></SUGGESTIONTEXTMATCHSTYLE>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <POPUPTEXTMATCHSTYLE><![CDATA[substring]]></POPUPTEXTMATCHSTYLE>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <HQL><![CDATA[select e.id as id, e.organization, (e.documentNo || ' - - ' ||e.invoiceDate ||' - - '|| e.grandTotalAmount)  as documentNo, e.transactionDocument, e.invoiceDate, e.businessPartner
+from Invoice e
+where @additional_filters@
+ and e.active=true and e.salesTransaction = true
+ and e.transactionDocument.return = false
+ and e.transactionDocument.reversal = false 
+ and e.documentStatus = 'CO'
+ and exists (select 1 from InvoiceLine inLine
+                       inner join inLine.salesOrderLine ol 
+                       where inLine.invoice.id = e.id and ol.invoicedQuantity > 0)
+ and (exists (select sum(1) from Invoice inv
+                            inner join inv.invoiceLineList invl							
+                           where inv.transactionDocument.return = true 
+						    and inv.scnrInvoice.id = e.id 
+							and inv.documentStatus = 'CO'
+							group by invl.ssorelInvlineid, invl.salesOrderLine.id
+							having abs(sum(invl.invoicedQuantity)) < (select invline.invoicedQuantity 
+							                                          from InvoiceLine invline 
+																	  where invline.invoice.id = e.id 
+																	  and invline.id = invl.ssorelInvlineid))
+			 or exists (select 1 
+	               from InvoiceLine invline01
+                  where invline01.invoice.id = e.id and invline01.salesOrderLine.invoicedQuantity > 0 ))					   
+ order by e.creationDate desc]]></HQL>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <ENTITY_ALIAS><![CDATA[e]]></ENTITY_ALIAS>
+<!--4CB459696BC342828703DB1214A0BBF1-->  <CUSTOM_QUERY><![CDATA[Y]]></CUSTOM_QUERY>
+<!--4CB459696BC342828703DB1214A0BBF1--></OBUISEL_SELECTOR>
+
+</data>

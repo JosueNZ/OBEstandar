@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPROV_NEWNESS_TRG">
+    <trigger name="SPROV_NEWNESS_TRG" table="SPROV_NEWNESS" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[v_Processed varchar2(1) ;
+    BEGIN
+        IF (DELETING) THEN
+        
+		Select Processed_Check 
+			Into v_Processed 
+		From sprov_employee_overtime 
+		Where   sprov_employee_overtime_id  =:OLD.sprov_employee_overtime_id;
+		
+		If v_Processed = 'Y' Then
+			RAISE_APPLICATION_ERROR(-20000, '@SPROV_CanNotDelete@');	
+		End If;
+
+        END IF;
+    END SPROV_NEWNESS_TRG
+]]></body>
+    </trigger>
+  </database>

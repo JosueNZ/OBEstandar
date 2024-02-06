@@ -1,0 +1,306 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_SETTL_ADD_TENTH">
+    <function name="SSPR_SETTL_ADD_TENTH" type="NUMERIC">
+      <parameter name="p_settlementconfig_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_settlement_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_payroll_id_provision" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_enddate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2010-2012 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  Maykel González Hernández.
+************************************************************************/
+  TYPE RECORD IS REF CURSOR;
+    Cur_benefits RECORD;
+  -- Logistice
+  v_amount_concept NUMBER:=0;
+  v_count_concept NUMBER:=0;
+  v_value_month NUMBER:=0;
+  v_year_regime NUMBER:=0;
+  v_date_str VARCHAR2(32);
+  v_date_val DATE;
+  v_line NUMBER:=0 ;
+  v_n_insertions NUMBER:=0 ;
+  v_ResultStr VARCHAR2(2000):='';
+  v_rate NUMBER;
+  v_startdate DATE;
+  v_enddate DATE;
+  v_ReasonEndPeriod sspr_settlementconfig.reasonendperiod%TYPE := null;
+  v_year NUMBER:=0;
+  v_fullyear NUMBER:=0;
+  v_yearmultiplier NUMBER:=1;
+  v_year_noceiling NUMBER:=0;
+
+  v_BasicSalary NUMBER(10,2):=0.0;
+  v_Total14thAmount sspr_settlementline.amount%TYPE:=0.0;
+  v_NewTotal14thAmount sspr_settlementline.amount%TYPE:=0.0;
+  v_WorkedDays sspr_payroll_ticket.workeddays%TYPE;
+  v_WorkedDaysTotal sspr_payroll_ticket.workeddays%TYPE;
+  v_WorkingDays sspr_payroll_ticket.workingdays%TYPE;
+  v_Concept_ID VARCHAR2(32);
+  v_IsIncomeCalculated CHAR(1) ;
+  v_IsCumulative CHAR(1) ;
+  v_IsProjected CHAR(1) ;
+  v_IsIESS CHAR(1) ;
+  v_MovementDate DATE;
+  v_ispayroll VARCHAR2(32);
+  
+BEGIN --BODY
+  IF (p_sspr_settlement_id IS NOT NULL) THEN
+    SELECT max(sl.line)
+    INTO v_line
+    FROM sspr_settlementline sl
+    WHERE sl.sspr_settlement_id = p_sspr_settlement_id;
+  ELSE
+    RAISE_APPLICATION_ERROR(-20000,'@SSPR_NoSettlement@');
+  END IF;
+      
+  v_line := coalesce(v_line, 0) + 10;
+  v_n_insertions := 0;
+          
+  --INSERTO LINEAS CONCEPTOS ROL DE LIQUIDACIONES DE PROVISIONES TOTAL
+  --DESARROLLO DECIMO TERCERO Y DECIMO CUARTO
+
+  For Cur_benefits In(
+    SELECT  bda.sspr_concept_id, bda.value, bda.rate, conc.isincomecalculated, conc.iscumulative, conc.isprojected, conc.isiess
+    FROM  sspr_settlementconfigline scl
+    JOIN  sspr_benefit_dismissal bda on scl.sspr_benefit_dismissal_id = bda.sspr_benefit_dismissal_id
+    LEFT JOIN sspr_concept conc on conc.sspr_concept_id = bda.sspr_concept_id
+    WHERE scl.sspr_settlementconfig_id = p_settlementconfig_id
+          AND bda.value in ('13TH', '14TH')
+  )
+  Loop
+
+    v_rate := 0;
+    v_rate := coalesce(Cur_benefits.rate, 1);
+
+    v_amount_concept := 0;
+    v_count_concept := 0;
+        
+    IF (Cur_benefits.value = '13TH') THEN
+
+      --OBTENGO DATOS DEL REGIMEN LABORAL
+      SELECT ad_month.value
+      INTO v_value_month
+      FROM sspr_contract
+      LEFT JOIN sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = sspr_contract.sspr_labor_regime_id
+      LEFT JOIN sspr_labor_regime_detail on sspr_labor_regime_detail.sspr_labor_regime_id = sspr_labor_regime.sspr_labor_regime_id
+      LEFT JOIN ad_month on ad_month.ad_month_id = sspr_labor_regime_detail.ad_month_id
+      WHERE sspr_contract_id = p_sspr_contract_id 
+      AND sspr_labor_regime_detail.typeconcept = '13TH';
+
+      --INTEGRO FECHAS DE VALIDACION
+      v_year_regime:=to_number(to_char(p_enddate,'yyyy'))-1;
+      v_date_str:=to_char(trim(to_char('01'))||'-'||trim(to_char(v_value_month))||'-'|| trim(to_char(v_year_regime)));
+      v_date_val:=TO_DATE(v_date_str);
+          
+    --  RAISE_APPLICATION_ERROR(-20000,'@No exits concept 13TH@' || v_date_val || ' - ' || p_enddate) ;
+      --OBTENGO DATOS DE LA NOMINA POR CONCEPTO
+      SELECT sum(sspr_payroll_ticket_concept.amount), count(sspr_payroll.c_period_id)
+      INTO v_amount_concept,v_count_concept
+      FROM sspr_payroll
+      LEFT JOIN c_period on c_period.c_period_id = sspr_payroll.c_period_id
+      LEFT JOIN sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+      LEFT JOIN sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+      WHERE sspr_payroll_ticket_concept.sspr_concept_id = Cur_benefits.sspr_concept_id--Cur_payroll_provision.sspr_concept_id
+            AND sspr_payroll_ticket.c_bpartner_id = p_c_bpartner_id
+            AND ((c_period.startdate >= v_date_val and c_period.startdate <= p_enddate) or (c_period.enddate >= v_date_val and c_period.enddate <= p_enddate))
+            AND sspr_payroll.ispayroll = 'N'
+            AND sspr_payroll_ticket_concept.em_ssph_earned = 'N'
+      GROUP BY sspr_payroll_ticket_concept.sspr_concept_id;
+
+      IF COALESCE(v_amount_concept, 0) > 0 AND COALESCE(v_count_concept, 0) > 0 THEN
+          
+      --  RAISE_APPLICATION_ERROR(-20000,'@No exits concept 13TH in payroll provision@');
+            
+      --ELSE
+          
+        INSERT INTO sspr_settlementline (
+          sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, CreatedBy, 
+          Updated, UpdatedBy, line, sspr_concept_id,amount
+          , qty, totalnet, sspr_payroll_id,
+          isincomecalculated,iscumulative,isprojected,isiess
+        ) VALUES (
+          get_uuid(), p_sspr_settlement_id, p_client_id, p_org_id,'Y', now(), p_user_id, now(), 
+          p_user_id, v_line, Cur_benefits.sspr_concept_id, v_amount_concept * v_rate * v_yearmultiplier
+          , v_count_concept, v_amount_concept * v_rate * v_yearmultiplier, p_sspr_payroll_id_provision,
+          Cur_benefits.isincomecalculated,Cur_benefits.iscumulative,Cur_benefits.isprojected,Cur_benefits.isiess
+        );
+              
+        v_n_insertions := v_n_insertions + 1;
+        v_line := v_line + 10;
+            
+      END IF;
+        
+    END IF;
+
+    IF (Cur_benefits.value = '14TH') THEN
+
+      --GET BASIC SALARY
+      SELECT ps.movementdate
+      INTO v_MovementDate
+      FROM sspr_settlement ps
+      WHERE ps.sspr_settlement_id = p_sspr_settlement_id;
+      
+      BEGIN
+        SELECT amount
+        INTO v_BasicSalary
+        FROM ssph_basicincome bs
+        WHERE  v_MovementDate >= bs.datefrom AND v_MovementDate <= bs.dateto;
+      EXCEPTION WHEN NO_DATA_FOUND THEN
+        v_BasicSalary := null;
+      END;
+      IF v_BasicSalary IS NULL THEN 
+        RAISE_APPLICATION_ERROR(-20000,'@No existe configurado el sueldo básico actual para el periodo@');
+      END IF;
+      
+      --OBTENGO DATOS DEL REGIMEN LABORAL
+      SELECT ad_month.value
+      INTO v_value_month
+      FROM sspr_contract
+      LEFT JOIN sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = sspr_contract.sspr_labor_regime_id
+      LEFT JOIN sspr_labor_regime_detail on sspr_labor_regime_detail.sspr_labor_regime_id = sspr_labor_regime.sspr_labor_regime_id
+      LEFT JOIN ad_month on ad_month.ad_month_id = sspr_labor_regime_detail.ad_month_id
+      WHERE sspr_contract_id = p_sspr_contract_id --'CB9687CD8E244641A59F07D1111612FF';
+            AND sspr_labor_regime_detail.typeconcept = '14TH';
+          
+      --INTEGRO FECHAS DE VALIDACION
+      v_year_regime:=to_number(to_char(p_enddate,'yyyy')) -1;
+      v_date_str:=to_char(trim(to_char(01))||'-'||trim(to_char(v_value_month))||'-'||trim(to_char(v_year_regime)));
+      v_date_val:=TO_DATE(v_date_str);
+
+      BEGIN
+        --OBTENGO DATOS DE LA NOMINA POR CONCEPTO
+        SELECT sum(sspr_payroll_ticket_concept.amount), count(sspr_payroll.c_period_id), sum(sspr_payroll_ticket.workeddays), sspr_payroll.ispayroll
+        INTO v_amount_concept, v_count_concept, v_WorkedDays, v_ispayroll
+        FROM sspr_payroll
+        LEFT JOIN c_period on c_period.c_period_id = sspr_payroll.c_period_id
+        LEFT JOIN sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+        LEFT JOIN sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+        WHERE sspr_payroll_ticket_concept.sspr_concept_id = Cur_benefits.sspr_concept_id
+              AND sspr_payroll_ticket.c_bpartner_id = p_c_bpartner_id
+              AND ((c_period.startdate >= v_date_val and c_period.startdate <= p_enddate)  or (c_period.enddate >= v_date_val and c_period.enddate <= p_enddate))
+              --AND sspr_payroll.ispayroll = 'N'
+              AND sspr_payroll_ticket_concept.em_ssph_earned = 'N'
+        GROUP BY sspr_payroll_ticket_concept.sspr_concept_id, sspr_payroll.ispayroll;
+      EXCEPTION WHEN NO_DATA_FOUND THEN
+        v_WorkedDays := 0;
+      END;
+
+	  --CONTROLAMOS QUE NO SE PIERDA EL DATO PARA LOS CONCEPTOS QUE NO ESTAN EN LA NOMINA	
+      IF (v_WorkedDays>0) THEN
+        v_WorkedDaysTotal:=v_WorkedDays;
+      END IF;
+	  
+      IF COALESCE(v_amount_concept, 0) > 0 AND COALESCE(v_count_concept, 0) > 0 THEN
+
+  	If v_ispayroll <> 'Y' Then
+  		
+		INSERT INTO sspr_settlementline
+		    (sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, CreatedBy, 
+		    Updated, UpdatedBy, line, sspr_concept_id, amount, qty, totalnet, sspr_payroll_id,
+		    isincomecalculated,iscumulative,isprojected,isiess)
+		VALUES (get_uuid(), p_sspr_settlement_id, p_client_id, p_org_id,'Y', now(), p_user_id, now(), 
+		  p_user_id, v_line, Cur_benefits.sspr_concept_id, v_amount_concept * v_rate * v_yearmultiplier
+		  , v_count_concept, v_amount_concept * v_rate * v_yearmultiplier,
+		  p_sspr_payroll_id_provision,
+		  Cur_benefits.isincomecalculated,Cur_benefits.iscumulative,Cur_benefits.isprojected,Cur_benefits.isiess);
+	End If;
+              
+        v_n_insertions := v_n_insertions + 1;
+        v_line := v_line + 10;
+        
+        -- Get total 14th amount
+        v_Total14thAmount := v_amount_concept * v_rate * v_yearmultiplier;
+      END IF;
+  			
+    END IF;
+-- RAISE NO_DATA_FOUND || v_Total14thAmount;
+  End Loop;
+
+  If v_Total14thAmount > 0 Then
+  --Get new total 14th amount acording with basic salary
+  v_NewTotal14thAmount := v_BasicSalary * v_WorkedDaysTotal / 360;
+
+  IF v_NewTotal14thAmount >  v_Total14thAmount THEN
+    --GET CONCEPT
+    BEGIN
+      SELECT pp.sspr_conceptin_id, cp.isincomecalculated, cp.iscumulative, cp.isprojected, cp.isiess
+      INTO v_Concept_ID, v_IsIncomeCalculated, v_IsCumulative, v_IsProjected, v_IsIESS
+      FROM sspr_process_payroll pp
+      JOIN sspr_concept cp on pp.sspr_conceptin_id = cp.sspr_concept_id
+      WHERE  pp.processname = 'FVNS';
+    EXCEPTION WHEN NO_DATA_FOUND THEN
+      v_Concept_ID := null;
+    END;  
+    
+    IF v_Concept_ID IS NOT NULL THEN
+    
+      v_line := coalesce(v_line, 0) + 10;
+      v_n_insertions := v_n_insertions + 1;
+      
+      INSERT INTO sspr_settlementline (
+        sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive,
+        Created, CreatedBy, Updated, UpdatedBy,
+        line, sspr_concept_id, amount, qty,
+        totalnet, sspr_payroll_id, isincomecalculated, iscumulative,
+        isprojected, isiess
+      ) VALUES (
+        get_uuid(), p_sspr_settlement_id, p_client_id, p_org_id,'Y',
+        now(), p_user_id, now(), p_user_id,
+        v_line, v_Concept_ID, v_NewTotal14thAmount -  v_Total14thAmount
+        , 1, 
+        v_NewTotal14thAmount -  v_Total14thAmount, p_sspr_payroll_id_provision, v_IsIncomeCalculated, v_IsCumulative,
+        v_IsProjected, v_IsIESS
+      );
+
+    END IF;
+  END IF;
+  End If;
+  
+  RETURN v_n_insertions;
+
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  --ROLLBACK;
+  RAISE;
+END SSPR_SETTL_ADD_TENTH
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchProviderTransferData" package="com.sidesoft.localization.ecuador.withholdings.create_xml" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT NOW() AS DATEPROCESS,
+          (
+            SELECT COUNT(FIN_PAYMENT.C_BPARTNER_ID)
+            FROM FIN_PAYMENT
+            LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+            --LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+            WHERE (FIN_PAYMENT.PAYMENTDATE BETWEEN ? AND ?) 
+            AND FIN_PAYMENT.C_DOCTYPE_ID = ? AND FIN_PAYMENT.ISRECEIPT='N' AND FIN_PAYMENT.FIN_FINANCIAL_ACCOUNT_ID = ?
+          ) AS NUMBEREMPLOYEE,
+          '1' AS CONSTANTE1,
+          (
+            SELECT SUM(ROUND(FIN_PAYMENT.AMOUNT,2))
+            FROM FIN_PAYMENT
+            LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+            --LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+            WHERE (FIN_PAYMENT.PAYMENTDATE BETWEEN ? AND ?) AND
+            FIN_PAYMENT.C_DOCTYPE_ID = ? AND FIN_PAYMENT.ISRECEIPT='N' AND FIN_PAYMENT.FIN_FINANCIAL_ACCOUNT_ID = ?
+          ) AS TOTALNETEMPLOYEE,
+          '0' AS CONSTANTE2,
+          '01310086' AS CONSTANTE3,
+          '01310086' AS CONSTANTE4,
+          AD_ORG.NAME AS RAZONSOCIAL, C_LOCATION.CITY  AS CITY,
+          (
+            SELECT C_PERIOD.PERIODNO||'/'||C_YEAR.YEAR 
+            FROM C_PERIOD
+            LEFT JOIN C_YEAR ON C_YEAR.C_YEAR_ID = C_PERIOD.C_YEAR_ID 
+            WHERE TO_DATE(?) BETWEEN C_PERIOD.STARTDATE AND C_PERIOD.ENDDATE 
+          ) AS PERIOD,
+          ROUND(FIN_PAYMENT.AMOUNT,2) AS TOTALNET,
+          '' AS CODCATEGORYACCT,
+          SSFI_BANKTRANSFER.CODE AS BANKCODE,
+          C_BP_BANKACCOUNT.ACCOUNTNO,
+          ( 
+            CASE WHEN C_BP_BANKACCOUNT.BANKACCOUNTTYPE = 'S' THEN '02'
+            WHEN C_BP_BANKACCOUNT.BANKACCOUNTTYPE = 'C' THEN '01'
+            END 
+          ) AS BANKACCOUNTTYPE,
+          C_BPARTNER.NAME AS EMPLOYEE,
+          C_BPARTNER.DESCRIPTION AS FLEETCODE,
+          C_DOCTYPE.NAME AS DESCRIPTION,
+          COALESCE(C_BP_BANKACCOUNT.EM_SSWH_TAXIDNO,  C_BPARTNER.TAXID) AS CI
+        FROM FIN_PAYMENT
+        LEFT JOIN C_BPARTNER ON C_BPARTNER.C_BPARTNER_ID = FIN_PAYMENT.C_BPARTNER_ID
+        LEFT JOIN AD_ORG ON AD_ORG.AD_ORG_ID = FIN_PAYMENT.AD_ORG_ID
+        LEFT JOIN AD_ORGINFO ON AD_ORGINFO.AD_ORG_ID = FIN_PAYMENT.AD_ORG_ID
+        LEFT JOIN C_LOCATION ON C_LOCATION.C_LOCATION_ID = AD_ORGINFO.C_LOCATION_ID
+        --LEFT JOIN SSPR_CATEGORY_ACCT ON SSPR_CATEGORY_ACCT.SSPR_CATEGORY_ACCT_ID = C_BPARTNER.EM_SSPR_CATEGORY_ACCT_ID
+        LEFT JOIN C_DOCTYPE ON C_DOCTYPE.C_DOCTYPE_ID = FIN_PAYMENT.C_DOCTYPE_ID
+        LEFT JOIN C_BP_BANKACCOUNT ON C_BP_BANKACCOUNT.C_BP_BANKACCOUNT_ID = FIN_PAYMENT.EM_SSWH_BP_BANKACCOUNT_ID
+        LEFT JOIN SSFI_BANKTRANSFER ON SSFI_BANKTRANSFER.SSFI_BANKTRANSFER_ID = C_BP_BANKACCOUNT.EM_SSFI_BANKTRANSFER_ID
+        WHERE (FIN_PAYMENT.PAYMENTDATE BETWEEN ? AND ?) 
+        AND FIN_PAYMENT.C_DOCTYPE_ID = ? AND FIN_PAYMENT.ISRECEIPT='N' AND FIN_PAYMENT.FIN_FINANCIAL_ACCOUNT_ID = ?
+        ORDER BY C_BPARTNER.NAME
+      ]]>
+    </Sql>
+    <Parameter name="datefrom"/>
+    <Parameter name="dateto"/>
+    <Parameter name="c_doctype_id"/>
+    <Parameter name="fin_financial_account_id"/>
+    <Parameter name="datefrom"/>
+    <Parameter name="dateto"/>
+    <Parameter name="c_doctype_id"/>
+    <Parameter name="fin_financial_account_id"/>
+    <Parameter name="dateto"/>
+    <Parameter name="datefrom"/>
+    <Parameter name="dateto"/>
+    <Parameter name="c_doctype_id"/>
+    <Parameter name="fin_financial_account_id"/>
+  </SqlMethod>
+
+</SqlClass>

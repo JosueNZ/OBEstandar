@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_ASIENTO_TOTAL">
+    <function name="SSPR_ASIENTO_TOTAL" type="VARCHAR">
+      <parameter name="p_journal" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_periodo" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_tipo" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_journal RECORD;
+v_Client_ID  VARCHAR2(32);
+v_Org_ID  VARCHAR2(32);
+v_C_Currency  VARCHAR2(32);
+v_ResultStr VARCHAR2(2000) := '';
+v_Message VARCHAR2(2000):='';  
+V_COUNT_JL NUMBER;
+V_COUNT_VC NUMBER;
+V_DOCTYPE_ID  VARCHAR2(32);
+v_Documentno_sec VARCHAR2(60);
+V_gl_journalbatch_id  VARCHAR2(32);
+  BEGIN
+ 
+   
+  SELECT ad_client_id INTO v_Client_ID FROM ad_client where name<>'0';
+  SELECT ad_org_id INTO v_Org_ID FROM ad_org where name<>'0' and ad_client_id = v_Client_ID;
+  SELECT c_currency_id INTO v_C_Currency FROM ad_client where name<>'0';
+  
+--v_Client_ID:=(SELECT ad_client_id from ad_client where name<>'0'); 
+--,v_Org_ID:=(select ad_org_id from ad_org where name<>'0' and ad_client_id = v_Client_ID );--AD_ORG
+--v_C_Currency:=(select c_currency_id from ad_client where name<>'0');
+
+  BEGIN --BODY
+
+IF(p_tipo='Nomina') THEN
+	FOR Cur_journal IN
+	(select * from sspr_asientonomina a where a.periodo=p_periodo)
+	LOOP   
+    select count(*) INTO V_COUNT_JL from gl_journalline where gl_journal_id=p_journal and description=Cur_journal.detalle;
+		IF (V_COUNT_JL=0 ) THEN			
+			INSERT INTO gl_journalline(gl_journalline_id, ad_client_id, ad_org_id, isactive, created,
+			    createdby, updated, updatedby, gl_journal_id, line, isgenerated, 
+			    description, amtsourcedr, amtsourcecr, c_currency_id, currencyratetype, 
+			    currencyrate, dateacct, amtacctdr, amtacctcr, c_uom_id, qty, 
+			    c_validcombination_id, c_debt_payment_id)			    
+			VALUES (get_uuid(), v_Client_ID, v_Org_ID, 'Y', now()
+			    , v_Client_ID,now(),v_Client_ID,p_journal,
+          (CASE WHEN ((select MAX(line) from gl_journalline where gl_journal_id=p_journal)) 
+          is null then 10 ELSE ((select MAX(line) from gl_journalline where gl_journal_id=p_journal)+10) END),
+          'N', Cur_journal.detalle, Cur_journal.debe, Cur_journal.haber,v_C_Currency, 'S', 1,
+          (select enddate from c_period where c_period.name=p_periodo),Cur_journal.debe, Cur_journal.haber,null,0, 
+          (select c_validcombination_id from c_validcombination 
+          where alias=
+          ((CASE WHEN Cur_journal.tercero is null 
+          THEN Cur_journal.cuenta ELSE Cur_journal.cuenta END))),null);		END IF;
+
+
+	END LOOP;
+END IF;
+
+
+
+IF(p_tipo='Provisiones') THEN
+	FOR Cur_journal IN
+		(select * from sspr_asientonomina_prov a where a.periodo=p_periodo)
+		LOOP
+    select count(c_validcombination_id) INTO V_COUNT_VC from gl_journalline where gl_journalline_id=Cur_journal.sspr_asientonomina_prov_id ;
+		IF (V_COUNT_VC=0 ) THEN			
+			INSERT INTO gl_journalline(gl_journalline_id, ad_client_id, ad_org_id, isactive, created,createdby, updated, updatedby, gl_journal_id, line, isgenerated,description, amtsourcedr, amtsourcecr, c_currency_id, currencyratetype, currencyrate, dateacct, amtacctdr, amtacctcr, c_uom_id, qty, c_validcombination_id, c_debt_payment_id)
+			    
+			VALUES (Cur_journal.sspr_asientonomina_prov_id, v_Client_ID, v_Org_ID, 'Y', now()
+			    , v_Client_ID,now(),v_Client_ID,p_journal,( CASE WHEN ((select MAX(line) from gl_journalline where gl_journal_id=p_journal)) is null then 10 ELSE ((select MAX(line) from gl_journalline where gl_journal_id=p_journal)+10) END), 'N', 
+			    Cur_journal.detalle, Cur_journal.debe, Cur_journal.haber,v_C_Currency, 'S',
+			     1,(select enddate from c_period where c_period.name=p_periodo),Cur_journal.debe, Cur_journal.haber,null,0, 
+			      (select c_validcombination_id from c_validcombination where alias=
+            ( (CASE WHEN Cur_journal.tercero is null THEN Cur_journal.cuenta WHEN  Cur_journal.tercero is not null THEN Cur_journal.cuenta END))),null);
+		END IF;
+	END LOOP;
+END IF;
+
+	 v_Message := '@Proceso Terminado@: ';
+          --  RETURN v_Message;
+           
+      END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+	--insert into ssim_errores values (v_ResultStr||' '||Cur_journal.cuenta||'-'||Cur_journal.tercero );
+       -- RETURN v_ResultStr||' '||Cur_journal.cuenta||'-'||Cur_journal.tercero;
+END SSPR_ASIENTO_TOTAL
+]]></body>
+    </function>
+  </database>

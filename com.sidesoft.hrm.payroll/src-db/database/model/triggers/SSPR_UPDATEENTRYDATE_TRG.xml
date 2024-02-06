@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_UPDATEENTRYDATE_TRG">
+    <trigger name="SSPR_UPDATEENTRYDATE_TRG" table="SSPR_CONTRACT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_salary                   NUMBER;
+  v_salary2                  NUMBER;
+  v_sfpr_evolution_salary_id VARCHAR2(32);
+  v_c_bpartner_id            VARCHAR2(32);
+  v_startdate 		     DATE;
+  v_enddate                  DATE;
+  v_contract_id              VARCHAR2(32);
+  v_enddate_contract         DATE;
+  v_contract_id_current      VARCHAR2(32);
+  v_spr_contract_id_old      VARCHAR2(32);
+  v_startdate_new	     DATE;
+  v_count NUMBER:=0;
+  
+
+
+  BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+	
+
+  IF (INSERTING ) THEN
+
+    If (:new.startdate is not null) Then
+    
+      update c_bpartner
+      set em_sspr_entrydate = :new.startdate
+      where c_bpartner_id = :new.c_bpartner_id;
+      
+    End If;
+	
+  END IF;
+
+  
+  IF (UPDATING) THEN
+
+    If (:new.startdate is not null and :old.startdate <> :new.startdate) Then
+      
+      update c_bpartner
+      set em_sspr_entrydate = :new.startdate			 
+      where c_bpartner_id = :new.c_bpartner_id;
+  
+    End If;
+	
+  END IF;
+      
+  END SSPR_UPDATEENTRYDATE_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="ESTADO DE ANTICIPO CLIENTES" pageWidth="1550" pageHeight="595" orientation="Landscape" whenNoDataType="BlankPage" columnWidth="1510" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="a5d693f7-24f3-41c2-8a67-fb4a9a0ffb87">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="1116"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.sheet.names.all" value="ESTADO DE ANTICIPO CLIENTES"/>
+	<import value="org.openbravo.dal.core.OBContext"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DateTo" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_BPartner_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Posted" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Org_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getCurrentOrganization().getId()]]></defaultValueExpression>
+	</parameter>
+	<parameter name="User_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getUser().getId()]]></defaultValueExpression>
+	</parameter>
+	<parameter name="UserName" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getUser().getUsername()]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select v.*
+,to_char($P{DateTo}::date,'dd/MM/yyyy') as fhasta
+,to_char(v.documentdate::date,'dd/MM/yyyy') as fecha_documento
+,TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS') "fecha_impresion"
+, COALESCE(s.recibido, 0) recibido
+, (v.grandtotal - COALESCE(s.recibido, 0)) pendiente
+, CASE
+	WHEN ROUND(v.grandtotal - s.recibido, 2) = 0 THEN 'PAGADO'
+	ELSE 'PENDIENTE'
+END estado
+
+from ssfi_acct_receivab_payab_v v
+
+LEFT JOIN
+(SELECT
+    i.c_invoice_id
+    , SUM(psd.amount) recibido
+FROM c_invoice i
+    JOIN fin_payment_schedule ps ON ps.c_invoice_id=i.c_invoice_id
+    JOIN fin_payment_scheduledetail psd ON psd.fin_payment_schedule_invoice=ps.fin_payment_schedule_id
+    JOIN fin_payment_detail pd ON pd.fin_payment_detail_id=psd.fin_payment_detail_id
+    JOIN fin_payment p ON p.fin_payment_id=pd.fin_payment_id
+WHERE issotrx='Y' AND docstatus='CO'
+    AND p.paymentdate<=$P{DateTo}
+GROUP BY i.c_invoice_id) s
+ON s.c_invoice_id=v.c_invoice_id
+
+where --outstanding <> 0 and
+(posted = $P{Posted} or $P{Posted} is null) and
+doc_type = 'Anticipo Cliente' and
+dateacct <= $P{DateTo} and
+(c_bpartner_id = $P{C_BPartner_ID} or $P{C_BPartner_ID} is null)
+order by bpartner_name,invoice]]>
+	</queryString>
+	<field name="doc_code" class="java.lang.String"/>
+	<field name="doc_type" class="java.lang.String"/>
+	<field name="bpartner_name" class="java.lang.String"/>
+	<field name="invoice" class="java.lang.String"/>
+	<field name="applied" class="java.lang.String"/>
+	<field name="documentdate" class="java.sql.Timestamp"/>
+	<field name="dateacct" class="java.sql.Timestamp"/>
+	<field name="poreference" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="duedate" class="java.sql.Timestamp"/>
+	<field name="grandtotal" class="java.math.BigDecimal"/>
+	<field name="grandtotalconverted" class="java.math.BigDecimal"/>
+	<field name="doctype" class="java.lang.String"/>
+	<field name="costcenter" class="java.lang.String"/>
+	<field name="isclient" class="java.lang.String"/>
+	<field name="posted" class="java.lang.String"/>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="fin_payment_id" class="java.lang.String"/>
+	<field name="c_currency_id" class="java.lang.String"/>
+	<field name="ad_client_id" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="c_invoice_id" class="java.lang.String"/>
+	<field name="em_sswh_withholdingref" class="java.lang.String"/>
+	<field name="em_sswh_totalwithholdingincome" class="java.math.BigDecimal"/>
+	<field name="em_sswh_totalwithholdingvat" class="java.math.BigDecimal"/>
+	<field name="u1_name" class="java.lang.String"/>
+	<field name="user1_id" class="java.lang.String"/>
+	<field name="received" class="java.math.BigDecimal"/>
+	<field name="outstanding" class="java.math.BigDecimal"/>
+	<field name="cif_nif" class="java.lang.String"/>
+	<field name="status_doc" class="java.lang.String"/>
+	<field name="concept" class="java.lang.String"/>
+	<field name="value_advanced" class="java.math.BigDecimal"/>
+	<field name="no_duedate" class="java.math.BigDecimal"/>
+	<field name="nota_credito" class="java.lang.String"/>
+	<field name="fhasta" class="java.lang.String"/>
+	<field name="fecha_documento" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="recibido" class="java.math.BigDecimal"/>
+	<field name="pendiente" class="java.math.BigDecimal"/>
+	<field name="estado" class="java.lang.String"/>
+	<variable name="V_Total_Valor" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{grandtotal}]]></variableExpression>
+	</variable>
+	<variable name="V_Total_Pagado" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{recibido}]]></variableExpression>
+	</variable>
+	<variable name="V_Total_Saldo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{pendiente}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="50" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-10" x="181" y="0" width="1148" height="35" uuid="c38ba3d8-fe0f-477e-b621-8ed68dceb381"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="11" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ESTADO DE ANTICIPO CLIENTES]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="1329" y="0" width="181" height="50" uuid="9c3680b0-c3a0-42d0-8a93-d0269bcc5382"/>
+				<textElement markup="html">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>Fecha de Impresión: </b><br>"+$F{fecha_impresion}
++"<br><b>Usuario: </b><br>"+$P{UserName}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy/MM/dd">
+				<reportElement x="181" y="35" width="1148" height="15" uuid="0f3f05c1-19d2-4d9a-871a-763f58d9fdf4"/>
+				<textElement textAlignment="Center" markup="html">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>FECHA HASTA:</b> "+$F{fhasta}]]></textFieldExpression>
+			</textField>
+			<image hAlign="Center" vAlign="Middle">
+				<reportElement x="0" y="0" width="181" height="50" uuid="29d1fc27-2693-4613-8fb1-55704ea19bbb"/>
+				<box>
+					<bottomPen lineWidth="0.5"/>
+				</box>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $P{Org_ID})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="22" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-12" x="0" y="0" width="71" height="22" uuid="c48e483f-5f38-4b5e-a81c-97a7c48b9001"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[FECHA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-2" x="271" y="0" width="302" height="22" uuid="5c2c17a3-d9aa-41ab-a979-6fe52ab846a1"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[CLIENTE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-3" x="71" y="0" width="110" height="22" uuid="24622fba-aaf1-4612-a05c-25613e2cfdd9"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[# DOCUMENTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-4" x="181" y="0" width="90" height="22" uuid="f478d9c5-80a6-423d-8f3b-b41b3a3e7f37"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[RUC./CÉDULA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-5" x="573" y="0" width="180" height="22" uuid="db282139-4caf-45d6-9279-562acc16078a"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[PROYECTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-7" x="1079" y="0" width="73" height="22" uuid="6cc3c2e4-31a2-43f0-b681-3d0524548d05"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[SALDO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-8" x="933" y="0" width="73" height="22" uuid="66635428-005f-49b6-969f-8ee9dd29b629"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-11" x="753" y="0" width="180" height="22" uuid="8b417851-09fd-49a5-8a6f-60c8633a7dcf"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[SUB-PROYECTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1152" y="0" width="106" height="22" uuid="d6d7cf9a-f4d7-4a07-bd65-5b0c9305452e"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[ ESTADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-8" x="1006" y="0" width="73" height="22" uuid="0c85a778-684c-480e-94d6-abb8ef3fc1f9"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[PAGADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1258" y="0" width="252" height="22" uuid="3344484f-0b0b-4af0-bde5-62c210e8510f"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[CONCEPTO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="71" height="20" isPrintWhenDetailOverflows="true" uuid="6ddd2c22-90d9-43fe-a12f-87303345c06d"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha_documento}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="71" y="0" width="110" height="20" isPrintWhenDetailOverflows="true" uuid="b39bd754-85a3-4bab-8d5a-2c9442c7fb40"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{invoice}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="181" y="0" width="90" height="20" isPrintWhenDetailOverflows="true" uuid="659cb9e5-d14f-4815-b345-9ceaa31203ab"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cif_nif}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="271" y="0" width="302" height="20" isPrintWhenDetailOverflows="true" uuid="7c5146ba-33dc-436b-965d-43d534890540"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{bpartner_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="573" y="0" width="180" height="20" isPrintWhenDetailOverflows="true" uuid="9f6af046-8070-47be-9f80-8afba0e4a303"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{costcenter}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="753" y="0" width="180" height="20" isPrintWhenDetailOverflows="true" uuid="526afcbc-3cb3-4302-8fda-198fd0747192"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{u1_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1006" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="02c36705-0119-47bb-b6b8-ea8c51120b24"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{recibido}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1079" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="5efbebb0-e34e-4548-906e-b03829933ab4"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{pendiente}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="933" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="c646bc04-918a-4d7d-8d4d-6bba93f370c7"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{grandtotal}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1152" y="0" width="106" height="20" isPrintWhenDetailOverflows="true" uuid="4111cfd0-314a-4149-a3e3-fd955d422dc9"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[new String(" "+$F{estado}).replace("null","")]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1258" y="0" width="252" height="20" isPrintWhenDetailOverflows="true" uuid="ee260d5e-b540-4140-b1e9-1b712b8ab27e"/>
+				<textElement verticalAlignment="Middle">
+					<font fontName="Calibri" size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{concept}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField pattern="">
+				<reportElement x="933" y="0" width="73" height="20" uuid="af2fd7a2-962e-448e-bb80-bc6f9b8cb926"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Valor}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="1006" y="0" width="73" height="20" uuid="0341004e-d783-4911-b24a-fb163dd86755"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Pagado}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="1079" y="0" width="73" height="20" uuid="3e323e04-c789-455e-aa16-331925e33ff8"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Saldo}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement x="1152" y="0" width="358" height="20" uuid="e77aed96-f9e1-4284-8a8b-4e5620c7bc2a"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font fontName="Calibri" size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA[]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="933" height="20" uuid="2edd296a-9273-449c-aa31-35b447a045d0"/>
+				<box>
+					<topPen lineWidth="0.5"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" markup="none">
+					<font fontName="Calibri" size="8"/>
+				</textElement>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

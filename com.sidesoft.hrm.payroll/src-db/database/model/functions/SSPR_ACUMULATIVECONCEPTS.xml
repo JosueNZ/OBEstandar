@@ -1,0 +1,530 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_ACUMULATIVECONCEPTS">
+    <function name="SSPR_ACUMULATIVECONCEPTS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_ConceptA RECORD;
+Cur_ProcessPayroll RECORD;
+Cur_employee RECORD;
+Cur_cumulativE RECORD;
+Cur_settlement RECORD;
+Cur_benefit_dismissal RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+
+v_Period_ID VARCHAR2(32); 
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+V_SSPR_CONCEPTOUT_ID VARCHAR2(32); 
+v_sspr_concept_id VARCHAR2(32); 
+v_iscumulative VARCHAR2(1); 
+v_isprojected VARCHAR2(1); 
+v_isiess VARCHAR2(1); 
+v_conceptsubtype VARCHAR2(60); 
+v_c_year_id VARCHAR2(32); 
+v_count_insert NUMBER;
+v_get_uuid VARCHAR2(32); 
+v_iscumulative_ir VARCHAR2(1); 
+v_isprojected_ir VARCHAR2(1); 
+v_isiess_ir VARCHAR2(1); 
+v_conceptsubtype_ir VARCHAR2(60); 
+v_sspr_payroll_id VARCHAR2(32);
+v_count_concept NUMBER;
+v_periodno_cur NUMBER;
+v_periodno NUMBER;
+v_incometax NUMBER;
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  --BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+
+    v_sspr_payroll_id := pinstance_id;
+
+    --RECUPERA LA NOMINA EN PROCESO
+    SELECT C_PERIOD.C_YEAR_ID
+    INTO v_c_year_id
+    FROM SSPR_PAYROLL
+    LEFT JOIN C_PERIOD ON C_PERIOD.C_PERIOD_ID = SSPR_PAYROLL.C_PERIOD_ID	
+    WHERE SSPR_PAYROLL.SSPR_PAYROLL_ID = v_sspr_payroll_id;
+    
+    DELETE FROM SSPR_CUMULATIVECONCEPT;
+
+	 --OBTENGO EL CONCEPTO IMPUESTO A LA RENTA
+	 SELECT SSPR_PROCESS_PAYROLL.SSPR_CONCEPTOUT_ID
+	 INTO V_SSPR_CONCEPTOUT_ID 
+	 FROM SSPR_PROCESS_PAYROLL
+	 WHERE PROCESSNAME IN ('IT', 'IT_2022') AND ISACTIVE = 'Y';
+
+		FOR Cur_ConceptA IN 
+			   (	
+			SELECT C.ISLIQUIDATION,A.AD_CLIENT_ID, A.AD_ORG_ID,A.CREATEDBY, A.UPDATEDBY,A.SSPR_CONCEPT_ID, 
+			B.C_BPARTNER_ID, C.C_PERIOD_ID, TO_NUMBER(SUM(A.AMOUNT)) AS AMOUNT
+			,BB.PERIODNO,BB.C_YEAR_ID, A.ISCUMULATIVE,A.ISPROJECTED,D.CONCEPTSUBTYPE,A.ISIESS,
+			COALESCE(TO_NUMBER((SELECT SUM(W.AMOUNT) FROM sspr_payroll_ticket_concept W
+			LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+			LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+			LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID=X.C_PERIOD_ID
+			LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+			WHERE  (Z.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID
+			AND  W.ISCUMULATIVE = 'Y' AND W.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND BA.C_BPARTNER_ID = B.C_BPARTNER_ID AND X.PERIODNO <= BB.PERIODNO AND X.C_YEAR_ID = BB.C_YEAR_ID) 
+			OR (W.ISINCOMECALCULATED='Y' AND  W.ISCUMULATIVE = 'Y' AND W.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND BA.C_BPARTNER_ID = B.C_BPARTNER_ID AND X.PERIODNO <= BB.PERIODNO ) 
+			AND A.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+			AND X.C_YEAR_ID = BB.C_YEAR_ID) ),0)
+			+
+			coalesce((select SUM(sspr_contract.previousincome)
+			from c_bpartner
+			left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+			where c_bpartner.c_bpartner_id = B.C_BPARTNER_ID
+			and sspr_contract.sspr_concept_id = A.SSPR_CONCEPT_ID
+			AND sspr_contract.C_YEAR_ID = BB.C_YEAR_ID),0)
+			+
+			--SUMA PESTAÑA LINEAS DE LA LIQUIDACION PARA ACUMULAR
+			coalesce((select sum(coalesce((case when sl.totalnet < 0 then sl.totalnet * -1  else sl.totalnet end),0))
+			from sspr_settlement sc
+			left join sspr_settlementline sl on sl.sspr_settlement_id = sc.sspr_settlement_id
+			left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+			WHERE  (sl.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID
+			AND  sl.ISCUMULATIVE = 'Y' AND sl.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO AND scp.C_YEAR_ID = BB.C_YEAR_ID) 
+			OR (sl.ISINCOMECALCULATED='Y' AND  sl.ISCUMULATIVE = 'Y' AND sl.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO ) 
+			AND A.SSPR_CONCEPT_ID = sl.SSPR_CONCEPT_ID
+			AND scp.C_YEAR_ID = BB.C_YEAR_ID
+			AND sc.complete = 'Y'),0)
+			+
+			--SUMA PESTAÑA DATOS ADICIONALES DE LA LIQUIDACION PARA ACUMULAR
+			coalesce((select sum(coalesce((case when sd.totalnet < 0 then sd.totalnet * -1  else sd.totalnet end),0))
+			from sspr_settlement sc
+			left join sspr_settlementdata sd on sd.sspr_settlement_id = sc.sspr_settlement_id
+			left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+			WHERE  (sd.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID
+			AND  sd.ISCUMULATIVE = 'Y' AND sd.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO AND scp.C_YEAR_ID = BB.C_YEAR_ID) 
+			OR (sd.ISINCOMECALCULATED='Y' AND  sd.ISCUMULATIVE = 'Y' AND sd.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO ) 
+			AND A.SSPR_CONCEPT_ID = sd.SSPR_CONCEPT_ID
+			AND scp.C_YEAR_ID = BB.C_YEAR_ID
+			AND sc.complete = 'Y'),0) AS CUMULATIVE	
+							
+			,COALESCE(TO_NUMBER(((((SELECT SUM(W.AMOUNT) FROM sspr_payroll_ticket_concept W
+			LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+			LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+			LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID=X.C_PERIOD_ID
+			LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+			WHERE W.ISINCOMECALCULATED='Y' AND W.ISCUMULATIVE = 'Y' AND W.ISPROJECTED='Y'
+			AND W.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID AND BA.C_BPARTNER_ID = B.C_BPARTNER_ID 
+			AND X.PERIODNO <= BB.PERIODNO AND A.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID AND X.C_YEAR_ID = BB.C_YEAR_ID)
+			+
+			(coalesce((select SUM(sspr_contract.previousincome)
+			from c_bpartner
+			left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+			where c_bpartner.c_bpartner_id = B.C_BPARTNER_ID
+			and sspr_contract.sspr_concept_id = A.SSPR_CONCEPT_ID
+			and sspr_contract.C_YEAR_ID = BB.C_YEAR_ID),0))
+            +
+			--SUMA PESTAÑA LINEAS DE LA LIQUIDACION PARA ACUMULAR
+			coalesce((select sum(coalesce((case when sl.totalnet < 0 then sl.totalnet * -1  else sl.totalnet end),0))
+			from sspr_settlement sc
+			left join sspr_settlementline sl on sl.sspr_settlement_id = sc.sspr_settlement_id
+			left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+			WHERE  (sl.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID
+			AND  sl.ISCUMULATIVE = 'Y'  and sl.ISPROJECTED='Y'AND sl.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO AND scp.C_YEAR_ID = BB.C_YEAR_ID) 
+			OR (sl.ISINCOMECALCULATED='Y' AND  sl.ISCUMULATIVE = 'Y'  and sl.ISPROJECTED='Y'AND sl.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO ) 
+			AND A.SSPR_CONCEPT_ID = sl.SSPR_CONCEPT_ID
+			AND scp.C_YEAR_ID = BB.C_YEAR_ID
+			AND sc.complete = 'Y'),0)
+			+
+			--SUMA PESTAÑA DATOS ADICIONALES DE LA LIQUIDACION PARA ACUMULAR
+			coalesce((select sum(coalesce((case when sd.totalnet < 0 then sd.totalnet * -1  else sd.totalnet end),0))
+			from sspr_settlement sc
+			left join sspr_settlementdata sd on sd.sspr_settlement_id = sc.sspr_settlement_id
+			left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+			WHERE  (sd.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID
+			AND  sd.ISCUMULATIVE = 'Y' and sd.ISPROJECTED='Y'AND sd.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO AND scp.C_YEAR_ID = BB.C_YEAR_ID) 
+			OR (sd.ISINCOMECALCULATED='Y' AND  sd.ISCUMULATIVE = 'Y' and sd.ISPROJECTED='Y' AND sd.SSPR_CONCEPT_ID = A.SSPR_CONCEPT_ID 
+			AND sc.C_BPARTNER_ID = B.C_BPARTNER_ID AND scp.PERIODNO <= BB.PERIODNO ) 
+			AND A.SSPR_CONCEPT_ID = sd.SSPR_CONCEPT_ID
+			AND scp.C_YEAR_ID = BB.C_YEAR_ID
+			AND sc.complete = 'Y'),0))
+			/BB.PERIODNO) * (12 - BB.PERIODNO))),0) AS PROJECTED
+							    
+			FROM sspr_payroll_ticket_concept A
+			LEFT JOIN sspr_payroll_ticket B ON A.sspr_payroll_ticket_id = B.sspr_payroll_ticket_id
+			LEFT JOIN sspr_payroll C on  B.sspr_payroll_id= C.sspr_payroll_id
+			LEFT JOIN C_PERIOD BB ON C.C_PERIOD_ID=BB.C_PERIOD_ID
+			LEFT JOIN SSPR_CONCEPT D ON A.SSPR_CONCEPT_ID=D.SSPR_CONCEPT_ID
+			WHERE (A.ISINCOMECALCULATED='Y' OR D.SSPR_CONCEPT_ID = V_SSPR_CONCEPTOUT_ID)
+			AND C.ISPAYROLL='Y' 
+			AND BB.C_YEAR_ID = v_c_year_id and c.isliquidation = 'N'
+			GROUP BY C.ISLIQUIDATION, A.SSPR_CONCEPT_ID, B.C_BPARTNER_ID, C.C_PERIOD_ID ,BB.PERIODNO,
+			BB.C_YEAR_ID,A.AD_CLIENT_ID, A.AD_ORG_ID,A.CREATEDBY, A.UPDATEDBY, A.ISCUMULATIVE, A.ISPROJECTED,D.CONCEPTSUBTYPE,A.ISIESS
+			
+			UNION ALL
+			
+			SELECT pr.isliquidation, oti.ad_client_id, oti.ad_org_id, oti.createdby, oti.updatedby,
+				co.sspr_concept_id, otil.c_bpartner_id, pe.c_period_id, SUM(otil.amount) amount, pe.periodno,
+				pe.c_year_id, co.iscumulative, co.isprojected, co.conceptsubtype, co.isiess,
+				CASE WHEN co.iscumulative = 'Y' THEN SUM(otil.amount) ELSE 0 END cumulative,
+				CASE WHEN co.isprojected = 'Y' THEN SUM(otil.amount) ELSE 0 END projected
+			FROM sspr_other_tax_income_line otil
+				JOIN sspr_other_tax_income oti ON oti.sspr_other_tax_income_id = otil.sspr_other_tax_income_id
+					AND oti.processed = 'Y'
+				JOIN sspr_payroll pr ON pr.sspr_payroll_id = v_sspr_payroll_id
+                    AND pr.ispayroll = 'Y'
+                JOIN c_year y ON y.c_year_id = v_c_year_id AND y.year = TO_CHAR(oti.process_date,'YYYY')
+				JOIN c_period pe ON pe.c_period_id = pr.c_period_id
+					--AND TO_CHAR(pe.startdate,'YYYY-MM') = TO_CHAR(oti.process_date,'YYYY-MM')
+					AND oti.process_date::DATE <= pe.enddate::DATE
+				JOIN sspr_concept co ON co.sspr_concept_id = otil.sspr_concept_id
+				   AND co.isincomecalculated = 'Y'
+			GROUP BY pr.isliquidation, oti.ad_client_id, oti.ad_org_id, oti.createdby, oti.updatedby,
+				co.sspr_concept_id, otil.c_bpartner_id, pe.c_period_id, pe.periodno, pe.c_year_id,
+				co.iscumulative, co.isprojected, co.conceptsubtype, co.isiess
+
+			ORDER BY 1, 2, 3, 5, 6
+		) LOOP
+
+				Insert into SSPR_CUMULATIVECONCEPT (SSPR_CUMULATIVECONCEPT_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+				SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNTCONCEPT,PERIODNO,C_YEAR_ID,NOTOTALPERIOD,ACUMULATIVE,AMOUNTPROJECTED,ISCUMULATIVE, ISPROJECTED,ISAFFECTIONMONTHLY,CONCEPTSUBTYPE,ISIESS,ISLIQUIDATION)
+				values(get_uuid(), Cur_ConceptA.AD_CLIENT_ID,Cur_ConceptA.AD_ORG_ID, 'Y', 
+				now(), Cur_ConceptA.CREATEDBY,  now(), Cur_ConceptA.UPDATEDBY,
+				Cur_ConceptA.sspr_concept_id, Cur_ConceptA.c_bpartner_id,Cur_ConceptA.C_Period_ID, Cur_ConceptA.amount,
+				Cur_ConceptA.periodno, Cur_ConceptA.c_year_id,12,Cur_ConceptA.CUMULATIVE,Cur_ConceptA.PROJECTED,Cur_ConceptA.ISCUMULATIVE,Cur_ConceptA.ISPROJECTED,'N',
+				Cur_ConceptA.CONCEPTSUBTYPE,Cur_ConceptA.ISIESS,Cur_ConceptA.ISLIQUIDATION);
+				v_n_insertions:=v_n_insertions+1;
+
+				v_Client_ID := Cur_ConceptA.AD_CLIENT_ID;
+				v_Org_ID := Cur_ConceptA.AD_ORG_ID;
+				v_User_ID := Cur_ConceptA.CREATEDBY;
+				
+			 END LOOP;
+
+			--INSERTA LIQUIDACIONES PESTAÑA LINEAS Y DATOS ADICIONALES
+			SELECT MAX(PERIODNO) 
+			INTO v_periodno_cur
+			FROM SSPR_CUMULATIVECONCEPT;
+
+			For Cur_settlement In(
+			select sc.ad_client_id, sc.ad_org_id, sc.createdby, sc.updatedby,
+						sl.sspr_concept_id, sc.c_bpartner_id, scp.c_period_id, 
+						case when sl.totalnet < 0 then sl.totalnet * -1  else sl.totalnet end as totalnet,
+						case when sl.iscumulative = 'Y' Then
+                            case when sl.totalnet < 0 Then sl.totalnet * - 1 
+                            else sl.totalnet end
+					     else 0 end
+						+
+						COALESCE(TO_NUMBER((SELECT SUM(W.AMOUNT) 
+						FROM sspr_payroll_ticket_concept W
+						LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+						LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+						LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID = X.C_PERIOD_ID
+						LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+						WHERE (W.ISINCOMECALCULATED='Y' 
+						AND W.ISCUMULATIVE = 'Y' 
+						AND W.SSPR_CONCEPT_ID = sl.sspr_concept_id 
+						AND BA.C_BPARTNER_ID = sc.c_bpartner_id 
+						AND X.PERIODNO < scp.periodno) 
+						AND Z.SSPR_CONCEPT_ID = sl.sspr_concept_id 
+						AND X.C_YEAR_ID = scp.c_year_id)),0)
+						+
+						coalesce((select SUM(sspr_contract.previousincome)
+						from c_bpartner
+						left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+						where c_bpartner.c_bpartner_id = sc.c_bpartner_id 
+						and sspr_contract.sspr_concept_id = sl.sspr_concept_id
+						AND sspr_contract.C_YEAR_ID = scp.c_year_id),0)
+                        as cumulative,
+						
+						COALESCE(TO_NUMBER(((((SELECT SUM(W.AMOUNT) FROM sspr_payroll_ticket_concept W
+						LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+						LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+						LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID=X.C_PERIOD_ID
+						LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+						WHERE W.ISINCOMECALCULATED ='Y' 
+						AND W.ISCUMULATIVE = 'Y' 
+						AND W.ISPROJECTED='Y'
+						AND W.SSPR_CONCEPT_ID = sl.sspr_concept_id  
+						AND BA.C_BPARTNER_ID = sc.c_bpartner_id 
+						AND X.PERIODNO < scp.periodno  
+						AND Z.SSPR_CONCEPT_ID = sl.sspr_concept_id AND X.C_YEAR_ID = scp.c_year_id)
+						+
+						case when sl.isprojected = 'Y' Then case when sl.totalnet < 0 Then sl.totalnet * - 1 else sl.totalnet end else 0 end				
+						+
+						(coalesce((select SUM(sspr_contract.previousincome)
+						from c_bpartner
+						left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+						where c_bpartner.c_bpartner_id = sc.c_bpartner_id
+						and sspr_contract.sspr_concept_id = sl.sspr_concept_id  
+						and sspr_contract.C_YEAR_ID = scp.c_year_id),0)))
+						/scp.periodno) * (12 - scp.periodno))),0)
+                        as projected,
+						 
+						scp.periodno, scp.c_year_id, sl.iscumulative, sl.isprojected, sl.isiess,
+						c.conceptsubtype
+					from sspr_settlementline sl
+					left join sspr_settlement sc on sl.sspr_settlement_id = sc.sspr_settlement_id
+					left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+					left join sspr_concept c on c.sspr_concept_id = sl.sspr_concept_id
+					where scp.c_year_id = v_c_year_id --'8D2D43084EBE40E0867C586264C0C535' --v_c_year_id
+					and sc.complete = 'Y'
+					
+				union all
+				
+				select sc.ad_client_id, sc.ad_org_id, sc.createdby, sc.updatedby,
+					sl.sspr_concept_id, sc.c_bpartner_id, scp.c_period_id, 
+					case when sl.totalnet < 0 then sl.totalnet * -1  else sl.totalnet end as totalnet, 
+					case when sl.iscumulative = 'Y' Then case when sl.totalnet < 0 Then sl.totalnet * - 1 
+										else sl.totalnet end
+				     else 0 end
+					+
+					COALESCE(TO_NUMBER((SELECT SUM(W.AMOUNT) 
+					FROM sspr_payroll_ticket_concept W
+					LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+					LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+					LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID = X.C_PERIOD_ID
+					LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+					WHERE (W.ISINCOMECALCULATED='Y' 
+					AND W.ISCUMULATIVE = 'Y' 
+					AND W.SSPR_CONCEPT_ID = sl.sspr_concept_id 
+					AND BA.C_BPARTNER_ID = sc.c_bpartner_id 
+					AND X.PERIODNO < scp.periodno) 
+					AND Z.SSPR_CONCEPT_ID = sl.sspr_concept_id 
+					AND X.C_YEAR_ID = scp.c_year_id)),0)
+					+
+					coalesce((select SUM(sspr_contract.previousincome)
+					from c_bpartner
+					left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+					where c_bpartner.c_bpartner_id = sc.c_bpartner_id 
+					and sspr_contract.sspr_concept_id = sl.sspr_concept_id
+					AND sspr_contract.C_YEAR_ID = scp.c_year_id),0)
+                    as cumulative,
+					
+					COALESCE(TO_NUMBER(((((SELECT SUM(W.AMOUNT) FROM sspr_payroll_ticket_concept W
+					LEFT JOIN sspr_payroll_ticket BA ON W.sspr_payroll_ticket_id = BA.sspr_payroll_ticket_id
+					LEFT JOIN sspr_payroll CA on  BA.sspr_payroll_id= CA.sspr_payroll_id
+					LEFT JOIN C_PERIOD X ON CA.C_PERIOD_ID=X.C_PERIOD_ID
+					LEFT JOIN SSPR_CONCEPT Z ON W.SSPR_CONCEPT_ID=Z.SSPR_CONCEPT_ID
+					WHERE W.ISINCOMECALCULATED ='Y' 
+					AND W.ISCUMULATIVE = 'Y' 
+					AND W.ISPROJECTED='Y'
+					AND W.SSPR_CONCEPT_ID = sl.sspr_concept_id  
+					AND BA.C_BPARTNER_ID = sc.c_bpartner_id 
+					AND X.PERIODNO < scp.periodno  
+					AND Z.SSPR_CONCEPT_ID = sl.sspr_concept_id AND X.C_YEAR_ID = scp.c_year_id)
+					+
+					case when sl.isprojected = 'Y' Then case when sl.totalnet < 0 Then sl.totalnet * - 1 else sl.totalnet end else 0 end				
+					+
+					(coalesce((select SUM(sspr_contract.previousincome)
+					from c_bpartner
+					left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id
+					where c_bpartner.c_bpartner_id = sc.c_bpartner_id
+					and sspr_contract.sspr_concept_id = sl.sspr_concept_id  
+					and sspr_contract.C_YEAR_ID = scp.c_year_id),0)))
+					/scp.periodno) * (12 - scp.periodno))),0)
+                    as projected,
+					
+					scp.periodno, scp.c_year_id, sl.iscumulative, sl.isprojected, sl.isiess,
+					c.conceptsubtype
+				from sspr_settlementdata sl
+				left join sspr_settlement sc on sl.sspr_settlement_id = sc.sspr_settlement_id
+				left join c_period scp on sc.movementdate between scp.startdate and scp.enddate
+				left join sspr_concept c on c.sspr_concept_id = sl.sspr_concept_id
+				where scp.c_year_id = v_c_year_id-- '8D2D43084EBE40E0867C586264C0C535' --v_c_year_id
+				and sc.complete = 'Y'
+			)
+			Loop
+				v_count_concept := 0;
+				v_incometax := 0;
+
+				If( Cur_settlement.sspr_concept_id = V_SSPR_CONCEPTOUT_ID) Then
+
+					v_count_concept := 0;
+					v_incometax := 1;
+				Else
+				
+				
+					select count(c.sspr_concept_id)--a.c_period_id, a.documentno, b.c_bpartner_id, c.sspr_concept_id
+					into v_count_concept
+					from sspr_payroll a
+					left join sspr_payroll_ticket b on b.sspr_payroll_id = a.sspr_payroll_id
+					left join sspr_payroll_ticket_concept c on c.sspr_payroll_ticket_id = b.sspr_payroll_ticket_id
+					where a.c_period_id = Cur_settlement.C_Period_ID
+					and b.c_bpartner_id = Cur_settlement.c_bpartner_id
+					and c.sspr_concept_id = Cur_settlement.sspr_concept_id
+					and a.ispayroll = 'Y' and a.isliquidation = 'N';
+
+				End If;
+				
+
+				If(v_count_concept = 0)Then
+
+					v_periodno := Cur_settlement.periodno;
+
+					If(v_incometax = 1)Then
+
+						Insert into SSPR_CUMULATIVECONCEPT (SSPR_CUMULATIVECONCEPT_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+						SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNTCONCEPT,PERIODNO,C_YEAR_ID,NOTOTALPERIOD,ACUMULATIVE,AMOUNTPROJECTED,ISCUMULATIVE, ISPROJECTED,
+						ISAFFECTIONMONTHLY,CONCEPTSUBTYPE,ISIESS,ISLIQUIDATION)
+						values(get_uuid(), Cur_settlement.ad_client_id, Cur_settlement.ad_org_id, 'Y', 
+						now(), Cur_settlement.createdby,  now(), Cur_settlement.updatedby,
+						Cur_settlement.sspr_concept_id, Cur_settlement.c_bpartner_id,Cur_settlement.C_Period_ID, Cur_settlement.totalnet,
+						Cur_settlement.periodno, Cur_settlement.c_year_id,12,
+						Cur_settlement.cumulative, Cur_settlement.projected,coalesce(Cur_settlement.iscumulative,'N'),coalesce(Cur_settlement.isprojected,'N'),'N',
+						Cur_settlement.conceptsubtype,coalesce(Cur_settlement.isiess,'N'),'Y');
+					Else
+						
+						While v_periodno <= v_periodno_cur 
+						Loop	
+
+							Insert into SSPR_CUMULATIVECONCEPT (SSPR_CUMULATIVECONCEPT_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+							SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNTCONCEPT,PERIODNO,C_YEAR_ID,NOTOTALPERIOD,ACUMULATIVE,AMOUNTPROJECTED,ISCUMULATIVE, ISPROJECTED,
+							ISAFFECTIONMONTHLY,CONCEPTSUBTYPE,ISIESS,ISLIQUIDATION)
+							values(get_uuid(), Cur_settlement.ad_client_id, Cur_settlement.ad_org_id, 'Y', 
+							now(), Cur_settlement.createdby,  now(), Cur_settlement.updatedby,
+							Cur_settlement.sspr_concept_id, Cur_settlement.c_bpartner_id,Cur_settlement.C_Period_ID, Cur_settlement.totalnet,
+							--Cur_settlement.periodno
+							v_periodno, Cur_settlement.c_year_id,12,
+							Cur_settlement.cumulative, Cur_settlement.projected,coalesce(Cur_settlement.iscumulative,'N'),coalesce(Cur_settlement.isprojected,'N'),'N',
+							Cur_settlement.conceptsubtype,coalesce(Cur_settlement.isiess,'N'),'Y');
+
+							v_periodno := v_periodno + 1;
+
+						End Loop;
+					End If;
+				End If;
+				
+			End Loop;
+
+			--COMPLETA DIAS MESES DE RETENCION DE IMPUESTO A LA RENTA
+			FOR Cur_employee In(
+			
+			select c_bpartner.c_bpartner_id,sum(sspr_contract.previousincome) as previousincome, sum(sspr_contract.previouswithholding) as previouswithholding,sspr_contract.c_year_id,
+			c_bpartner.ad_org_id, c_bpartner.ad_client_id, c_bpartner.createdby,c_bpartner.updatedby, 
+			sspr_contract.sspr_concept_id, sspr_concept.iscumulative, sspr_concept.isprojected, sspr_concept.isiess, sspr_concept.conceptsubtype
+			from c_bpartner
+			left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id 
+			left join sspr_concept on sspr_concept.sspr_concept_id = sspr_contract.sspr_concept_id
+			where c_bpartner.isemployee = 'Y' 
+			--and c_bpartner.c_bpartner_id = v_c_bpartner_id
+			and sspr_contract.c_year_id = v_c_year_id
+			and sspr_contract.c_year_id is not null and sspr_contract.sspr_concept_id is not null
+			group by  c_bpartner.c_bpartner_id,sspr_contract.c_year_id,
+			c_bpartner.ad_org_id, c_bpartner.ad_client_id, c_bpartner.createdby,c_bpartner.updatedby, 
+			sspr_contract.sspr_concept_id, sspr_concept.iscumulative, sspr_concept.isprojected, sspr_concept.isiess, sspr_concept.conceptsubtype
+
+			)
+			Loop
+
+				v_count_insert := 0;
+
+				select coalesce((select count(c_period.c_period_id)
+				from c_period 
+				left join (select c_period_id,periodno, c_bpartner_id, c_year_id
+					   from sspr_cumulativeconcept
+					   where c_bpartner_id = Cur_employee.c_bpartner_id 
+					   group by c_period_id,periodno,c_bpartner_id,c_year_id
+					   order by periodno) acumulative on acumulative.c_period_id = c_period.c_period_id
+				where c_period.c_year_id = Cur_employee.c_year_id 
+				and c_period.periodno <= (select max(periodno)
+							from sspr_cumulativeconcept
+							where c_bpartner_id = Cur_employee.c_bpartner_id)
+				and acumulative.periodno is null),0)
+				into v_count_insert
+				from dual;
+
+				If(v_count_insert > 0)Then
+
+					For Cur_cumulative  In(
+								select c_period.c_period_id ,c_period.periodno as periodno, acumulative.periodno as periodnoir,
+									c_period.c_year_id
+								from c_period 
+								left join (select c_period_id,periodno, c_bpartner_id, c_year_id
+									   from sspr_cumulativeconcept
+									   where c_bpartner_id = Cur_employee.c_bpartner_id --'052761AA8B854E4DB53AC9A925248B94'
+									   group by c_period_id,periodno,c_bpartner_id,c_year_id
+									   order by periodno) acumulative on acumulative.c_period_id = c_period.c_period_id
+								where c_period.c_year_id = Cur_employee.c_year_id --'0CC86EFE48E64F5FB4A628252B386EBC'
+								and c_period.periodno <= (select max(periodno)
+											from sspr_cumulativeconcept
+											where c_bpartner_id = Cur_employee.c_bpartner_id)--Cur_employee.c_bpartner_id
+								order by c_period.periodno
+					  )
+					  Loop
+
+					  If( Cur_cumulative.periodnoir is null) Then
+
+						--INSERTA LINEA DE SALDOS INICIALES
+
+						Insert into SSPR_CUMULATIVECONCEPT (SSPR_CUMULATIVECONCEPT_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+										   SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNTCONCEPT,PERIODNO,C_YEAR_ID,NOTOTALPERIOD,ACUMULATIVE,
+										   AMOUNTPROJECTED,ISCUMULATIVE, ISPROJECTED,ISAFFECTIONMONTHLY,CONCEPTSUBTYPE,ISIESS,ISLIQUIDATION)
+						values(get_uuid(), v_Client_ID,v_Org_ID, 'Y', 
+						now(), v_User_ID,  now(), v_User_ID,
+						Cur_employee.sspr_concept_id, Cur_employee.c_bpartner_id,Cur_cumulative.C_Period_ID,Cur_employee.previousincome / v_count_insert,
+						Cur_cumulative.periodno, Cur_cumulative.c_year_id,12, (Cur_employee.previousincome / v_count_insert) * Cur_cumulative.periodno, (Cur_employee.previousincome/v_count_insert) * (12 - Cur_cumulative.periodno),
+						Cur_employee.iscumulative, Cur_employee.isprojected,'N',
+						Cur_employee.conceptsubtype,Cur_employee.isiess,'N');
+
+						
+
+						--INSERTA LINEA DE IMPUESTO A LA RENTA
+						select iscumulative, isprojected, isiess, conceptsubtype
+						into v_iscumulative_ir, v_isprojected_ir, v_isiess_ir, v_conceptsubtype_ir
+						from sspr_concept
+						where sspr_concept_id =  V_SSPR_CONCEPTOUT_ID;
+
+						Insert into SSPR_CUMULATIVECONCEPT (SSPR_CUMULATIVECONCEPT_ID, AD_CLIENT_ID, AD_ORG_ID, ISACTIVE, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+										   SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNTCONCEPT,PERIODNO,C_YEAR_ID,NOTOTALPERIOD,ACUMULATIVE,
+										   AMOUNTPROJECTED,ISCUMULATIVE, ISPROJECTED,ISAFFECTIONMONTHLY,CONCEPTSUBTYPE,ISIESS,ISLIQUIDATION)
+						values(get_uuid(), v_Client_ID,v_Org_ID, 'Y', 
+						now(), v_User_ID,  now(), v_User_ID,
+						V_SSPR_CONCEPTOUT_ID, Cur_employee.c_bpartner_id,Cur_cumulative.C_Period_ID,Cur_employee.previouswithholding/v_count_insert,
+						Cur_cumulative.periodno, Cur_cumulative.c_year_id,12,0.00,0.00,
+						v_iscumulative_ir,v_isprojected_ir,'N',
+						v_conceptsubtype_ir,v_isiess_ir,'N');
+
+					  End If;
+
+					  End Loop;
+
+				  End If;			  
+		       
+		       End Loop;
+
+			 
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  --END; --BODY
+  --EXCEPTION
+  --WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_ACUMULATIVECONCEPTS
+]]></body>
+    </function>
+  </database>

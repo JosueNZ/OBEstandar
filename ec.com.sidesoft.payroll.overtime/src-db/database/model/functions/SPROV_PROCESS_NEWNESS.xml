@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_PROCESS_NEWNESS">
+    <function name="SPROV_PROCESS_NEWNESS" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2001-2013 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): Ing Diego Armando Guallasamin Columba
+************************************************************************/
+  -- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Record_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32):='0';
+  v_DocAction VARCHAR2(60);
+  v_DocStatus VARCHAR2(60);
+  v_deparment_id VARCHAR2(32);
+  v_datemovement DATE;
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_sprov_overtime_id VARCHAR2(32);
+  v_sspr_shift_id VARCHAR2(32);
+  v_exit DATE;
+  v_amount NUMBER;
+  v_EndPeriod DATE;
+  v_days NUMBER;
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    Cur_newness RECORD;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+  v_ResultStr:='PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, i.AD_Client_ID, i.AD_Org_ID,
+        p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo) LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_User_ID:=Cur_Parameter.AD_User_ID;
+      v_client_id := Cur_Parameter.AD_Client_ID;
+      v_org_id := Cur_Parameter.AD_Org_ID;
+    END LOOP; -- Get Parameter
+
+    select enddate
+    into v_EndPeriod
+    from c_period
+    where startdate <= v_datemovement and enddate >= v_datemovement;
+
+	select coalesce((select case when daysmonth = 'TD' then 30
+	else to_number(to_char(v_EndPeriod,'dd')) 
+	end as daysmonth
+	from sspr_hours_work),0)
+	into v_days
+	from dual;
+
+   For Cur_newness in (
+	select a.sprov_newness_id, b.sspr_concept_id, b.formula, b.formulates, a.sprbi_maintenance_news_id,
+		coalesce(d.em_sspr_currentsalary, 0) as currentsalary, c.total_arrears, c.c_bpartner_id, b.value
+	from sprov_newness a
+	left join sprbi_maintenance_news b on b.sprbi_maintenance_news_id = a.sprbi_maintenance_news_id
+	left join sprov_employee_overtime c on c.sprov_employee_overtime_id = a.sprov_employee_overtime_id
+	left join c_bpartner d on d.c_bpartner_id = c.c_bpartner_id 
+	where a.sprov_employee_overtime_id = v_Record_ID
+	and b.sspr_concept_id is not null
+   )
+   Loop
+	If(Cur_newness.formulates is not null)Then
+		If(Cur_newness.formula = 'Y' and Cur_newness.formulates is not null)Then
+			--Falta medio dia injustificada
+			If(Cur_newness.formulates = 'sprov_half_unjustified_day')Then 
+				update sprov_newness
+				set amount = round(Cur_newness.currentsalary/v_days,2),
+				    sspr_concept_id = Cur_newness.sspr_concept_id
+				where sprov_newness_id = Cur_newness.sprov_newness_id;
+			End If;
+			--Falta injustificada
+			If(Cur_newness.formulates = 'sprov_unjustified_absence')Then 
+				update sprov_newness
+				set amount = round(((Cur_newness.currentsalary/v_days) * 2),2),
+				    sspr_concept_id = Cur_newness.sspr_concept_id
+				where sprov_newness_id = Cur_newness.sprov_newness_id;
+			End If;
+			--Multa Atraso
+			If(Cur_newness.formulates = 'sprov_penaltydelay')Then 
+				--RAISE_APPLICATION_ERROR(-20000, ' Cur_newness.value ' || Cur_newness.value || ' Cur_newness.total_arrears ' || Cur_newness.total_arrears);
+
+				update sprov_newness
+				set amount = round(Cur_newness.value * Cur_newness.total_arrears,3) * 60,
+				    sspr_concept_id = Cur_newness.sspr_concept_id
+				where sprov_newness_id = Cur_newness.sprov_newness_id;
+
+			End If;
+		End If;
+	Else 
+		update sprov_newness
+		set amount = Cur_newness.value,
+		    sspr_concept_id = Cur_newness.sspr_concept_id
+		where sprov_newness_id = Cur_newness.sprov_newness_id;
+
+	End If;
+
+   End Loop;
+   
+  END; --BODY
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', v_Result, v_Message) ;
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('Load biometric error: ' || v_ResultStr);
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr);
+END SPROV_PROCESS_NEWNESS
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER CSAAA_PROCESS_CONCIL_TRG">
+    <trigger name="CSAAA_PROCESS_CONCIL_TRG" table="CSAAA_INVT_TKG_LINE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+v_Processed VARCHAR(60) ;
+v_CsaaaInvenTaking_ID VARCHAR2(32) ;
+    
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+    v_CsaaaInvenTaking_ID:=:NEW.csaaa_inventory_taking_id;
+  ELSE
+    v_CsaaaInvenTaking_ID:=:OLD.csaaa_inventory_taking_id;
+  END IF;
+  
+  SELECT PROCESSED
+  INTO v_Processed
+  FROM csaaa_inventory_taking
+  WHERE csaaa_inventory_taking_id=v_CsaaaInvenTaking_ID;
+          
+  IF((DELETING OR INSERTING) AND v_Processed='Y') THEN
+	RAISE_APPLICATION_ERROR(-20000, '@20501@');
+  END IF;
+END CSAAA_PROCESS_CONCIL_TRG
+]]></body>
+    </trigger>
+  </database>

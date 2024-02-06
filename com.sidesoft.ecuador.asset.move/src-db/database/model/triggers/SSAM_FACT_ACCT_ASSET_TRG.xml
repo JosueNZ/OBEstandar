@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAM_FACT_ACCT_ASSET_TRG">
+    <trigger name="SSAM_FACT_ACCT_ASSET_TRG" table="FACT_ACCT" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_InvPost RECORD;
+Cur_InvAli RECORD;
+Cur_InvAliAss RECORD;
+Cur_Invoice RECORD;
+
+  v_Count NUMBER;
+  v_issotrx VARCHAR2(32);
+  v_cuenta VARCHAR2(32);
+  v_value  VARCHAR2(40);
+  v_name  VARCHAR2(255);
+  v_valor NUMBER;
+  v_netvalue_as  NUMBER;
+  v_c_elementvalue_id_as VARCHAR2(32);
+  v_value_as VARCHAR2(40);
+  v_name_as VARCHAR2(255);
+  v_desasset_as VARCHAR2(255);
+  v_numerico NUMBER;
+  v_em_ssam_alienate_id VARCHAR2(32);
+  v_em_ssam_alienateline_id VARCHAR2(32);
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  If(INSERTING)Then
+
+	BEGIN
+		select issotrx 
+		into v_issotrx
+		from c_invoice 
+		where c_invoice_id = :new.record_id;
+	EXCEPTION
+       		WHEN NO_DATA_FOUND THEN v_issotrx := NULL;
+	END;
+	
+	
+
+	IF (:new.ad_table_id = '318' and v_issotrx = 'Y' and :new.line_id is not null and :new.m_product_id is not null) THEN
+	
+		For Cur_Invoice In(
+			select a.em_ssam_alienate_id, a.em_ssam_alienateline_id
+			from c_invoiceline a
+			where a.c_invoiceline_id = :new.line_id
+		)
+		Loop
+		
+			v_em_ssam_alienate_id := Cur_Invoice.em_ssam_alienate_id;
+  			v_em_ssam_alienateline_id := Cur_Invoice.em_ssam_alienateline_id;
+			
+		End Loop;
+
+		For Cur_InvAli In(
+			select sum(al.netvalue) as netvalue, e.c_elementvalue_id, e.value, e.name, t.value || ' - ' || t.name || ' - ' || t.description as desasset
+			,e1.c_elementvalue_id as c_elementvalue_id_credit, e1.value as value_credit, e1.name as name_credit
+			from ssam_alienate a  
+			left join ssam_alienateline al on al.ssam_alienate_id = a.ssam_alienate_id
+			left join a_asset_group aag on aag.a_asset_group_id = al.a_asset_group_id
+			left join a_asset_group_acct asga on asga.a_asset_group_id = aag.a_asset_group_id and asga.c_acctschema_id = :new.c_acctschema_id  
+			left join c_validcombination v on v.c_validcombination_id = asga.em_ssam_sales_acct and v.c_acctschema_id = :new.c_acctschema_id
+			left join c_elementvalue e on e.c_elementvalue_id = v.account_id
+			left join c_validcombination v1 on v1.c_validcombination_id = asga.EM_Ssam_Resultalienate_Acct and v1.c_acctschema_id = :new.c_acctschema_id
+			left join c_elementvalue e1 on e1.c_elementvalue_id = v1.account_id
+			left join a_asset t on t.a_asset_id = al.a_asset_id
+			left join ssam_reason_alienate sra on sra.ssam_reason_alienate_id = a.ssam_reason_alienate_id
+			where a.ssam_alienate_id = v_em_ssam_alienate_id
+			and al.ssam_alienateline_id = v_em_ssam_alienateline_id
+			and al.netvalue > 0
+			and t.em_ssam_assettype = 'AA'
+			and sra.USE_Transit_Account = 'Y'
+			group by e.c_elementvalue_id, e.value, e.name,  t.value , t.name, t.description, e1.c_elementvalue_id , e1.value, e1.name  
+		)
+		Loop
+
+			
+			insert into fact_acct(fact_acct_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+						updated, updatedby, c_acctschema_id, account_id, datetrx, dateacct, c_period_id, 
+						ad_table_id, record_id, line_id, gl_category_id, postingtype, c_currency_id, 
+						amtsourcedr, amtsourcecr, amtacctdr, amtacctcr,
+						c_uom_id, qty, m_product_id, c_bpartner_id, c_locfrom_id, c_locto_id, 
+						user1_id, description,fact_acct_group_id, seqno, factaccttype, docbasetype, 
+						acctvalue, acctdescription, c_doctype_id, c_costcenter_id, ismodify)
+			values(get_uuid(), :new.ad_client_id, :new.ad_org_id, :new.isactive, :new.created, :new.createdby,
+			      :new.updated, :new.updatedby, :new.c_acctschema_id, Cur_InvAli.c_elementvalue_id, :new.datetrx, :new.dateacct, :new.c_period_id,
+			      :new.ad_table_id, :new.record_id, null, :new.gl_category_id, :new.postingtype, :new.c_currency_id,
+			      0.00, Cur_InvAli.netvalue,0.00,Cur_InvAli.netvalue,
+			      null, null, null, :new.c_bpartner_id, :new.c_locfrom_id, :new.c_locto_id,
+			      :new.user1_id, substr(:new.description || ' - ' || Cur_InvAli.desasset,0,254), :new.fact_acct_group_id, 110, :new.factaccttype, :new.docbasetype, 
+			      Cur_InvAli.value, Cur_InvAli.name, :new.c_doctype_id, :new.c_costcenter_id, :new.ismodify); 
+
+			
+			insert into fact_acct(fact_acct_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+						updated, updatedby, c_acctschema_id, account_id, datetrx, dateacct, c_period_id, 
+						ad_table_id, record_id, line_id, gl_category_id, postingtype, c_currency_id, 
+						amtsourcedr, amtsourcecr, amtacctdr, amtacctcr,
+						c_uom_id, qty, m_product_id, c_bpartner_id, c_locfrom_id, c_locto_id, 
+						user1_id, description,fact_acct_group_id, seqno, factaccttype, docbasetype, 
+						acctvalue, acctdescription, c_doctype_id, c_costcenter_id, ismodify)
+			values(get_uuid(), :new.ad_client_id, :new.ad_org_id, :new.isactive, :new.created, :new.createdby,
+			      :new.updated, :new.updatedby, :new.c_acctschema_id, Cur_InvAli.c_elementvalue_id_credit, :new.datetrx, :new.dateacct, :new.c_period_id,
+			      :new.ad_table_id, :new.record_id, null, :new.gl_category_id, :new.postingtype, :new.c_currency_id,
+			      Cur_InvAli.netvalue,0.00,Cur_InvAli.netvalue,  0.00,
+			      null, null, null, :new.c_bpartner_id, :new.c_locfrom_id, :new.c_locto_id,
+			      :new.user1_id, substr(:new.description || ' - ' || Cur_InvAli.desasset,0,254), :new.fact_acct_group_id, 110, :new.factaccttype, :new.docbasetype, 
+			      Cur_InvAli.value_credit, Cur_InvAli.name_credit, :new.c_doctype_id, :new.c_costcenter_id, :new.ismodify); 
+		End Loop;
+				
+
+	End If;
+
+
+  END IF;
+END SSAM_FACT_ACCT_ASSET_TRG
+]]></body>
+    </trigger>
+  </database>

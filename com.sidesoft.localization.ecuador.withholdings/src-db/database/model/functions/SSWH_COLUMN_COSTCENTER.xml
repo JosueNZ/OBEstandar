@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_COLUMN_COSTCENTER">
+    <function name="SSWH_COLUMN_COSTCENTER" type="VARCHAR">
+      <parameter name="invoice_id" type="VARCHAR">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+   C_COSTCENTER RECORD;
+   v_display        VARCHAR2(5000);
+BEGIN
+FOR C_COSTCENTER IN (select DISTINCT SQ.* from (select
+COALESCE(IL.C_COSTCENTER_ID, I.C_COSTCENTER_ID)AS COSTCENTER_2, CC.NAME
+from sswh_acct_receivab_payab_v V
+LEFT JOIN C_INVOICE I ON V.INVOICE = I.DOCUMENTNO
+INNER JOIN C_INVOICELINE IL ON I.C_INVOICE_ID = IL.C_INVOICE_ID
+LEFT JOIN C_COSTCENTER CC ON CC.C_COSTCENTER_ID = COALESCE(IL.C_COSTCENTER_ID, I.C_COSTCENTER_ID)
+where doc_code IN ('FP') AND INVOICE =invoice_id
+ORDER BY V.BPARTNER_NAME, INVOICE ,DOCUMENTDATE) SQ)
+  LOOP
+  IF v_display IS NULL THEN
+   v_display :=  C_COSTCENTER.NAME;
+  ELSE
+  v_display  := v_display  ||' / '|| C_COSTCENTER.NAME;
+  END IF;
+  END LOOP;
+    RETURN v_display;
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN '**';
+END SSWH_COLUMN_COSTCENTER]]></body>
+    </function>
+  </database>

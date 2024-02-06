@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSsfi_SubRepSetOfAccounts" pageWidth="572" pageHeight="752" columnWidth="555" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DateFrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DateTo" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SSFI_SETOFACCOUNTS_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+cuenta_financiera,
+sum(egreso) as egreso,
+sum(ingreso) as ingreso
+from ssfi_setofaccounts ss
+left join ssfi_fin_account sfc on sfc.ssfi_setofaccounts_id = ss.ssfi_setofaccounts_id
+left join ( select ao.name  as ad_org_id,
+b.fin_financial_account_id,
+b.name as cuenta_financiera,
+a.statementdate as fecha_proceso,
+c.name as concepto_contable,
+d.isreceipt as es_cobro_ingreso,
+d.paymentdate as fecha_pago_cobro,
+a.paymentamt as egreso,
+a.depositamt as ingreso,
+a.description as descrip_cta_transac_financiera,
+e.name as tercero,
+f.name as centro_costo,
+au.name as usuario
+,au.ad_user_id
+from fin_finacc_transaction a
+left join fin_financial_account b on a.fin_financial_account_id = b.fin_financial_account_id
+left join c_glitem c on a.c_glitem_id = c.c_glitem_id
+left join fin_payment d on a.fin_payment_id = d.fin_payment_id
+left join c_bpartner e on a.c_bpartner_id = e.c_bpartner_id
+left join c_costcenter f on a.c_costcenter_id = f.c_costcenter_id
+left join ad_user au on au.ad_user_id = a.createdby
+left join ad_org ao on ao.ad_org_id = a.ad_org_id
+where a.ad_org_id <>'0'
+order by a.statementdate asc
+) subrep on subrep.fin_financial_account_id = sfc.fin_financial_account_id
+where
+(fecha_proceso between $P{DateFrom} and $P{DateTo})
+and (ss.ssfi_setofaccounts_id = $P{SSFI_SETOFACCOUNTS_ID} or $P{SSFI_SETOFACCOUNTS_ID} is null)
+and (subrep.ad_user_id = $P{AD_USER_ID} or $P{AD_USER_ID} is null )
+group by cuenta_financiera]]>
+	</queryString>
+	<field name="cuenta_financiera" class="java.lang.String"/>
+	<field name="egreso" class="java.math.BigDecimal"/>
+	<field name="ingreso" class="java.math.BigDecimal"/>
+	<variable name="v_saldo" class="java.math.BigDecimal">
+		<variableExpression><![CDATA[$F{ingreso}.subtract($F{egreso})]]></variableExpression>
+	</variable>
+	<variable name="v_total_ingresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{ingreso}]]></variableExpression>
+	</variable>
+	<variable name="v_total_egresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{egreso}]]></variableExpression>
+	</variable>
+	<variable name="v_total_saldo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$V{v_saldo}]]></variableExpression>
+	</variable>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="240" height="20" backcolor="#6FCDCD"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cuenta Financiera]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="240" y="0" width="100" height="20" backcolor="#6FCDCD"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Ingreso]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="340" y="0" width="100" height="20" backcolor="#6FCDCD"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Egreso]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Transparent" x="440" y="0" width="100" height="20" backcolor="#FEFEFE"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Saldo]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="240" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cuenta_financiera}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="240" y="0" width="100" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{ingreso}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="340" y="0" width="100" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{egreso}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="440" y="0" width="100" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_saldo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="240" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Conjunto de Cuentas]]></text>
+			</staticText>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="240" y="0" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_total_ingresos}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="340" y="0" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_total_egresos}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement x="440" y="0" width="100" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_total_saldo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

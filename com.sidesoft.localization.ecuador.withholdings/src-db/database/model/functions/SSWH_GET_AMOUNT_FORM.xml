@@ -1,0 +1,337 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_GET_AMOUNT_FORM">
+    <function name="SSWH_GET_AMOUNT_FORM" type="NUMERIC">
+      <parameter name="p_form_code_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_code" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_type_code" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_form" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_process_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_value VARCHAR2(40);
+  v_concepttype VARCHAR2(60);
+  v_formula VARCHAR2(500);
+  v_sql VARCHAR2(500);
+  v_amount NUMBER;
+  V_NAMECONCEPT VARCHAR2(500);
+  V_NAMEPARTNER VARCHAR2(500);
+  V_MSJ VARCHAR2(500);
+
+BEGIN  
+
+  IF (p_form_code_id IS NULL OR p_code IS NULL OR p_type_code IS NULL OR p_form IS NULL OR  p_process_id IS NULL )THEN
+
+    RAISE_APPLICATION_ERROR(-20000, '@ParametersError@');
+    
+  ELSE  
+
+    --- Get Amount of Form 103
+    IF (p_type_code = 'F' AND p_form='103') THEN     -- Calcular la columna padre --> 'F'
+ 
+      
+	-- Replacement values to amounts.
+	SELECT
+	COALESCE((SELECT formula 
+	FROM sswh_form_codesline103 where FATHER_code = p_code
+	and sswh_formulary_codes_id = p_form_code_id),TO_CHAR('ND'))
+	INTO v_formula
+	FROM DUAL;
+
+	IF (v_formula<>'ND') THEN
+
+		v_value:= SSWH_SUBSTR_FORMULA(v_formula);    
+
+		WHILE (v_value IS NOT NULL) LOOP  
+
+		SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(baseamount)
+		FROM sswh_form_aux 
+		WHERE FATHER_code = v_value AND process_id = p_process_id),0))  
+		INTO v_amount FROM DUAL;
+				  
+
+		IF (COALESCE(v_amount,0) =0) THEN
+
+		  v_amount := 0;
+
+		END IF;                 
+
+		v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+
+		v_value:= SSWH_SUBSTR_FORMULA(v_formula);
+
+		v_formula:= REPLACE(v_formula,',', '.');
+
+		END LOOP;  
+		-- End replacement values to amounts.
+		    
+		BEGIN
+
+		EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+
+
+		EXCEPTION  
+		WHEN OTHERS THEN
+
+
+		V_MSJ := '@FormulaSyntaxError o Division by zero in concept @';
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+		--RAISE notice '%', '@FormulaSyntaxError@'; --OBTG:-20000--*/
+		END; 
+
+	END IF;
+
+    ELSIF (p_type_code = 'S' AND p_form='103') THEN     -- Calcular la columna Hijo --> 'F'
+ 
+      
+		-- Replacement values to amounts.
+		
+		SELECT
+		COALESCE((SELECT formula_son
+		FROM sswh_form_codesline103 where son_code = p_code
+		and sswh_formulary_codes_id = p_form_code_id),TO_CHAR('ND'))
+		INTO v_formula
+		FROM DUAL;
+
+		IF (v_formula<>'ND') THEN
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);    
+
+			WHILE (v_value IS NOT NULL) LOOP  
+
+			SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(taxamount)
+			FROM sswh_form_aux 
+			WHERE son_code = v_value AND process_id = p_process_id),0))  
+			INTO v_amount FROM DUAL;
+					  
+
+			IF (COALESCE(v_amount,0) =0) THEN
+
+			  v_amount := 0;
+
+			END IF;                 
+
+			v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);
+
+			v_formula:= REPLACE(v_formula,',', '.');
+			END LOOP;  
+
+			-- End replacement  values to amounts.
+			    
+			BEGIN
+
+			EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+
+
+			EXCEPTION  
+			WHEN OTHERS THEN
+
+			V_MSJ := '@FormulaSyntaxError o Division by zero @';
+			ROLLBACK;
+			
+			RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+
+			END; 
+
+
+		END IF;   
+          
+    END IF;
+
+
+    -- Get amount Form 104 
+
+	IF (p_type_code = 'F' AND p_form='104') THEN     -- Calcular la columna padre --> 'F'
+ 
+      
+	-- Replacement values to amounts.
+	SELECT
+	COALESCE((SELECT formula 
+	FROM sswh_form_codesline104 where FATHER_code = p_code
+	and sswh_formulary_codes_id = p_form_code_id),TO_CHAR('ND'))
+	INTO v_formula
+	FROM DUAL;
+
+	IF (v_formula<>'ND') THEN
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);    
+
+			WHILE (v_value IS NOT NULL) LOOP  
+
+			SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(baseamount)
+			FROM sswh_form_aux 
+			WHERE FATHER_code = v_value AND process_id = p_process_id),0))  
+			INTO v_amount FROM DUAL;
+					  
+
+			IF (COALESCE(v_amount,0) =0) THEN
+
+			  v_amount := 0;
+
+			END IF;                 
+
+			v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);
+
+			v_formula:= REPLACE(v_formula,',', '.');
+
+			END LOOP;  
+			-- End replacement values to amounts.
+			    
+			BEGIN
+
+			EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+
+
+			EXCEPTION  
+			WHEN OTHERS THEN
+
+
+			V_MSJ := '@FormulaSyntaxError o Division by zero in concept @';
+			ROLLBACK;
+			RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+			--RAISE notice '%', '@FormulaSyntaxError@'; --OBTG:-20000--*/
+			END; 
+
+		END IF;
+
+	ELSIF (p_type_code = 'S' AND p_form='104') THEN     -- Calcular la columna Hijo --> 'F'
+	 
+	      
+			-- Replacement values to amounts.
+			
+			SELECT
+			COALESCE((SELECT formula_son
+			FROM sswh_form_codesline104 where son_code = p_code
+			and sswh_formulary_codes_id = p_form_code_id),TO_CHAR('ND'))
+			INTO v_formula
+			FROM DUAL;
+
+			IF (v_formula<>'ND') THEN
+
+				v_value:= SSWH_SUBSTR_FORMULA(v_formula);    
+
+				WHILE (v_value IS NOT NULL) LOOP  
+
+				SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(taxamount)
+				FROM sswh_form_aux 
+				WHERE son_code = v_value AND process_id = p_process_id),0))  
+				INTO v_amount FROM DUAL;
+						  
+
+				IF (COALESCE(v_amount,0) =0) THEN
+
+				  v_amount := 0;
+
+				END IF;                 
+
+				v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+
+				v_value:= SSWH_SUBSTR_FORMULA(v_formula);
+
+				v_formula:= REPLACE(v_formula,',', '.');
+				END LOOP;  
+
+				-- End replacement  values to amounts.
+				    
+				BEGIN
+
+				EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+
+
+				EXCEPTION  
+				WHEN OTHERS THEN
+
+				V_MSJ := '@FormulaSyntaxError o Division by zero @';
+				ROLLBACK;
+				
+				RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+
+				END; 
+
+
+			END IF;
+	ELSIF (p_type_code = 'F2' AND p_form='104') THEN     -- Calcular la columna padre --> 'F2'
+ 
+      
+		-- Replacement values to amounts.
+		SELECT
+		COALESCE((SELECT formula_gf 
+		FROM sswh_form_codesline104 where grandfather_code = p_code
+		and sswh_formulary_codes_id = p_form_code_id),TO_CHAR('ND'))
+		INTO v_formula
+		FROM DUAL;
+
+		IF (v_formula<>'ND') THEN
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);    
+
+			WHILE (v_value IS NOT NULL) LOOP  
+
+			SELECT TO_NUMBER(COALESCE((SELECT TO_NUMBER(gf_amount) 
+			FROM sswh_form_aux 
+			WHERE grandFATHER_code = v_value AND process_id = p_process_id),0))  
+			INTO v_amount FROM DUAL;
+					  
+
+			IF (COALESCE(v_amount,0) =0) THEN
+
+			  v_amount := 0;
+
+			END IF;                 
+
+			v_formula := replace(v_formula, '<' || v_value || '>', to_char(v_amount));          
+
+			v_value:= SSWH_SUBSTR_FORMULA(v_formula);
+
+			v_formula:= REPLACE(v_formula,',', '.');
+
+			END LOOP;  
+			-- End replacement values to amounts.
+			    
+			BEGIN
+
+			EXECUTE IMMEDIATE 'SELECT ' || v_formula || ' FROM DUAL' INTO v_amount ;
+
+
+			EXCEPTION  
+			WHEN OTHERS THEN
+
+
+			V_MSJ := '@FormulaSyntaxError o Division by zero in concept @';
+			ROLLBACK;
+			RAISE_APPLICATION_ERROR(-20000, V_MSJ) ;
+			--RAISE notice '%', '@FormulaSyntaxError@'; --OBTG:-20000--*/
+			END; 
+
+		END IF;
+		  
+	END IF;    
+
+   
+    IF (v_amount IS NULL) THEN
+      
+      RETURN 0; 
+
+    ELSE  
+
+      RETURN v_amount;
+
+    END IF;    
+
+  END IF;
+END SSWH_GET_AMOUNT_FORM
+]]></body>
+    </function>
+  </database>

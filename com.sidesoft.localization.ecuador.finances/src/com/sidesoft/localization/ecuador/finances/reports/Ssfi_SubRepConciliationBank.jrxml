@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSsfi_SubRepSetOfAccounts" pageWidth="800" pageHeight="750" columnWidth="800" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="SUM_PAGOS" class="java.math.BigDecimal">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUM_DEPOSITO" class="java.math.BigDecimal">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="FIN_FINANCIAL_ACCOUNT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="END_BALANCE" class="java.math.BigDecimal">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="StatementDate" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="FIN_RECONCILIATION_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+	ABS( (A.INITIALAMT+A.AMTACCTDR) - A.AMTACCTCR ) AS "saldobancos"
+	,PP.amount as "sum_pagos"
+,PP.outamount as "sum_deposito"
+FROM	(
+	SELECT
+		sum(case when (facct.DATEACCT < '2000-01-01' or (facct.DATEACCT = '2000-01-01' and facct.FACTACCTTYPE = 'N')) then facct.AMTACCTDR - facct.AMTACCTCR else 0 end) as initialamt,
+		sum(case when (facct.DATEACCT >= '2000-01-01' AND facct.FACTACCTTYPE not in('O', 'R', 'C')) or (facct.DATEACCT = '2000-01-01' and facct.FACTACCTTYPE = 'N') then facct.AMTACCTDR else 0 end) as AMTACCTDR,
+		sum(case when (facct.DATEACCT >= '2000-01-01' AND facct.FACTACCTTYPE not in('O', 'R', 'C')) or (facct.DATEACCT = '2000-01-01' and facct.FACTACCTTYPE = 'N') then facct.AMTACCTCR else 0 end) as AMTACCTCR
+	FROM fin_financial_account_acct ffaa
+		LEFT JOIN  C_ValidCombination cvc ON cvc.C_ValidCombination_id = ffaa.fin_withdrawal_acct
+		LEFT JOIN FACT_ACCT facct ON facct.account_id = cvc.account_id and facct.DATEACCT >= '2000-01-01'
+	WHERE ffaa.fin_financial_account_id =$P{FIN_FINANCIAL_ACCOUNT_ID}
+		AND ffaa.isactive = 'Y'
+		AND facct.DATEACCT >= '2000-01-01'
+		AND facct.DATEACCT <= $P{StatementDate}
+	GROUP BY facct.ACCOUNT_ID
+) A ,(
+	SELECT SUM(PP.amount) as "amount"
+
+		,SUM(PP.outamount) as "outamount"
+	FROM (
+		SELECT
+			trans.paymentamt as AMOUNT
+		,trans.depositamt as OUTAMOUNT
+		FROM fin_finacc_transaction trans
+			inner join fin_reconciliation rec on trans.fin_financial_account_id = rec.fin_financial_account_id and rec.fin_reconciliation_id=$P{FIN_RECONCILIATION_ID}
+		WHERE (trans.fin_reconciliation_id is null
+				OR trans.fin_reconciliation_id in
+								(SELECT r.fin_reconciliation_id
+								FROM fin_reconciliation r
+								WHERE r.created >rec.created))
+	--	and trans.depositamt = 0 and trans.paymentamt > 0
+		and trans.statementdate <= rec.dateto
+		) PP
+	) PP]]>
+	</queryString>
+	<field name="saldobancos" class="java.math.BigDecimal"/>
+	<field name="sum_pagos" class="java.math.BigDecimal"/>
+	<field name="sum_deposito" class="java.math.BigDecimal"/>
+	<columnHeader>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement mode="Transparent" x="13" y="1" width="199" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="5"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="10" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<text><![CDATA[RESUMEN DE CONCILIACIÓN]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="2" splitType="Stretch"/>
+	</detail>
+	<summary>
+		<band height="151" splitType="Stretch">
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="296" y="94" width="144" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{saldobancos}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="13" y="114" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Diferencia:]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="296" y="114" width="144" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[(($P{END_BALANCE}.add($F{sum_deposito})).subtract( $F{sum_pagos} )).subtract($F{saldobancos})]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="13" y="74" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Total:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="13" y="14" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Saldo Segun Banco:]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="296" y="74" width="144" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[($P{END_BALANCE}.add($F{sum_deposito})).subtract($F{sum_pagos})]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="13" y="54" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Depositos no Acreditados:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="13" y="34" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Cheques Girados y no Cobrados:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="13" y="94" width="283" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[Saldo segun Libro Bancos:]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="296" y="14" width="144" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="10" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$P{END_BALANCE}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="296" y="34" width="144" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="10" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{sum_pagos}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="296" y="54" width="144" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="10" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{sum_deposito}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

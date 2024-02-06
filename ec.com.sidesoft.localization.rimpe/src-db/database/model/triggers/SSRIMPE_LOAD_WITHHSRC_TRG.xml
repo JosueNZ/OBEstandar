@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRIMPE_LOAD_WITHHSRC_TRG">
+    <trigger name="SSRIMPE_LOAD_WITHHSRC_TRG" table="C_INVOICELINE" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+ v_taxbpartner      VARCHAR2(60);
+ v_issotrx 		VARCHAR2(60); 
+ v_edit  		VARCHAR2(60); 
+ 
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+  
+  IF (INSERTING) THEN
+  
+  SELECT issotrx INTO v_issotrx
+  FROM c_invoice 
+  WHERE c_invoice_id = :NEW.c_invoice_id;
+
+  IF v_issotrx = 'N' THEN
+
+	  SELECT b.em_ssrimpe_edit_withholding, b.em_ssrimpe_tax_id INTO v_edit,v_taxbpartner
+	  FROM c_invoice a
+	  LEFT JOIN c_bpartner b ON a.c_bpartner_id = b.c_bpartner_id
+	  WHERE b.em_ssrimpe_edit_withholding='Y' AND a.c_invoice_id = :NEW.c_invoice_id;
+
+	  IF (v_edit = 'Y' AND v_taxbpartner IS NOT NULL) THEN
+
+		:NEW.em_ssrimpe_tax_id := v_taxbpartner;
+
+	  END IF;
+
+  END IF;
+  END IF;
+
+  END SSRIMPE_LOAD_WITHHSRC_TRG
+]]></body>
+    </trigger>
+  </database>

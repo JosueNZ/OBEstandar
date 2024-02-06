@@ -1,0 +1,154 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_SALARY_LEAVE">
+    <function name="SSPR_SALARY_LEAVE" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_payroll_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_leave RECORD;
+  Cur_sspr_leave_group RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);
+  v_SSconcept_ID VARCHAR2(32);
+
+  v_Period_ID VARCHAR2(32);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  v_SSconceptCompany_ID VARCHAR2(32);
+  V_Concept_FR VARCHAR2(32);
+  v_salary NUMBER;
+  v_sspr_payroll_id VARCHAR2(32);
+
+  v_dayswork NUMBER;
+  v_salarydayslabo NUMBER;
+  v_salarydaysleav NUMBER;
+  v_salarytotal NUMBER;
+  v_daysmonth NUMBER;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+ 
+	--Variables
+	v_Period_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+	v_SSconcept_ID := p_conceptin_id;
+	v_SSconceptCompany_ID := p_conceptout_id;
+	v_sspr_payroll_id := p_sspr_payroll_id;
+	        	
+	--Obtengo el periodo
+	SELECT startdate, enddate
+	INTO v_StartPeriod,v_EndPeriod
+	FROM C_period
+	WHERE C_period_ID = v_Period_ID;
+
+	--Obtengo los dias del mes
+	select coalesce((select case when daysmonth = 'TD' then 30
+	else to_number(to_char(v_EndPeriod,'dd')) 
+	end as daysmonth
+	from sspr_hours_work),0)
+	into v_dayswork
+	from dual;
+
+	If(v_dayswork = 0)Then
+		RAISE_APPLICATION_ERROR(-20000,'@sspr_general_configuration@');
+	End If;
+	
+	--ELimina los registros de la tabla temporal
+	delete from sspr_leave_group;
+	
+	For Cur_leave In(
+	select a.c_bpartner_id, c.em_sspr_currentsalary, a.stardate, a.enddate
+	,b.percentage_company, a.sspr_leave_emp_id,
+	sspr_return_month(a.stardate,a.enddate,to_number(to_char(v_EndPeriod,'mm')),to_number(to_char(v_EndPeriod,'yyyy')),v_dayswork) as dayleave,
+	round((((c.em_sspr_currentsalary * (
+	sspr_return_month(a.stardate,a.enddate,to_number(to_char(v_EndPeriod,'mm')),to_number(to_char(v_EndPeriod,'yyyy')),v_dayswork)
+	) )/v_dayswork ) * b.percentage_company)/100,2) as amountleave,
+	a.ad_client_id,a.ad_org_id,a.isactive, a.created, a.createdby, a.updated, a.updatedby,
+	b.sspr_concept_id
+	from sspr_leave_emp a
+	left join sspr_leave_category b on b.sspr_leave_category_id = a.sspr_leave_category_id
+	left join c_bpartner c on c.c_bpartner_id = a.c_bpartner_id
+	Where a.status_approve = 'ap'
+	and charged_payroll = 'Y' 
+	and ((v_StartPeriod between a.stardate and a.enddate or v_EndPeriod between a.stardate and a.enddate) or
+	 (a.stardate between v_StartPeriod and v_EndPeriod or a.enddate between v_StartPeriod and v_EndPeriod))
+	--and (('01-06-2015' between a.stardate and a.enddate or '30-06-2015' between a.stardate and a.enddate) or
+	--(a.stardate between '01-06-2015' and '30-06-2015' or a.enddate between '01-06-2015' and '30-06-2015'))
+        
+        
+	)
+	Loop
+		If Cur_leave.sspr_concept_id is null or  Cur_leave.sspr_concept_id = '' Then
+
+			RAISE_APPLICATION_ERROR(-20000, 'Error: El proceso subsidio salarial no tiene configurado el concepto de salida en la categoria del permiso');
+
+		End If;
+		DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = Cur_leave.sspr_concept_id AND C_Period_ID = v_Period_ID;
+
+		insert into sspr_leave_group(sspr_leave_group_id, ad_client_id,ad_org_id, isactive, created,createdby,
+					     updated, updatedby,c_bpartner_id, currentsalary, stardate, enddate, 
+					     percentage_company,sspr_leave_emp_id, dayleave,amountleave, sspr_concept_id)
+					values(get_uuid(), Cur_leave.ad_client_id, Cur_leave.ad_org_id,Cur_leave.isactive, Cur_leave.created,
+						Cur_leave.createdby,Cur_leave.updated, Cur_leave.updatedby,
+						Cur_leave.c_bpartner_id, Cur_leave.em_sspr_currentsalary, Cur_leave.stardate, Cur_leave.enddate, Cur_leave.percentage_company,
+						Cur_leave.sspr_leave_emp_id, Cur_leave.dayleave, Cur_leave.amountleave, Cur_leave.sspr_concept_id);		
+
+	End Loop;
+
+	For Cur_sspr_leave_group In(
+	select a.c_bpartner_id, sum(a.dayleave) as dayleave, sum(a.amountleave) as amountleave, b.name, a.currentsalary, a.createdby, a.updatedby, a.ad_client_id,
+		a.ad_org_id, a.sspr_concept_id
+	from sspr_leave_group a
+	left join c_bpartner b on b.c_bpartner_id = a.c_bpartner_id
+	group by a.c_bpartner_id, b.name, a.currentsalary, a.createdby, a.updatedby, a.ad_client_id, a.ad_org_id, a.sspr_concept_id
+	)
+	Loop
+		insert into sspr_concept_amount
+		    (sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+		    created, createdby, updated, updatedby,
+		    sspr_concept_id, c_bpartner_id, c_period_id,amount)
+		values
+		    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+		    now(), v_User_ID, now(), v_User_ID,
+		    Cur_sspr_leave_group.sspr_concept_id,Cur_sspr_leave_group.c_bpartner_id,v_period_id,Cur_sspr_leave_group.amountleave
+		    );
+		
+	End Loop;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  				
+RETURN;
+END SSPR_SALARY_LEAVE
+]]></body>
+    </function>
+  </database>

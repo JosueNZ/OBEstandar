@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SLCB_VOIDED_CHECK">
+    <function name="SLCB_VOIDED_CHECK" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_Record_ID VARCHAR2(32);
+  v_AD_User_ID VARCHAR2(32):='0';
+  v_AD_Client_ID VARCHAR2(32);
+  v_AD_Org_ID VARCHAR2(32);
+  v_date DATE;
+
+
+  v_CheckbookFrom  NUMBER;
+  v_CheckbookTo  NUMBER;
+  v_Lines NUMBER;
+  V_CountLine NUMBER;
+  v_CountUsedVoided NUMBER;
+  v_StatusGenerate VARCHAR(60);
+  v_Description VARCHAR2(2000):='';
+
+  --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+ 
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || p_PInstance_ID) ;
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, i.AD_User_ID, p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=p_PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP
+      v_Record_ID:=Cur_Parameter.Record_ID;
+      v_AD_User_ID:=Cur_Parameter.AD_User_ID;
+    END LOOP; -- Get Parameter
+
+	--Almacena el estado del cheque
+	SELECT 
+		COALESCE((	SELECT STATUS 
+				FROM SLCB_CHECKBOOKLINE 
+				WHERE SLCB_CHECKBOOKLINE_ID = V_Record_ID),'ND') 
+		INTO v_StatusGenerate
+	FROM DUAL;
+
+	--Si no hay estado
+	IF (v_StatusGenerate='ND') THEN
+    
+		RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorVoid@');
+
+	END IF;
+
+	--Si el estado es USADO
+	IF (v_StatusGenerate='U') THEN
+
+		--Almacena la descripción del cheque
+		SELECT COALESCE((SELECT 
+					description 
+				FROM SLCB_CHECKBOOKLINE 
+				WHERE SLCB_CHECKBOOKLINE_ID = V_Record_ID),'ND') 
+			INTO v_Description
+		FROM DUAL;
+
+		--Si no encuentra descripción
+		IF (v_Description='ND') THEN    
+			RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorDescriptionVoided@');
+		END IF;
+	END IF;
+   
+	--Actualiza el estado del cheque a ANULADO
+	UPDATE SLCB_CHECKBOOKLINE SET  
+				STATUS = 'V',
+				fin_payment_id = null
+	WHERE SLCB_CHECKBOOKLINE_ID = V_Record_ID;
+
+	--Elimina la relacion del cheuqe en el pago
+	UPDATE FIN_PAYMENT SET 
+				EM_SLCB_CHECKBOOKLINE_ID = NULL ,
+				referenceno = NULL,
+				em_slcb_checkbook = 'N',
+				description = em_slcb_old_description
+	WHERE EM_SLCB_CHECKBOOKLINE_ID = V_Record_ID;
+
+     
+    v_Message := '@RowsUpdated@: ' || V_CountLine || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  ROLLBACK;
+  IF(p_PInstance_ID IS NOT NULL) THEN
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  END IF;
+--  RAISE_APPLICATION_ERROR(-20100, v_ResultStr) ;
+--  RETURN;
+END SLCB_VOIDED_CHECK
+]]></body>
+    </function>
+  </database>

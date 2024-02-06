@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_LEAD_FROM_ACTIVITY">
+    <function name="OPCRM_LEAD_FROM_ACTIVITY" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_user_ID VARCHAR2(32);
+v_client_ID VARCHAR2(32);
+v_org_ID VARCHAR2(32);
+p_firstname VARCHAR2(60);
+p_lastname VARCHAR2(60);
+p_commercialname VARCHAR2(60);
+p_email VARCHAR2(60); 
+p_telephone VARCHAR2(60);
+p_celphone VARCHAR2(60);
+v_lead_id VARCHAR2(32);
+v_iscrm_user CHARACTER (1);
+v_activity_ID VARCHAR2(32);
+v_activityrecord RECORD;
+v_activity_users RECORD;
+v_lead_access_id VARCHAR2(32);
+
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+-- Get record ID
+  SELECT i.Record_ID, i.Ad_Client_ID, i.Ad_User_ID, i.Ad_Org_ID, pa.p_string, pb.p_string, pc.p_string, pd.p_string, pe.p_string, pf.p_string
+  INTO v_activity_ID, v_client_ID, v_user_ID, v_org_ID, p_firstname, p_lastname, p_commercialname, p_email, p_telephone, p_celphone
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'firstname'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'lastname'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'commercialname'
+  LEFT JOIN ad_pinstance_para pd ON pd.ad_pinstance_id = i.ad_pinstance_id AND pd.parametername = 'email'
+  LEFT JOIN ad_pinstance_para pe ON pe.ad_pinstance_id = i.ad_pinstance_id AND pe.parametername = 'telephone'
+  LEFT JOIN ad_pinstance_para pf ON pf.ad_pinstance_id = i.ad_pinstance_id AND pf.parametername = 'celphone'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+  
+  v_lead_id = get_uuid();
+
+  SELECT u.em_opcrm_is_crm_user INTO v_iscrm_user FROM ad_user u WHERE u.ad_user_id = v_user_ID;
+
+  IF(v_iscrm_user IS NULL OR v_iscrm_user ='N') THEN
+      RAISE NO_DATA_FOUND;
+  END IF;
+
+  SELECT * INTO v_activityrecord FROM opcrm_activity WHERE opcrm_activity_id = v_activity_ID;
+
+  -- lead insert
+  INSERT INTO ad_user(
+            ad_user_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+            updated, updatedby, email, phone, name, firstname, lastname,
+            em_opcrm_assigned_to, em_opcrm_islead, em_opcrm_leadstatus, 
+            em_opcrm_commercialname, em_opcrm_mobile)
+    VALUES (v_lead_id, v_client_ID, v_org_ID, 'Y', current_timestamp, v_user_ID, 
+            current_timestamp, v_user_ID, p_email, p_telephone, p_firstname , p_firstname, p_lastname, 
+            v_activityrecord.assigned_to, 'Y', 'opcrmNew', p_commercialname, p_celphone);  
+
+   -- update activity lead column
+   UPDATE opcrm_activity
+   SET related_lead=v_lead_id
+   WHERE opcrm_activity_id = v_activity_ID;
+
+   -- import users access records  
+   FOR v_activity_users IN ( SELECT * FROM opcrm_lead_activity WHERE opcrm_activity_id = v_activity_ID ) LOOP
+       v_lead_access_id = get_uuid();
+
+       IF(v_activity_users.ad_user_id != v_user_ID) THEN
+           INSERT INTO opcrm_lead_access(
+            opcrm_lead_access_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, ad_user_id,crm_user_id)
+           VALUES (v_lead_access_id, v_client_ID, v_org_ID, 'Y', current_timestamp, v_user_ID, 
+            current_timestamp, v_user_ID, v_lead_id, v_activity_users.AD_User_ID);
+       END IF; 
+
+   END LOOP;
+   
+   AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_LEADOK@');
+END OPCRM_LEAD_FROM_ACTIVITY
+]]></body>
+    </function>
+  </database>

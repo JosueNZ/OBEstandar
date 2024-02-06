@@ -1,0 +1,418 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_MISSINGINVENTORY">
+    <function name="SPEV_MISSINGINVENTORY" type="NULL">
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  --VARIABLES QUERY  
+  V_PERCENTAGE_BY_TEMPLATE NUMBER:=0;
+  V_COUNT NUMBER:=0;
+  V_COUNT_EMPLOYEECC NUMBER:=0;
+  V_COUNT_SUCURSAL NUMBER:=0; 
+  V_WORKEDDAYS NUMBER:=0; 
+  V_PERCENTAGE_CC NUMBER:=0;
+  V_PERCENTAGE_BY_BOSS NUMBER:=0;
+  V_COUNT_CC NUMBER:=0;
+  V_TOPAY NUMBER:=0; 
+  V_VALUE NUMBER:=0;
+  V_COUNT_TEMP_TABLE NUMBER:=0;
+  V_MOUNT_BOSS_TMP NUMBER:=0;
+  V_MOUNT_BOSS NUMBER:=0;  
+  V_PERCENTAGE_CALCULATE_SERVICE NUMBER:=0;
+  V_DETAIL_AMOUNT NUMBER:=0;
+  V_DETAIL_AMOUNT_TEMP NUMBER:=0;
+  --V_PERCENTAGE_CALCULATE_OTHER NUMERIC:=0; 
+  V_MOUNT_EMPLOYEESER_TMP NUMBER:=0;
+  V_MOUNT_EMPLOYEESER NUMBER:=0;
+  -- MONTOS TOTALES DEL INVENTARIO
+  V_SERVICE_MOUNT_INVENTORY NUMBER:=0;
+  V_OTHER_MOUNT_INVENTORY NUMBER:=0;
+  -- CONTADORES DE LOS EMPLEADOS (JEFES Y SERVICIOS / PRODUCCION)
+  V_COUNT_BOSS_SER NUMBER:=0;
+  V_COUNT_BOSS_PRO NUMBER:=0;
+  V_PHYSICAL_INVENTORY_BLIND_ID VARCHAR2(32);  
+  V_DETAIL_NEWS_ID VARCHAR2(32); 
+  V_PHI_INV_COLLA VARCHAR2(32);  
+  V_DETAIL_AMOUNT_TEMP_PHI NUMBER:=0;
+  V_PHI_INV_COLLA_AMOUNT NUMBER:=0;  
+  -- INICIO VARIABLES CONFIGURACION
+  V_CONFIG_NEWS_ID VARCHAR2(32);
+  V_MAINTENANCE_NEWS_ID VARCHAR2(32);
+  V_SSPR_CONCEPT_ID VARCHAR2(32);
+  V_TYPE_CONCEPT VARCHAR2(32);
+  V_AD_CLIENT_ID VARCHAR2(32);
+  V_AD_ORG_ID VARCHAR2(32);
+  V_COSTCENTER_ID VARCHAR2(32);
+  V_PERIOD_ID VARCHAR2(32);
+  V_NAME_FUNCTION  VARCHAR2(60);
+  -- FIN VARIABLES CONFIGURACION
+  -- 
+  V_DATE DATE;
+  V_PROCESSED_DATE DATE;
+  --
+  V_AD_ORG_ID_PRIMARY VARCHAR2(32);
+  V_COSTCENTER_ID_PRIMARY VARCHAR2(32);
+  V_EMPLOYEE_ID_TEMP VARCHAR2(32);
+  V_EMPLOYEE_BOSS VARCHAR2(1);
+  V_EMPLOYEE_TAXID VARCHAR2(60);
+  --V_EMPLOYEE_ID VARCHAR(32); --OBTG:VARCHAR2--
+  --
+  v_Result NUMBER:=0; -- failure
+  TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Transactions RECORD; 
+  Cur_Cofig RECORD;   
+
+  Cur_Boss_Service RECORD;
+  Cur_Boss_Other RECORD;
+
+  END_PROCESS BOOLEAN:=false;
+
+BEGIN
+
+  -- Get Parameters
+  v_ResultStr:='ReadingParameters';
+  V_NAME_FUNCTION:='spev_missinginventory';
+  
+
+  -- VERIFICO QUE EXISTA CONFIGURACION PARA FALTANTE DE INVENTARIO
+  SELECT count(spev_config_news_id)
+  INTO V_COUNT
+  FROM spev_config_news 
+  WHERE isactive = 'Y'
+  AND TRIM(function) = V_NAME_FUNCTION; 
+
+  IF(V_COUNT > 0) THEN 
+
+    /* ******************************************************************************** */
+    /*   INICIO SACO LA INFORMACION DE LA CONFIGURACION PARA EL FALTANTE DE INVENTARIO  */
+    /* ******************************************************************************** */
+    FOR Cur_Cofig IN (  SELECT  confn.spev_config_news_id,confn.ad_org_id,confn.ad_client_id,confn.spev_maintenance_news_id,confn.sspr_concept_id,con.conceptsubtype,confn.percentage,to_char((current_date - interval '1 day'), 'yyyy-MM-DD') AS fecha  
+                        FROM spev_config_news confn
+                        LEFT JOIN sspr_concept con ON con.sspr_concept_id = confn.sspr_concept_id
+                        WHERE confn.isactive = 'Y'
+                        AND TRIM(confn.function) = V_NAME_FUNCTION
+                        LIMIT 1
+    ) LOOP
+
+        V_CONFIG_NEWS_ID:=Cur_Cofig.spev_config_news_id;
+        V_MAINTENANCE_NEWS_ID:=Cur_Cofig.spev_maintenance_news_id;
+        V_SSPR_CONCEPT_ID:=Cur_Cofig.sspr_concept_id;
+        V_AD_CLIENT_ID:=Cur_Cofig.ad_client_id;
+        V_AD_ORG_ID:=Cur_Cofig.ad_org_id;
+        V_PERCENTAGE_BY_BOSS:=Cur_Cofig.percentage; 
+        V_DATE:=Cur_Cofig.fecha;
+        V_TYPE_CONCEPT:=Cur_Cofig.conceptsubtype;
+
+    END LOOP;   
+    /* ******************************************************************************** */
+    /*    FIN SACO LA INFORMACION DE LA CONFIGURACION PARA EL FALTANTE DE INVENTARIO    */
+    /* ******************************************************************************** */
+
+    /* ***************************************************************************** */
+    /*       INICIO ITERAR SOBRE LAS ORGANIZACIONES, CENTRO DE COSTOS ACTIVOS        */
+    /* ***************************************************************************** */
+    FOR Cur_Parameter IN (  SELECT  org.ad_org_id as orgid, cc.c_costcenter_id as centrocostoid 
+                            FROM ad_org org
+                            LEFT JOIN c_costcenter cc ON TRIM(cc.value) = TRIM(org.value)
+                            WHERE org.isactive = 'Y'
+                            AND cc.c_costcenter_id IS NOT NULL
+    ) LOOP
+
+        V_AD_ORG_ID_PRIMARY:=Cur_Parameter.orgid;
+        V_COSTCENTER_ID_PRIMARY:=Cur_Parameter.centrocostoid;
+  
+        SELECT DISTINCT COUNT(ad_org_id)
+        INTO V_COUNT_TEMP_TABLE
+        FROM spev_temp_inventory
+        WHERE c_costcenter_id = V_COSTCENTER_ID_PRIMARY
+        AND ad_org_id = V_AD_ORG_ID_PRIMARY
+        and processed = 'N'
+        AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD')
+        GROUP BY ad_org_id;
+
+        /* ********************************************************************************* */
+        /* INICIO VERIFICAR QUE EXISTEN EMPLEADOS PARA LA ORGANIZACION Y EL CENTRO DE COSTO  */
+        /* ********************************************************************************* */                
+        IF(V_COUNT_TEMP_TABLE > 0) THEN
+
+          /* ************************************************************* */
+          /*  INICIO OBTENGO EL MONTO A DESCONTAR DE TODOS LOS PRODUCTOS   */
+          /* ************************************************************** */
+          SELECT COALESCE(( SELECT SUM(ABS((COALESCE((SELECT cost FROM m_costing
+                                      WHERE m_product_id = mpr.m_product_id
+                                      AND datefrom = (SELECT MAX(datefrom) FROM m_costing WHERE m_product_id = mpr.m_product_id)
+                                      AND dateto = (SELECT MAX(dateto) FROM m_costing WHERE m_product_id = mpr.m_product_id))
+                                      ,0)) * (minvl.qtycount-minvl.qtybook) ) ) 
+                            FROM siblr_physical_inventory fib
+                            LEFT JOIN m_inventory minv ON minv.documentno = fib.documentno
+                            LEFT JOIN m_inventoryline minvl ON minvl.m_inventory_id = minv.m_inventory_id
+                            LEFT JOIN m_transaction mtr ON mtr.m_inventoryline_id = minvl.m_inventoryline_id
+                            LEFT JOIN m_product mpr ON mpr.m_product_id = minvl.m_product_id
+                            WHERE fib.ad_org_id = V_AD_ORG_ID_PRIMARY
+                            AND fib.docstatus = 'CO' --INVENTARIO FISICO CIEGO PROCESADO 
+                            AND minv.processed = 'Y' -- INVENTARIO FISICO PROCESADO
+                            AND mtr.movementqty < 0 -- CANTIDAD MOVIDA SOLO NEGATIVOS
+                            AND mpr.em_spev_discountable = 'Y' -- PRODUCTOS DESCONTABLE
+                            AND to_char(fib.movementdate,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD')
+                            AND fib.created = (
+                                SELECT MAX(fib.created) 
+                                FROM siblr_physical_inventory fib
+                                LEFT JOIN m_inventory minv ON minv.documentno = fib.documentno
+                                LEFT JOIN m_inventoryline minvl ON minvl.m_inventory_id = minv.m_inventory_id
+                                LEFT JOIN m_transaction mtr ON mtr.m_inventoryline_id = minvl.m_inventoryline_id
+                                LEFT JOIN m_product mpr ON mpr.m_product_id = minvl.m_product_id
+                                WHERE fib.ad_org_id = V_AD_ORG_ID_PRIMARY
+                                AND fib.docstatus = 'CO' --INVENTARIO FISICO CIEGO PROCESADO 
+                                AND minv.processed = 'Y' -- INVENTARIO FISICO PROCESADO
+                                AND mtr.movementqty < 0 -- CANTIDAD MOVIDA SOLO NEGATIVOS
+                                AND mpr.em_spev_discountable = 'Y' -- PRODUCTOS DESCONTABLE
+                                AND to_char(fib.movementdate,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD')
+                            )
+                            GROUP BY fib.documentno                                                
+                          ),0)
+          INTO V_OTHER_MOUNT_INVENTORY
+          FROM DUAL;
+          /* ************************************************************* */
+          /*    FIN OBTENGO EL MONTO A DESCONTAR DE TODOS LOS PRODUCTOS   */
+          /* ************************************************************** */
+
+          /* ************************************************************* */
+          /*    INICIO VALIDAR QUE EL MONTO A DESCONTAR SEA MAYOR QUE 0    */
+          /* ************************************************************* */          
+          IF(V_OTHER_MOUNT_INVENTORY > 0) THEN 
+
+            /* ********************************************************************************** */
+            /* INICIO BUSQUEDA DE LOS TERCEROS QUE SON JEFES Y EMPLEADOS (PRODUCCION Y SERVICIOS) */
+            /* ********************************************************************************** */
+            FOR Cur_Boss_Other IN ( SELECT c_bpartner_id as employee_id, boss as isboss, taxid
+                                    FROM (
+                                      (
+                                        -- EMPLEADOS DE SERVICIO Y PRODUCCION, SE EXCLUYEN LOS MOTORIZADOS
+                                        SELECT cbp.c_bpartner_id, cbp.name, ctrp.boss, cbp.em_spev_type_labor, cbp.taxid
+                                        FROM c_bpartner cbp
+                                        LEFT JOIN sspr_contract ctr ON ctr.c_bpartner_id = cbp.c_bpartner_id
+                                        LEFT JOIN sspr_contract_position ctrp ON ctrp.sspr_contract_id = ctr.sspr_contract_id
+                                        WHERE cbp.c_bpartner_id IN (SELECT DISTINCT c_bpartner_id FROM spev_temp_inventory WHERE c_costcenter_id = V_COSTCENTER_ID_PRIMARY AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                                                AND processed = 'N' AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD'))
+                                        AND ctr.isactive = 'Y' 
+                                        AND ctrp.isactive = 'Y' 
+                                        AND cbp.isemployee = 'Y' 
+                                        AND cbp.em_spev_local = 'Y'
+                                        AND ctrp.boss = 'N'
+                                        AND cbp.em_sspr_status = 'A'
+                                        AND (cbp.em_spev_type_labor IS NULL OR cbp.em_spev_type_labor = 'SER' OR cbp.em_spev_type_labor = 'PRO')
+                                        AND ctr.created = (SELECT MAX(created) FROM sspr_contract WHERE cbp.c_bpartner_id = sspr_contract.c_bpartner_id )
+                                      )
+                                      UNION ALL 
+                                      (
+                                        --EMPLEADOS QUE SON JEFES
+                                        SELECT cbp.c_bpartner_id, cbp.name, ctrp.boss, cbp.em_spev_type_labor, cbp.taxid
+                                        FROM c_bpartner cbp
+                                        LEFT JOIN sspr_contract ctr ON ctr.c_bpartner_id = cbp.c_bpartner_id
+                                        LEFT JOIN sspr_contract_position ctrp ON ctrp.sspr_contract_id = ctr.sspr_contract_id
+                                        WHERE cbp.c_bpartner_id IN (SELECT DISTINCT c_bpartner_id FROM spev_temp_inventory WHERE c_costcenter_id = V_COSTCENTER_ID_PRIMARY AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                                                AND processed = 'N' AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD'))    
+                                        AND ctr.isactive = 'Y' 
+                                        AND ctrp.isactive = 'Y' 
+                                        AND cbp.isemployee = 'Y' 
+                                        AND cbp.em_spev_local = 'Y'
+                                        AND ctrp.boss = 'Y'
+                                        AND cbp.em_sspr_status = 'A'
+                                        AND ctr.created = (SELECT MAX(created) FROM sspr_contract WHERE cbp.c_bpartner_id = sspr_contract.c_bpartner_id )
+                                      )
+                                    )A
+
+            ) LOOP
+
+              V_EMPLOYEE_ID_TEMP:=Cur_Boss_Other.employee_id;
+              V_EMPLOYEE_BOSS:=Cur_Boss_Other.isboss;
+              V_EMPLOYEE_TAXID:=Cur_Boss_Other.taxid;        
+
+              /* ***************************************************************** */
+              /* INICIO OBTENGO LA CANTIDAD DE PERSONAS QUE SON JEFES Y EMPLEADOS  */
+              /* ***************************************************************** */
+              SELECT COUNT(boss)
+              INTO V_COUNT_BOSS_PRO
+              FROM (
+              (
+              -- EMPLEADOS DE SERVICIO Y PRODUCCION, SE EXCLUYEN LOS MOTORIZADOS
+              SELECT cbp.c_bpartner_id, cbp.name, ctrp.boss, cbp.em_spev_type_labor, cbp.taxid
+              FROM c_bpartner cbp
+              LEFT JOIN sspr_contract ctr ON ctr.c_bpartner_id = cbp.c_bpartner_id
+              LEFT JOIN sspr_contract_position ctrp ON ctrp.sspr_contract_id = ctr.sspr_contract_id
+              WHERE cbp.c_bpartner_id IN (SELECT DISTINCT c_bpartner_id FROM spev_temp_inventory WHERE c_costcenter_id = V_COSTCENTER_ID_PRIMARY AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                      AND processed = 'N' AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD'))                
+              AND ctr.isactive = 'Y' 
+              AND ctrp.isactive = 'Y' 
+              AND cbp.isemployee = 'Y' 
+              AND cbp.em_spev_local = 'Y'
+              AND ctrp.boss = 'N'
+              AND cbp.em_sspr_status = 'A'
+              AND (cbp.em_spev_type_labor IS NULL OR cbp.em_spev_type_labor = 'SER' OR cbp.em_spev_type_labor = 'PRO')
+              AND ctr.created = (SELECT MAX(created) FROM sspr_contract WHERE cbp.c_bpartner_id = sspr_contract.c_bpartner_id )
+              )
+              UNION ALL 
+              (
+              --EMPLEADOS QUE SON JEFES
+              SELECT cbp.c_bpartner_id, cbp.name, ctrp.boss, cbp.em_spev_type_labor, cbp.taxid
+              FROM c_bpartner cbp
+              LEFT JOIN sspr_contract ctr ON ctr.c_bpartner_id = cbp.c_bpartner_id
+              LEFT JOIN sspr_contract_position ctrp ON ctrp.sspr_contract_id = ctr.sspr_contract_id
+              WHERE cbp.c_bpartner_id IN (SELECT DISTINCT c_bpartner_id FROM spev_temp_inventory WHERE c_costcenter_id = V_COSTCENTER_ID_PRIMARY AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                      AND processed = 'N' AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD'))                
+              AND ctr.isactive = 'Y' 
+              AND ctrp.isactive = 'Y' 
+              AND cbp.isemployee = 'Y' 
+              AND cbp.em_spev_local = 'Y'
+              AND ctrp.boss = 'Y'
+              AND cbp.em_sspr_status = 'A'
+              AND ctr.created = (SELECT MAX(created) FROM sspr_contract WHERE cbp.c_bpartner_id = sspr_contract.c_bpartner_id )
+              )
+              )A
+              WHERE boss = V_EMPLOYEE_BOSS
+              GROUP BY boss;
+              /* ***************************************************************** */
+              /*   FIN OBTENGO LA CANTIDAD DE PERSONAS QUE SON JEFES Y EMPLEADOS   */
+              /* ***************************************************************** */                      
+
+              -- OBTENTO EL ID DEL INVENTARIO CIEGO
+              SELECT DISTINCT fib.siblr_physical_inventory_id
+              INTO V_PHYSICAL_INVENTORY_BLIND_ID
+              FROM siblr_physical_inventory fib
+              LEFT JOIN m_inventory minv ON minv.documentno = fib.documentno
+              LEFT JOIN m_inventoryline minvl ON minvl.m_inventory_id = minv.m_inventory_id
+              WHERE fib.ad_org_id = V_AD_ORG_ID_PRIMARY
+              AND fib.docstatus = 'CO' --INVENTARIO FISICO CIEGO PROCESADO 
+              AND minv.processed = 'Y' -- INVENTARIO FISICO PROCESADO
+              AND to_char(fib.movementdate,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD');              
+
+              -- INICIO DESCUENTO PARA JEFES
+              IF(V_EMPLOYEE_BOSS = 'Y') THEN 
+
+                --PORCENTAJE QUE SE TIENE QUE DESCONTAR AL JEFE 
+                V_MOUNT_BOSS_TMP:= ( (V_OTHER_MOUNT_INVENTORY * V_PERCENTAGE_BY_BOSS ) / 100);
+                -- SE DIVIDE ENTRE EL NUMERO DE EMPLEADOS QUE SON JEFES
+                V_MOUNT_BOSS:= V_MOUNT_BOSS_TMP / V_COUNT_BOSS_PRO;              
+
+                -- verificar si hay un registrro para el empleado tipo jefe en la tabla spev_detail_news_id   
+                -- si existe hacer un update con el monto si no existe guardar
+                /* *************************************************** */
+                /*   INICIO GUARDAR EN LA TABLA DETALLES DE NOVEDADES  */
+                /* *************************************************** */  
+                IF(V_MOUNT_BOSS > 0) THEN
+
+                  V_VALUE:= V_MOUNT_BOSS;   
+
+                  SELECT COALESCE(( SELECT spev_detail_news_id
+                                    FROM spev_detail_news
+                                    WHERE spev_maintenance_news_id = V_MAINTENANCE_NEWS_ID
+                                    AND spev_config_news_id = V_CONFIG_NEWS_ID
+                                    AND c_bpartner_id = V_EMPLOYEE_ID_TEMP
+                                    AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                                    AND to_char(date_detail,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD')
+                                  ),'ND')
+                  INTO V_DETAIL_NEWS_ID
+                  FROM DUAL;           
+                         
+                  IF(V_DETAIL_NEWS_ID = 'ND') THEN
+
+                    INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,c_costcenter_id)
+                    VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID_TEMP,V_CONFIG_NEWS_ID,V_VALUE,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION),V_COSTCENTER_ID_PRIMARY);
+
+                    INSERT INTO siblr_collaborators(siblr_collaborators_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,employe_identify,c_bpartner_id,to_discount,isadmin, siblr_physical_inventory_id)
+                    VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID_PRIMARY,now(),'100',now(),'100',V_EMPLOYEE_TAXID,V_EMPLOYEE_ID_TEMP,V_VALUE,'Y',V_PHYSICAL_INVENTORY_BLIND_ID);
+
+                  ELSE 
+
+                    SELECT value
+                    INTO V_DETAIL_AMOUNT
+                    FROM spev_detail_news
+                    WHERE spev_detail_news_id = V_DETAIL_NEWS_ID;
+
+                    SELECT siblr_collaborators_id, to_discount
+                    INTO V_PHI_INV_COLLA, V_PHI_INV_COLLA_AMOUNT
+                    FROM siblr_collaborators
+                    WHERE siblr_physical_inventory_id = V_PHYSICAL_INVENTORY_BLIND_ID
+                    AND ad_org_id = V_AD_ORG_ID_PRIMARY
+                    AND c_bpartner_id = V_EMPLOYEE_ID_TEMP
+                    AND employe_identify = V_EMPLOYEE_TAXID;   
+
+                    
+                    V_DETAIL_AMOUNT_TEMP:= ( V_DETAIL_AMOUNT + V_VALUE );
+                    V_DETAIL_AMOUNT_TEMP_PHI:= ( V_PHI_INV_COLLA_AMOUNT + V_VALUE );
+
+                    -- ACTUALIZO EN LA TABLA DE DETALLE DE NOVEDADES
+                    UPDATE spev_detail_news SET value = V_DETAIL_AMOUNT_TEMP WHERE spev_detail_news_id = V_DETAIL_NEWS_ID;
+                    -- ACTUALIZO EN LA TABLA DE COLABORADORES DEL INVENTARIO FISICO CIEGO
+                    UPDATE siblr_collaborators SET to_discount = V_DETAIL_AMOUNT_TEMP_PHI WHERE siblr_collaborators_id = V_PHI_INV_COLLA; 
+
+                  END IF;
+
+                END IF;             
+                /* *************************************************** */
+                /*    FIN GUARDAR EN LA TABLA DETALLES DE NOVEDADES    */
+                /* *************************************************** */ 
+
+              END IF;
+              -- FIN DESCUENTO PARA JEFES
+
+              -- INICIO DESCUENTO PARA LOS EMPLEADOS QUE NO SON JEFES
+              IF(V_EMPLOYEE_BOSS = 'N') THEN 
+
+                --PORCENTAJE QUE SE TIENE QUE DESCONTAR A LOS EMPLEADOS TIPO SERVICIO
+                V_PERCENTAGE_CALCULATE_SERVICE:= (100 - V_PERCENTAGE_BY_BOSS);
+                V_MOUNT_EMPLOYEESER_TMP:= ( (V_OTHER_MOUNT_INVENTORY * V_PERCENTAGE_CALCULATE_SERVICE ) / 100);
+
+                -- SE DIVIDE ENTRE EL NUMERO DE EMPLEADOS QUE NO SON JEFES
+                V_MOUNT_EMPLOYEESER:= (V_MOUNT_EMPLOYEESER_TMP / V_COUNT_BOSS_PRO);                            
+
+                /* *************************************************** */
+                /*   INICIO GUARDAR EN LA TABLA DETALLES DE NOVEDADES  */
+                /* *************************************************** */  
+                IF(V_MOUNT_EMPLOYEESER > 0) THEN
+
+                  V_VALUE:= V_MOUNT_EMPLOYEESER;   
+
+                  INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,c_costcenter_id)
+                  VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID_TEMP,V_CONFIG_NEWS_ID,V_VALUE,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION),V_COSTCENTER_ID_PRIMARY);
+
+                  INSERT INTO siblr_collaborators(siblr_collaborators_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,employe_identify,c_bpartner_id,to_discount,isadmin, siblr_physical_inventory_id)
+                  VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID_PRIMARY,now(),'100',now(),'100',V_EMPLOYEE_TAXID,V_EMPLOYEE_ID_TEMP,V_VALUE,'N',V_PHYSICAL_INVENTORY_BLIND_ID);                                                  
+
+                END IF;             
+                /* *************************************************** */
+                /*    FIN GUARDAR EN LA TABLA DETALLES DE NOVEDADES    */
+                /* *************************************************** */
+
+              END IF;  
+              -- FIN DESCUENTO PARA LOS EMPLEADOS QUE NO SON JEFES
+
+            END LOOP;          
+            /* ********************************************************************************** */
+            /*   FIN BUSQUEDA DE LOS TERCEROS QUE SON JEFES Y EMPLEADOS (PRODUCCION Y SERVICIOS)  */
+            /* ********************************************************************************** */                    
+
+          END IF;          
+          /* ************************************************************* */
+          /*    INICIO VALIDAR QUE EL MONTO A DESCONTAR SEA MAYOR QUE 0    */
+          /* ************************************************************* */          
+
+        END IF;
+        /* ******************************************************************************** */
+        /*   FIN VERIFICAR QUE EXISTEN EMPLEADOS PARA LA ORGANIZACION Y EL CENTRO DE COSTO  */
+        /* ******************************************************************************** */
+
+        --ACTUALIZO LOS REGISTROS EN LA TABLA DE ORGANIZACIONES
+        UPDATE spev_temp_inventory SET processed = 'Y' WHERE ad_org_id = V_AD_ORG_ID_PRIMARY AND c_costcenter_id = V_COSTCENTER_ID_PRIMARY AND to_char(processed_date,'yyyy-MM-dd') = to_char((current_date - interval '1 day'), 'yyyy-MM-DD');
+
+    END LOOP;
+    /* ***************************************************************************** */
+    /*        FIN ITERAR SOBRE LAS ORGANIZACIONES, CENTRO DE COSTOS ACTIVOS          */
+    /* ***************************************************************************** */
+
+  END IF;
+END SPEV_MISSINGINVENTORY
+]]></body>
+    </function>
+  </database>

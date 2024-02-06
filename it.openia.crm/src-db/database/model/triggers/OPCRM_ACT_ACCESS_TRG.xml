@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_ACT_ACCESS_TRG">
+    <trigger name="OPCRM_ACT_ACCESS_TRG" table="OPCRM_ACTIVITY" fires="after" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+v_user_id VARCHAR2(32);
+ 
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+      IF TG_OP='INSERT' THEN
+ 
+		INSERT INTO opcrm_lead_activity(
+            opcrm_lead_activity_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, ad_user_id, opcrm_activity_id)
+    		VALUES (get_uuid(), :new.ad_client_id, :new.ad_org_id, 'Y', current_timestamp, 
+            	:new.createdby, current_timestamp, :new.createdby, :new.createdby, :new.opcrm_activity_id);
+    END IF;
+   
+  END OPCRM_ACT_ACCESS_TRG
+]]></body>
+    </trigger>
+  </database>

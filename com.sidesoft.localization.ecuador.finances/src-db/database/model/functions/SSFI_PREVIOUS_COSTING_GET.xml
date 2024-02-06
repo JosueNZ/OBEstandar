@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_PREVIOUS_COSTING_GET">
+    <function name="SSFI_PREVIOUS_COSTING_GET" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_warehouse_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="costdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[actualcost NUMBER;
+BEGIN
+  select ctg.cost1
+  into actualcost
+  from (
+    select coalesce(ct.cost, abs(t.transactioncost/t.movementqty), 0) as cost1
+    from m_transaction t
+    left join m_costing ct on ct.m_transaction_id = t.m_transaction_id
+    where t.m_product_id = p_product_id
+    and t.m_locator_id in (select l.m_locator_id from m_locator l where l.m_warehouse_id = p_warehouse_id)
+    and TO_DATE(t.movementdate) < TO_DATE(costdate)
+    order by t.movementdate desc, t.created desc
+  ) ctg
+  where rownum = 1;
+  return actualcost;
+END SSFI_PREVIOUS_COSTING_GET
+]]></body>
+    </function>
+  </database>

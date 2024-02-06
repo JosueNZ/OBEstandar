@@ -1,0 +1,476 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report_poa_module" pageWidth="1070" pageHeight="595" orientation="Landscape" columnWidth="1042" leftMargin="14" rightMargin="14" topMargin="14" bottomMargin="14" uuid="cf3e2433-6b6f-4e30-8cbd-1ad1554abfea">
+	<property name="ireport.zoom" value="3.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="35"/>
+	<property name="ireport.callouts" value="##Thu Mar 12 11:20:01 ECT 2020"/>
+	<parameter name="AD_ORG_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ad_user_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_PERIOD_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT cb.name,
+to_char(now()::timestamptz at time zone 'UTC+5','dd/MM/yyyy HH24:MI:SS') as fecha_impresion,
+usuario.n_usuario,
+sconcept.sueldo as sueldo,
+sconcept.decimo_tercero as decimo_tercero,
+sconcept.decimo_cuarto as decimo_cuarto,
+sconcept.horas_extras as horas_extra,
+sconcept.subregación as subregación,
+ROW_NUMBER() OVER (ORDER BY sg.value DESC) AS item,
+(SELECT ad_org_id FROM ad_org WHERE ad_org_id = $P{AD_ORG_ID}) AS organizationid,
+sg.value as grado,
+ud.name as dimension_2,
+p.name as cargo,
+UPPER(cp.name) as periodo
+FROM SSPR_Payroll_Ticket spt
+	INNER JOIN  SSPR_Payroll sp on sp.SSPR_Payroll_id = spt.SSPR_Payroll_id AND ispayroll='Y'-- and spt.SSPR_Payroll_id='C9940F49A26D470DA2CE5D715471BB7C'
+	INNER JOIN c_period cp on cp.c_period_id = sp.c_period_id
+	INNER JOIN  c_bpartner cb on cb.c_bpartner_id = spt.c_bpartner_id --and cb.c_bpartner_id='042D41BFE8934D26B48A1B08FB1460E3'
+	--INNER JOIN SSPR_Payroll_Ticket_Concept sptc on sptc.SSPR_Payroll_Ticket_id = spt.SSPR_Payroll_Ticket_id
+	JOIN (Select a.SSPR_Payroll_Ticket_id
+			,SUM(case WHEN b.concepttypepayroll='SL' Then --SUELDO
+				coalesce(a.amount,0)
+			ELSE 0
+			END) as sueldo
+			,SUM(case WHEN b.concepttypepayroll='DT' AND b.Conceptsubtype='In' Then --Decimo Tercer
+				coalesce(a.amount,0)
+			ELSE 0
+			END) as decimo_tercero
+			,SUM(case WHEN b.concepttypepayroll='DC' AND b.Conceptsubtype='In' Then --Decimo Cuarto
+				coalesce(a.amount,0)
+			ELSE 0
+			END) as decimo_cuarto
+			,SUM(case WHEN b.concepttypepayroll='XT' Then --Horas Extras
+				coalesce(a.amount,0)
+			ELSE 0
+			END) as horas_extras
+			,SUM(case WHEN b.concepttypepayroll='RV' Then --Subregación
+				coalesce(a.amount,0)
+			ELSE 0
+			END) as subregación
+		From sspr_payroll_ticket_concept a
+			join sspr_concept b on b.sspr_concept_id = a.sspr_concept_id
+		WHERE b.concepttypepayroll in ('SL','DT','DC','XT','RV')
+--		and SSPR_Payroll_Ticket_id='A75F3E179D6E4259A876D4DDD3A588AC'
+		Group BY a.SSPR_Payroll_Ticket_id
+		) sconcept on sconcept.SSPR_Payroll_Ticket_id = spt.SSPR_Payroll_Ticket_id
+	--INNER JOIN sspr_concept sct on sct.sspr_concept_id = sptc.sspr_concept_id
+	inner join SSPR_Contract sc on sc.c_bpartner_id = cb.c_bpartner_id
+	inner join SSPR_Contract_Position scp on scp.SSPR_Contract_id = sc.SSPR_Contract_id
+	inner join Sfpr_Grade sg on sg.Sfpr_Grade_id = sc.em_Sfpr_Grade_id
+	left join User2 ud on ud.User2_ID = cb.EM_Sspr_User2_ID
+	INNER JOIN SSPR_Position p on p.SSPR_Position_id = scp.SSPR_Position_id,
+(select username as n_usuario from ad_user where ad_user_id=$P{ad_user_id} ) as usuario
+WHERE
+	sp.c_period_id=$P{C_PERIOD_ID} AND scp.isactive='Y'
+	And sp.datedoc between sc.startdate and  sc.enddate --Contrato dentro de la fecha
+	AND sp.datedoc between scp.startdate and scp.enddate --Cargo dentro de la fecha]]>
+	</queryString>
+	<field name="name" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="n_usuario" class="java.lang.String"/>
+	<field name="sueldo" class="java.math.BigDecimal"/>
+	<field name="decimo_tercero" class="java.math.BigDecimal"/>
+	<field name="decimo_cuarto" class="java.math.BigDecimal"/>
+	<field name="horas_extra" class="java.math.BigDecimal"/>
+	<field name="subregación" class="java.math.BigDecimal"/>
+	<field name="item" class="java.lang.Long"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="grado" class="java.lang.String"/>
+	<field name="dimension_2" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<variable name="semester1_SUM" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[]]></variableExpression>
+	</variable>
+	<variable name="semester1_SUM_1" class="java.math.BigDecimal" resetType="Column" calculation="Sum">
+		<variableExpression><![CDATA[]]></variableExpression>
+	</variable>
+	<variable name="total_presupuesto_SUM" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[]]></variableExpression>
+	</variable>
+	<variable name="variable1" class="java.lang.String" calculation="Sum"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="116" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="56" width="1042" height="20" uuid="834038fb-5af2-42d3-b4f4-771d5b481c10"/>
+				<textElement verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE LOTAIP]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="76" width="68" height="20" uuid="d8c92bc8-8c72-473e-a4f5-fcd623379843"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[PERIODO:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="96" width="1042" height="20" uuid="ed83bcb5-c1ad-4114-9f9b-e0f5dcd41709"/>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<textField>
+				<reportElement stretchType="RelativeToBandHeight" x="68" y="76" width="191" height="20" uuid="bea8a1d2-6b0c-4579-8af6-e918c61a4122"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1"/>
+				<textElement>
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="259" height="56" uuid="c1d2fbd2-a082-45e0-a948-21526362b26e"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="40" splitType="Stretch">
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="259" y="0" width="183" height="40" uuid="93c95b2f-3aee-44a4-bdf6-5809f5554c0a"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Puesto Institucional]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="68" y="0" width="191" height="40" uuid="20ffab9c-10a7-473b-866b-0f4a8df5ed95"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Apellidos y nombres de los servidores y servidoras]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="0" y="0" width="68" height="40" uuid="05cb87fe-e880-408d-acb3-951e05d97e43"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[N°]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="442" y="0" width="156" height="40" uuid="1365b6a1-9f8c-44ca-aca4-57a4505dbef7"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Grado jerárquico o escala al que pertenece el puesto]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="598" y="0" width="69" height="40" uuid="51d12bf1-99aa-42f7-b63c-d2ada7df682d"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Remuneración mensual unificada]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="667" y="0" width="74" height="40" uuid="765e1cfc-6731-4bb6-b5ed-e73c67b6d932"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Décimo Tercera Remuneración]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="741" y="0" width="69" height="40" uuid="dd88d9d2-c89b-45fc-9194-af8c1db765e5"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Décima Cuarta Remuneración]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="810" y="0" width="76" height="40" uuid="9feb299f-c228-486e-8561-1baea2bb2232"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Horas suplementarias y extraordinarias]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="886" y="0" width="75" height="40" uuid="ed23666c-cbf6-49fd-8013-b7b461ab26f2"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Encargos y subrogaciones]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToTallestObject" x="961" y="0" width="81" height="40" uuid="e4458fe9-0457-45d2-bfd6-5dea071a8266"/>
+				<box topPadding="3" leftPadding="1" rightPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DIMENSION 2]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="15" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="0" y="0" width="68" height="15" uuid="7648bcfb-7e76-47d1-899f-b3d2e81ce1cb"/>
+				<box topPadding="3" leftPadding="0">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{item}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="68" y="0" width="191" height="15" uuid="aa157cdd-e5fc-43e6-a52c-2d8d6a8d4031"/>
+				<box topPadding="3" bottomPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="259" y="0" width="183" height="15" uuid="ff3a2ce3-59fe-44c6-9d63-b8da9bdb3818"/>
+				<box topPadding="3" bottomPadding="1">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cargo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="442" y="0" width="156" height="15" uuid="f0a9fd1d-9ba5-4e05-95e8-aeaf8d6f6f90"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{grado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###,##0.00;-###,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="598" y="0" width="69" height="15" uuid="02e26b56-54ea-452c-954a-6e59807f3622"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{sueldo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###,##0.00;-###,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="667" y="0" width="74" height="15" uuid="007e172b-fe7a-4f4f-8a52-ba8ab2c92ce2"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{decimo_tercero}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###,##0.00;-###,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="741" y="0" width="69" height="15" uuid="f35477e0-31f0-49d2-936f-f5067d6a344b"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{decimo_cuarto}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###,##0.00;-###,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="886" y="0" width="75" height="15" uuid="303d8ee5-db38-4167-83cb-e6122e4d31a1"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{subregación}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="961" y="0" width="81" height="15" uuid="7366138a-b595-40b3-9e48-3b0ff3001d2c"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{dimension_2}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="###,##0.00;-###,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToTallestObject" x="810" y="0" width="76" height="15" uuid="e1724561-0bf3-4c61-9f10-48beb29802ce"/>
+				<box topPadding="3">
+					<pen lineWidth="1.25"/>
+					<topPen lineWidth="1.25"/>
+					<leftPen lineWidth="1.25"/>
+					<bottomPen lineWidth="1.25"/>
+					<rightPen lineWidth="1.25"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="6"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{horas_extra}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="41" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="39" splitType="Stretch">
+			<textField>
+				<reportElement x="442" y="17" width="80" height="9" uuid="cea4eb76-53c5-4ef9-824b-7ff07a35df40"/>
+				<textElement textAlignment="Right">
+					<font size="5" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{PAGE_NUMBER}+"/"]]></textFieldExpression>
+			</textField>
+			<textField evaluationTime="Report">
+				<reportElement x="522" y="17" width="288" height="9" uuid="5533c3c5-5d41-4930-ab2c-fda53c3eb8c8"/>
+				<textElement>
+					<font size="5" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="26" width="442" height="9" uuid="0b5ef7fd-184c-4516-84f3-a0f50e77383c"/>
+				<textElement>
+					<font size="5"/>
+				</textElement>
+				<text><![CDATA[ec.com.sidesoft.payroll.reports.lotaip/src/ec/com/sidesoft/payroll/reports/lotaip/ad_reports/Rpt_lotaip.jrxml
+]]></text>
+			</staticText>
+			<textField evaluationTime="Report">
+				<reportElement x="810" y="17" width="232" height="9" uuid="e1d2776f-5e3a-4090-9330-fa2aeda26798"/>
+				<textElement textAlignment="Right">
+					<font size="5" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{n_usuario}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="17" width="442" height="9" uuid="1066ca76-ec42-4c71-af83-cdbd904c6dc1"/>
+				<textElement>
+					<font size="5" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="16" splitType="Stretch"/>
+	</summary>
+</jasperReport>

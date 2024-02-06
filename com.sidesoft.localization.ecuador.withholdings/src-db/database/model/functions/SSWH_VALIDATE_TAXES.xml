@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_VALIDATE_TAXES">
+    <function name="SSWH_VALIDATE_TAXES" type="NULL">
+      <parameter name="p_ep_instance" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[p_message           VARCHAR2(2000);    
+p_record_id         VARCHAR2(60);      
+p_docaction         VARCHAR2(60);      
+p_user              VARCHAR2(60);      
+p_result            NUMBER;
+p_docstatus         VARCHAR2(60);
+p_issotrx           VARCHAR2(60);
+v_ResultStr         VARCHAR2(2000):='';
+
+--PROCESO NC
+v_doctype_id        VARCHAR2(32);      
+v_isreversal	    CHAR(1);
+v_docbasetype	    VARCHAR2(60);      
+v_sswh_livelihoodt  VARCHAR2(32);      
+V_refundinvoice_Count  NUMBER;      
+V_refundinvoice_Sum    NUMBER;      
+V_invoiceLineTotal    NUMBER;      
+v_value_livehoodt   VARCHAR2(60);      
+v_isrefund  CHAR(1);
+v_num1 NUMBER(10,2);
+v_num2 NUMBER;
+v_num3 NUMBER;
+v_num4 NUMBER;
+v_c_tax_id VARCHAR2(32);      
+
+TYPE RECORD IS REF CURSOR;
+cur_params          RECORD;
+cur_lines           RECORD;
+
+BEGIN
+
+  FOR Cur_Params IN (
+    SELECT *
+    FROM ad_ep_instance_para
+    WHERE ad_ep_instance_id = p_ep_instance
+    ) LOOP
+    IF (cur_params.parametername LIKE 'DocAction') THEN
+      p_docaction := Cur_Params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Record_ID') THEN
+      p_record_id := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'User') THEN
+      p_user := cur_params.p_string;
+    ELSIF (cur_params.parametername LIKE 'Message') THEN
+      p_message := cur_params.p_text;
+    ELSIF (cur_params.parametername LIKE 'Result') THEN
+      p_result := cur_params.p_number;
+    END IF;
+  END LOOP;
+
+  for cur_lines in(
+	  select a.c_tax_id, sum(a.taxamt) as taxamt, round(sum(a.taxamt),2) as taxamtround, round(sum(abs(a.taxamt)),2) - sum(abs(a.taxamt)) as valorsum, 
+	  b.docstatus, b.processed, b.docaction, b.grandtotal
+	  from c_invoicetax a
+	  left join c_invoice b on b.c_invoice_id = a.c_invoice_id
+	  left join c_tax c on c.c_tax_id = a.c_tax_id
+	  where a.c_invoice_id = p_record_id
+	  group by a.c_tax_id, b.docstatus, b.processed, b.docaction, b.grandtotal
+  )
+  Loop
+  	
+	If cur_lines.valorsum != 0 Then
+	  	If cur_lines.processed = 'Y' and cur_lines.docstatus = 'CO' and cur_lines.docaction = 'RE' Then
+			  update c_invoice
+			  set processed = 'N',
+			  docstatus =  'DR',
+			  docaction = 'CO'
+			  where c_invoice_id = p_record_id;
+		 End If;
+
+		update c_invoicetax 
+		set taxamt = taxamt - cur_lines.valorsum
+		where c_invoicetax_id = (select c_invoicetax_id
+					from c_invoicetax
+					where c_invoice_id = p_record_id
+					and c_tax_id = cur_lines.c_tax_id
+					and line = (select min(line)
+							from c_invoicetax
+							where c_invoice_id = p_record_id
+							and c_tax_id = cur_lines.c_tax_id and taxamt != 0
+							)
+					and taxamt != 0);
+
+		If cur_lines.processed = 'Y' and cur_lines.docstatus = 'CO' and cur_lines.docaction = 'RE' Then
+			  update c_invoice
+			  set processed = 'Y',
+			  docstatus =  'CO',
+			  docaction = 'RE'
+			  where c_invoice_id = p_record_id;
+		End If;
+	  
+	  End If;
+  End loop;
+		select grandtotal 
+		into v_num1
+		from c_invoice 
+		where c_invoice_id = p_record_id;
+		
+		update c_invoice
+		set outstandingamt = v_num1
+		where c_invoice_id = p_record_id;
+
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( v_ResultStr);
+  RAISE;
+END SSWH_VALIDATE_TAXES
+]]></body>
+    </function>
+  </database>

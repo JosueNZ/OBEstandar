@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report1" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="2.0"/>
+	<property name="ireport.x" value="44"/>
+	<property name="ireport.y" value="140"/>
+	<parameter name="ad_client_id" class="java.lang.String"/>
+	<parameter name="assigned_to" class="java.lang.String"/>
+	<parameter name="opportstatus" class="java.lang.String"/>
+	<parameter name="sales_stage" class="java.lang.String"/>
+	<parameter name="lead" class="java.lang.String"/>
+	<parameter name="dateto" class="java.util.Date"/>
+	<parameter name="ad_org_id" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT
+opp.ad_org_id as org_id,
+u.name as leadname,
+u.em_opcrm_commercialname as leadcommercialname,
+coalesce(loc.address1, '') as address1,
+coalesce(loc.address2, '') as address2,
+coalesce(loc.city, '') as city,
+coalesce(loc.postal, '') as postal,
+country.name as country,
+opp.opportunity_name,
+opp.opportunity_amount as oppamount,
+opp.probability as percent,
+CASE WHEN opp.probability IS NOT NULL THEN opp.opportunity_amount * (opp.probability/100) ELSE opp.opportunity_amount END as potential_income,
+opp.description as opportunitydesc,
+opp.probability,
+(
+  SELECT coalesce(statustrl.name, status.name)
+  FROM ad_reference r
+  INNER JOIN ad_ref_list status ON status.ad_reference_id = r.ad_reference_id
+left join ad_ref_list_trl statustrl on status.ad_ref_list_id=statustrl.ad_ref_list_id
+and ad_language=(client.ad_language)
+  WHERE status.value = opp.opportstatus AND r.name = 'opcrmOpportunityStatus'
+) as opportunity_status,
+(
+  SELECT coalesce(stagetrl.name, stage.name)
+  FROM ad_reference r
+  INNER JOIN ad_ref_list stage ON stage.ad_reference_id = r.ad_reference_id
+LEFT JOIN ad_ref_list_trl stagetrl ON stagetrl.ad_ref_list_id=stage.ad_ref_list_id
+and ad_language=(client.ad_language)
+  WHERE stage.value = opp.sales_stage AND r.name = 'opcrmSalesStage'
+) as opportunity_stage,
+to_char(opp.expected_close_date, 'dd/MM/yyyy') as closedate,
+crmuser.name as assignedto
+
+FROM opcrm_opportunities opp
+INNER JOIN ad_client client on client.ad_client_id=opp.ad_client_id
+INNER JOIN ad_user u ON u.ad_user_id = opp.related_lead
+LEFT JOIN ad_user crmuser ON crmuser.ad_user_id = opp.assigned_to
+LEFT JOIN c_location loc ON loc.em_opcrm_ad_user_id = u.ad_user_id
+LEFT JOIN c_country country ON country.c_country_id = loc.c_country_id
+WHERE u.em_opcrm_islead = 'Y'
+and opp.ad_client_id=$P{ad_client_id}
+and CASE WHEN $P{ad_org_id}='0' THEN TRUE ELSE opp.ad_org_id=$P{ad_org_id} END
+and CASE WHEN $P{lead} is not null THEN u.name ilike '%'||$P{lead}||'%' ELSE true END
+and CASE WHEN $P{assigned_to} is not null THEN opp.assigned_to=$P{assigned_to} ELSE true END
+and CASE WHEN $P{opportstatus} is not null THEN opp.opportstatus=$P{opportstatus} ELSE true END
+and CASE WHEN $P{sales_stage} is not null THEN opp.sales_stage=$P{sales_stage} ELSE true END
+and opp.expected_close_date::date between '1000-01-01'::date and coalesce($P{dateto}::date, '2099-12-31'::date)
+ORDER BY u.name]]>
+	</queryString>
+	<field name="org_id" class="java.lang.String"/>
+	<field name="leadname" class="java.lang.String"/>
+	<field name="leadcommercialname" class="java.lang.String"/>
+	<field name="address1" class="java.lang.String"/>
+	<field name="address2" class="java.lang.String"/>
+	<field name="city" class="java.lang.String"/>
+	<field name="postal" class="java.lang.String"/>
+	<field name="country" class="java.lang.String"/>
+	<field name="opportunity_name" class="java.lang.String"/>
+	<field name="oppamount" class="java.math.BigDecimal"/>
+	<field name="percent" class="java.math.BigDecimal"/>
+	<field name="potential_income" class="java.math.BigDecimal"/>
+	<field name="opportunitydesc" class="java.lang.String"/>
+	<field name="probability" class="java.math.BigDecimal"/>
+	<field name="opportunity_status" class="java.lang.String"/>
+	<field name="opportunity_stage" class="java.lang.String"/>
+	<field name="closedate" class="java.lang.String"/>
+	<field name="assignedto" class="java.lang.String"/>
+	<variable name="oppamount" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{oppamount}]]></variableExpression>
+	</variable>
+	<variable name="potential_income" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{potential_income}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="99" splitType="Stretch">
+			<image onErrorType="Icon">
+				<reportElement x="0" y="0" width="106" height="37"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{org_id})]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="106" y="37" width="282" height="31"/>
+				<textElement>
+					<font size="18"/>
+				</textElement>
+				<text><![CDATA[Opportunities By Lead Report]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<rectangle>
+				<reportElement x="239" y="0" width="50" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="0" y="0" width="90" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="90" y="0" width="90" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="180" y="0" width="59" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="289" y="0" width="50" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="339" y="0" width="50" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="0" y="0" width="90" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Lead & Contacts]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="90" y="0" width="90" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Opportunity]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="239" y="0" width="50" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Status]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="289" y="0" width="50" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Stage]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="339" y="0" width="50" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Close Date]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="180" y="0" width="58" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Assigned to]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="389" y="0" width="69" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="389" y="0" width="69" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Total income]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="489" y="0" width="66" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="489" y="0" width="66" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Potential Income]]></text>
+			</staticText>
+			<rectangle>
+				<reportElement x="458" y="0" width="31" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="458" y="0" width="31" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[%]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="25" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="90" height="25"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{leadname} +" "+ $F{leadcommercialname}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="90" y="0" width="90" height="25"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{opportunity_name}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="180" y="0" width="59" height="25"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{assignedto}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="239" y="0" width="50" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{opportunity_status}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="289" y="0" width="50" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{opportunity_stage}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="339" y="0" width="50" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{closedate}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="389" y="0" width="69" height="25"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{oppamount}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="458" y="0" width="31" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{probability}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="489" y="0" width="66" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{potential_income}]]></textFieldExpression>
+			</textField>
+		</band>
+		<band height="28">
+			<line>
+				<reportElement x="0" y="27" width="555" height="1" forecolor="#666666"/>
+			</line>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="90" height="27" isRemoveLineWhenBlank="true"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{address1}+ " " +$F{city}+" "+$F{postal}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="90" y="0" width="90" height="27" isRemoveLineWhenBlank="true"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{opportunitydesc}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<lastPageFooter>
+		<band height="50">
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="388" y="0" width="69" height="25"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{oppamount}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="489" y="0" width="66" height="25"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{potential_income}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="322" y="0" width="66" height="25"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[Totals:]]></text>
+			</staticText>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

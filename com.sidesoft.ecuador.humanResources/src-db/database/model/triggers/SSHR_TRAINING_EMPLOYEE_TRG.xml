@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSHR_TRAINING_EMPLOYEE_TRG">
+    <trigger name="SSHR_TRAINING_EMPLOYEE_TRG" table="SSHR_TRAININGLINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_partnerid varchar(32); 	--OBTG:varchar2--
+ v_employee VARCHAR(1);		--OBTG:varchar2--
+ v_status VARCHAR(1);		--OBTG:varchar2--
+ v_count NUMBER;		--OBTG:number--
+ v_trainingID VARCHAR(32);	--OBTG:varchar2--
+ v_countemployee NUMBER;	--OBTG:number--
+ v_countmaxemployee NUMBER;	--OBTG:number--
+ v_level VARCHAR(1);		--OBTG:varchar2--
+ v_trainingcalendarID VARCHAR(32);	--OBTG:varchar2--
+ 
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING or UPDATING) THEN
+
+	 v_partnerid  := :NEW.c_bpartner_id;
+	 v_trainingcalendarID := :NEW.sshr_training_calendar_id;
+
+	DBMS_OUTPUT.PUT_LINE('RESULT v_partnerid = ' || v_partnerid) ;
+	DBMS_OUTPUT.PUT_LINE('RESULT v_trainingcalendarID = ' || v_trainingcalendarID) ;
+
+
+	 SELECT noperson,training_level INTO v_countmaxemployee,v_level
+	 FROM sshr_training_calendar WHERE
+	 sshr_training_calendar_id = v_trainingcalendarID;
+	 
+	 
+	DBMS_OUTPUT.PUT_LINE('RESULT v_countmaxemployee = '  || to_char(v_countmaxemployee)) ;
+	DBMS_OUTPUT.PUT_LINE('RESULT v_level = ' || v_level) ;
+
+	 
+
+	 IF (v_countmaxemployee>0) THEN
+
+
+		SELECT count(*) INTO v_countemployee
+		FROM sshr_trainingline tl 
+		LEFT JOIN sshr_training_calendar  tc on tc.sshr_training_calendar_id = tl.sshr_training_calendar_id
+		WHERE tl.c_bpartner_id = v_partnerid 
+		AND tc.sshr_training_calendar_id = v_trainingcalendarID
+		AND tc.training_level = v_level and tc.isactive ='Y';
+
+		
+		IF (v_countemployee = 1 ) THEN
+
+			RAISE_APPLICATION_ERROR(-20000, '@Sshr_MaxEmployee@');
+			
+		ELSE
+
+			SELECT count(*) INTO v_countemployee
+			FROM sshr_trainingline tl 
+			LEFT JOIN sshr_training_calendar  tc on tc.sshr_training_calendar_id = tl.sshr_training_calendar_id
+			WHERE tc.sshr_training_calendar_id = v_trainingcalendarID
+			AND tc.training_level = v_level and tc.isactive ='Y';
+
+			v_countemployee := v_countemployee +1;
+
+			IF (v_countemployee > v_countmaxemployee) THEN
+			
+				RAISE_APPLICATION_ERROR(-20000, '@Sshr_MaxEmpTraining@');
+
+			END IF;
+		END IF;
+		
+	 END IF;
+	 	
+  END IF;
+
+  END SSHR_TRAINING_EMPLOYEE_TRG
+]]></body>
+    </trigger>
+  </database>

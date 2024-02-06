@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_GRANDTOTAL_VAL_TRG">
+    <trigger name="SSWH_GRANDTOTAL_VAL_TRG" table="C_INVOICE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_countlines               NUMBER;
+	
+BEGIN
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING) THEN
+
+	SELECT count(*) INTO v_countlines from c_invoiceline WHERE c_invoice_id = :NEW.c_invoice_id;
+
+	IF (:NEW.issotrx='N' AND v_countlines>0 AND (:OLD.grandtotal - :NEW.grandtotal)<0.01 AND :OLD.updated <> :NEW.updated) THEN
+		:NEW.grandtotal := :OLD.grandtotal;
+	END IF;
+	
+  END IF;
+
+  END SSWH_GRANDTOTAL_VAL_TRG
+]]></body>
+    </trigger>
+  </database>

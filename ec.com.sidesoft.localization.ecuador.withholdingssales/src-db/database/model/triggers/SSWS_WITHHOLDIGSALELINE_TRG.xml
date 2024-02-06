@@ -1,0 +1,157 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWS_WITHHOLDIGSALELINE_TRG">
+    <trigger name="SSWS_WITHHOLDIGSALELINE_TRG" table="SSWS_WITHHOLDINGSALELINE" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+
+
+/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.0  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SL
+* All portions are Copyright (C) 2001-2006 Openbravo SL
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+v_withholdingsale_id varchar(32);
+v_withholdingsaleline_id varchar(32);
+v_processed char(1);
+v_renta NUMBER;
+v_iva NUMBER;
+v_renta2 NUMBER;
+v_iva2 NUMBER;
+        
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  
+  IF INSERTING OR UPDATING THEN
+  
+    -- If inserting or updating add new values
+    v_withholdingsale_id:=:NEW.SSWS_WITHHOLDINGSALE_ID;
+    v_withholdingsaleline_id:= :NEW.SSWS_WITHHOLDINGSALELINE_ID; 
+    v_renta:=0;
+    v_iva:=0;
+    
+    SELECT processed
+    INTO v_processed
+    FROM ssws_withholdingsale
+    WHERE ssws_withholdingsale_id = v_withholdingsale_id;
+    
+    IF v_processed = 'Y' THEN
+      RAISE_APPLICATION_ERROR(-20000, '@20501@');
+    END IF;
+
+    IF (INSERTING) THEN
+
+	UPDATE ssws_withholdingsale 
+	SET totalwhrentalamttmp =(totalwhrentalamttmp + coalesce(:NEW.WHRENTALAMT,0) ),
+		totalwhivaamttmp =  (totalwhivaamttmp + coalesce(:NEW.WHIVAAMT,0) )
+	WHERE ssws_withholdingsale_id = v_withholdingsale_id;	
+
+	/*UPDATE ssws_withholdingsale 
+	SET totalwhrentalamt = round(coalesce(totalwhrentalamttmp,0),2),
+		totalwhivaamt = round(coalesce(totalwhrentalamttmp,0),2)
+	WHERE ssws_withholdingsale_id = v_withholdingsale_id;	*/
+	
+    END IF;
+
+    IF (UPDATING) THEN
+
+	select coalesce((select 
+	sum(WHRENTALAMT) as WHRENTALAMT
+	from ssws_withholdingsaleline swl 
+	where ssws_withholdingsale_id = v_withholdingsale_id
+	AND ssws_withholdingsaleline_id<>v_withholdingsaleline_id),0)
+	into v_renta
+	from dual;
+
+	v_renta2:= v_renta + :NEW.WHRENTALAMT;
+
+	select coalesce((select 
+	sum(WHIVAAMT) as WHIVAAMT
+	from ssws_withholdingsaleline swl 
+	where ssws_withholdingsale_id = v_withholdingsale_id
+	AND ssws_withholdingsaleline_id<>v_withholdingsaleline_id),0)
+	into v_iva
+	from dual;
+
+	v_iva2:= v_iva + :NEW.WHIVAAMT;
+
+
+	UPDATE ssws_withholdingsale 
+	SET totalwhrentalamttmp =(v_renta2),
+		totalwhivaamttmp =  (v_iva2)
+	WHERE ssws_withholdingsale_id = v_withholdingsale_id;	
+
+    END IF; 
+
+
+    
+    /*UPDATE ssws_withholdingsale 
+    SET totalwhrentalamt = round(totalwhrentalamt + :NEW.WHRENTALAMT,2),
+        totalwhivaamt = round(totalwhivaamt + :NEW.WHIVAAMT,2)
+    WHERE ssws_withholdingsale_id = v_withholdingsale_id;*/
+    
+  END IF;
+  
+  IF DELETING THEN
+    
+    -- If updating or deleting substract old values
+    v_withholdingsale_id:=:OLD.SSWS_WITHHOLDINGSALE_ID;
+    v_withholdingsaleline_id:= :OLD.SSWS_WITHHOLDINGSALELINE_ID; 
+    
+    SELECT processed
+    INTO v_processed
+    FROM ssws_withholdingsale
+    WHERE ssws_withholdingsale_id = v_withholdingsale_id;
+    
+    IF v_processed = 'Y' THEN
+      RAISE_APPLICATION_ERROR(-20000, '@20501@');
+    END IF;
+
+	select coalesce((select 
+	sum(WHRENTALAMT) as WHRENTALAMT
+	from ssws_withholdingsaleline swl 
+	where ssws_withholdingsale_id = v_withholdingsale_id
+	AND ssws_withholdingsaleline_id<>v_withholdingsaleline_id),0)
+	into v_renta
+	from dual;
+	v_renta2:= v_renta;
+
+	select coalesce((select 
+	sum(WHIVAAMT) as WHIVAAMT
+	from ssws_withholdingsaleline swl 
+	where ssws_withholdingsale_id = v_withholdingsale_id
+	AND ssws_withholdingsaleline_id<>v_withholdingsaleline_id),0)
+	into v_iva
+	from dual;
+	v_iva2:= v_iva;
+
+    UPDATE ssws_withholdingsale 
+    SET 
+        totalwhrentalamttmp = coalesce(v_renta2,0),
+        totalwhivaamttmp = coalesce(v_iva2,0)
+    WHERE ssws_withholdingsale_id = v_withholdingsale_id;
+
+
+    /*UPDATE ssws_withholdingsale 
+    SET totalwhrentalamt = round(totalwhrentalamt - :OLD.WHRENTALAMT,2), 
+        totalwhivaamt = round(totalwhivaamt - :OLD.WHIVAAMT,2)
+    WHERE ssws_withholdingsale_id = v_withholdingsale_id;*/
+    
+  END IF;
+
+END SSWS_WITHHOLDIGSALELINE_TRG
+]]></body>
+    </trigger>
+  </database>

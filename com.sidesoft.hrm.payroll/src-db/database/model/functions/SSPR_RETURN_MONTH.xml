@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_RETURN_MONTH">
+    <function name="SSPR_RETURN_MONTH" type="NUMERIC">
+      <parameter name="fecha_inicio" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="fecha_fin" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="mes_inicio" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="anio_inicio" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="diainicio" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[numero_dias NUMBER:= 0;
+numero_mes NUMBER:=0;
+contar_mes NUMBER:=0;
+mes_actual NUMBER:=0;
+anio_actual NUMBER:=0;
+fecha_actual DATE;
+fecha_finmes DATE;
+     
+begin
+
+	numero_dias:=0;
+     IF fecha_fin >= fecha_inicio THEN   
+     
+         fecha_actual := fecha_inicio;
+        
+         WHILE fecha_actual <= fecha_fin LOOP
+         
+            mes_actual:=TO_NUMBER((TO_CHAR(fecha_actual,'MM')));
+            anio_actual:=TO_NUMBER((TO_CHAR(fecha_actual,'yyyy')));
+
+            fecha_finmes:=TO_DATE(to_char(trim(to_char(
+             (CASE WHEN mes_actual = 2 THEN
+						(CASE WHEN TO_CHAR('B') = 
+						(CASE WHEN (MOD(anio_actual,400))=0 THEN TO_CHAR('B') 
+							ELSE 
+								(CASE WHEN (MOD(anio_actual,4))=0 AND (MOD(anio_actual,100))<>0 THEN TO_CHAR('BISIESTO')
+									ELSE TO_CHAR('NB')
+								END)
+						 END) THEN 29
+						 ELSE 28
+						 END)
+	     ELSE  
+			diainicio
+
+	     END)
+
+            ))||'-'||trim(to_char(mes_actual,'00'))||'-'||trim(to_char(anio_actual))));
+
+            If(mes_actual = mes_inicio and anio_actual = anio_inicio  and fecha_actual <= fecha_finmes)Then
+            
+                 numero_dias:=numero_dias + 1;
+                 
+            End If;
+
+            fecha_actual := fecha_actual + 1;
+
+          END LOOP;
+
+        RETURN numero_dias;
+
+     ELSE
+
+	RETURN 0;
+
+     END IF;
+END SSPR_RETURN_MONTH
+]]></body>
+    </function>
+  </database>

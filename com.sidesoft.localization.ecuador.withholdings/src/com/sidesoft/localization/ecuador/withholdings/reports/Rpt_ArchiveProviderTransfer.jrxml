@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_ArchiveProviderTransfer" pageWidth="1100" pageHeight="572" orientation="Landscape" columnWidth="1100" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="175"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="datefrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="dateto" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_doctype_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="sendno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select now() as dateprocess,
+	(select count(fin_payment.c_bpartner_id)
+	from fin_payment
+	left join c_bpartner on c_bpartner.c_bpartner_id = fin_payment.c_bpartner_id
+	left join sspr_category_acct on sspr_category_acct.sspr_category_acct_id = c_bpartner.em_sspr_category_acct_id
+	where (fin_payment.paymentdate between $P{datefrom} and $P{dateto}) and
+	fin_payment.c_doctype_id = $P{c_doctype_id} and fin_payment.isreceipt='N'
+	) as numberemployee,
+	'1' as constante1,
+	(select sum(round(fin_payment.amount,2))
+	from fin_payment
+	left join c_bpartner on c_bpartner.c_bpartner_id = fin_payment.c_bpartner_id
+	left join sspr_category_acct on sspr_category_acct.sspr_category_acct_id = c_bpartner.em_sspr_category_acct_id
+	where (fin_payment.paymentdate between $P{datefrom} and $P{dateto}) and
+	fin_payment.c_doctype_id = $P{c_doctype_id} and fin_payment.isreceipt='N'
+	) as totalnetemployee,
+	'0' as constante2,
+	'01310086' as constante3,
+	'01310086' as constante4,
+	ad_org.name as razonsocial, c_location.city  as city,
+	(select c_period.periodno||'/'||c_year.year from c_period
+left join c_year on c_year.c_year_id = c_period.c_year_id where '31-01-2015' between c_period.startdate and c_period.enddate and c_period.openclose='O') as period,
+	round(fin_payment.amount,2) as totalnet,
+	sspr_category_acct.value as codcategoryacct,
+	ssfi_banktransfer.code as bankcode,
+	C_BP_BankAccount.accountno,
+	case when C_BP_BankAccount.bankaccounttype = 'S' then '02'
+	     when C_BP_BankAccount.bankaccounttype = 'C' then '01'
+	end as bankaccounttype,
+	c_bpartner.name as employee,
+	'REMUNERACIÓN MENSUAL' as description,
+	c_bpartner.taxid as ci
+from fin_payment
+left join c_bpartner on c_bpartner.c_bpartner_id = fin_payment.c_bpartner_id
+left join ad_org on ad_org.ad_org_id = fin_payment.ad_org_id
+left join ad_orginfo on ad_orginfo.ad_org_id = fin_payment.ad_org_id
+left join c_location on c_location.c_location_id = ad_orginfo.c_location_id
+left join sspr_category_acct on sspr_category_acct.sspr_category_acct_id = c_bpartner.em_sspr_category_acct_id
+left join C_BP_BankAccount on C_BP_BankAccount.c_bpartner_id = c_bpartner.c_bpartner_id and C_BP_BankAccount.em_sspr_ispayroll = 'Y'
+left join ssfi_banktransfer on ssfi_banktransfer.ssfi_banktransfer_id = C_BP_BankAccount.em_ssfi_banktransfer_id
+where (fin_payment.paymentdate between $P{datefrom} and $P{dateto}) and
+fin_payment.c_doctype_id = $P{c_doctype_id} and fin_payment.isreceipt='N'
+order by c_bpartner.name]]>
+	</queryString>
+	<field name="dateprocess" class="java.sql.Timestamp"/>
+	<field name="numberemployee" class="java.lang.Long"/>
+	<field name="constante1" class="java.lang.String"/>
+	<field name="totalnetemployee" class="java.math.BigDecimal"/>
+	<field name="constante2" class="java.lang.String"/>
+	<field name="constante3" class="java.lang.String"/>
+	<field name="constante4" class="java.lang.String"/>
+	<field name="razonsocial" class="java.lang.String"/>
+	<field name="city" class="java.lang.String"/>
+	<field name="period" class="java.lang.String"/>
+	<field name="totalnet" class="java.math.BigDecimal"/>
+	<field name="codcategoryacct" class="java.lang.String"/>
+	<field name="bankcode" class="java.lang.String"/>
+	<field name="accountno" class="java.lang.String"/>
+	<field name="bankaccounttype" class="java.lang.String"/>
+	<field name="employee" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<variable name="secuencial" class="java.lang.Integer" resetType="Column">
+		<variableExpression><![CDATA[$V{COLUMN_COUNT}]]></variableExpression>
+	</variable>
+	<variable name="sendnovar" class="java.lang.String">
+		<variableExpression><![CDATA[$P{sendno}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="21" splitType="Stretch">
+			<textField pattern="dd/MM/yyyy h:mm:ss" isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="99" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{dateprocess}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0;-###0" isBlankWhenNull="true">
+				<reportElement x="162" y="0" width="73" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Long"><![CDATA[$F{numberemployee}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="311" y="0" width="79" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalnetemployee}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="235" y="0" width="76" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{constante1}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="390" y="0" width="83" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{constante2}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="473" y="0" width="169" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{constante3}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="642" y="0" width="146" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{constante4}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="788" y="0" width="198" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{razonsocial}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="986" y="0" width="57" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{city}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1043" y="0" width="57" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{period}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="99" y="0" width="63" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$P{sendno}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="15" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="99" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Integer"><![CDATA[$V{secuencial}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="473" y="0" width="169" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{employee}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="99" y="0" width="63" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalnet}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="162" y="0" width="73" height="12"/>
+				<textElement textAlignment="Left">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codcategoryacct}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="311" y="0" width="79" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{accountno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="390" y="0" width="83" height="12"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bankaccounttype}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="642" y="0" width="146" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{description}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="788" y="0" width="198" height="12" backcolor="#FFFFFF"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ci}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="235" y="0" width="76" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{bankcode}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+	<noData>
+		<band/>
+	</noData>
+</jasperReport>

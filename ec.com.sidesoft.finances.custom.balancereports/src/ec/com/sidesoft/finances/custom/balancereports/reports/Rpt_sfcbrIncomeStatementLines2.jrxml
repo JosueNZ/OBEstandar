@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_sfcbrIncomeStatementLines" pageWidth="555" pageHeight="802" columnWidth="555" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="6d58bead-bd18-4677-bd49-3768b50040e5">
+	<property name="ireport.zoom" value="2.3579476910000032"/>
+	<property name="ireport.x" value="20"/>
+	<property name="ireport.y" value="0"/>
+	<style name="alternateStyle" isDefault="true" mode="Opaque" forecolor="#010101" isBlankWhenNull="false" fontName="SansSerif" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false">
+		<pen lineColor="#0900FF"/>
+		<conditionalStyle>
+			<conditionExpression><![CDATA[$F{typeheader}.equals("2")]]></conditionExpression>
+			<style forecolor="#010101" isBold="false" isStrikeThrough="false">
+				<pen lineColor="#002FFF"/>
+			</style>
+		</conditionalStyle>
+		<conditionalStyle>
+			<conditionExpression><![CDATA[$F{typeheader}.equals("1")]]></conditionExpression>
+			<style forecolor="#010101" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false"/>
+		</conditionalStyle>
+	</style>
+	<parameter name="p_sql" class="java.lang.String" isForPrompting="false"/>
+	<parameter name="p_amount" class="java.lang.String">
+		<defaultValueExpression><![CDATA[BigDecimal.ZERO]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_YEAR_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select line, '' as codigo, '' as cuenta, 0 as valor, value as  typeheader
+, 'D1' as detailh
+from sfcbr_conf_res_intg
+where value in ('ES','L')
+union all
+select line, value as codigo,name as cuenta,
+(select sum(amount)
+	from sfcbr_conf_res_intg
+	where line between 20 and 50
+	AND C_YEAR_ID = $P{C_YEAR_ID}
+) as valor ,
+(case when istitle='Y' then '1' else '2' end) typeheader
+, 'D1' as detailh
+from sfcbr_conf_res_intg
+where line =10 AND C_YEAR_ID = $P{C_YEAR_ID}
+union all
+select line, value as codigo,name as cuenta, amount as valor ,
+(case when istitle='Y' then '1' else '2' end) typeheader
+, 'D2' as detailh
+from sfcbr_conf_res_intg
+where line between 20 and 50 AND C_YEAR_ID = $P{C_YEAR_ID}
+union all
+select line, value as codigo,name as cuenta, (select sum(amount)
+	from sfcbr_conf_res_intg
+	where line between 20 and 50
+	AND C_YEAR_ID = $P{C_YEAR_ID}
+) -  to_number($P{p_amount}) as valor ,
+(case when istitle='Y' then '1' else '2' end) typeheader
+, 'D3' as detailh
+from sfcbr_conf_res_intg
+where line > 50
+and istitle='Y'
+AND C_YEAR_ID = $P{C_YEAR_ID}
+order by 1]]>
+	</queryString>
+	<field name="line" class="java.math.BigDecimal"/>
+	<field name="codigo" class="java.lang.String"/>
+	<field name="cuenta" class="java.lang.String"/>
+	<field name="valor" class="java.math.BigDecimal"/>
+	<field name="typeheader" class="java.lang.String"/>
+	<field name="detailh" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<printWhenExpression><![CDATA[!$F{typeheader}.equals("ES") &  !$F{typeheader}.equals("L")]]></printWhenExpression>
+			<textField pattern="#,##0.00" isBlankWhenNull="true">
+				<reportElement style="alternateStyle" x="344" y="0" width="100" height="14" isRemoveLineWhenBlank="true" uuid="e44352cf-d3c6-4e31-8527-c90ddb7eb99d"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression><![CDATA[$F{valor}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="82" y="0" width="262" height="14" isRemoveLineWhenBlank="true" uuid="9cfffef6-816f-457c-ac27-1db25a091a7d"/>
+				<textFieldExpression><![CDATA[$F{cuenta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="0" width="82" height="14" uuid="6b5cef77-74ed-49ff-b595-5b9fcddf880b">
+					<printWhenExpression><![CDATA[$F{typeheader}.equals("2")]]></printWhenExpression>
+				</reportElement>
+				<textFieldExpression><![CDATA[$F{codigo}]]></textFieldExpression>
+			</textField>
+		</band>
+		<band height="14">
+			<printWhenExpression><![CDATA[$F{typeheader}.equals("ES")]]></printWhenExpression>
+			<textField>
+				<reportElement x="364" y="0" width="80" height="14" uuid="85e2c804-44e6-47b4-ad97-00483293dd55"/>
+				<textFieldExpression><![CDATA["                     "]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="0" width="364" height="14" uuid="4bce2b89-727a-4696-861d-9a0bc1f4fc1c"/>
+				<textFieldExpression><![CDATA["                     "]]></textFieldExpression>
+			</textField>
+		</band>
+		<band height="14">
+			<printWhenExpression><![CDATA[$F{typeheader}.equals("L")]]></printWhenExpression>
+			<textField>
+				<reportElement x="0" y="0" width="364" height="14" uuid="26fe5f23-9033-42f9-9e84-7a758478f816"/>
+				<textFieldExpression><![CDATA["                     "]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="364" y="0" width="80" height="14" uuid="f8633ac2-e03e-49ba-ab99-2a78d3eaaf3c"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textFieldExpression><![CDATA["                     "]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

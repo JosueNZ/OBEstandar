@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSIPOTM_ACCUMULATED_TRG">
+    <trigger name="SSIPOTM_ACCUMULATED_TRG" table="SSIPOTM_ACCUMULATED" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[	vRecord RECORD;
+BEGIN
+	IF DELETING THEN
+		SELECT * INTO vRecord FROM ssipotm_partial_dispatch WHERE ssipotm_partial_dispatch_id=:OLD.ssipotm_partial_dispatch_id;
+		IF vRecord.docstatus = 'P' THEN
+			RAISE_APPLICATION_ERROR(-20000, '@Ssipotm_CannotDeleteProcessedTransaction@');
+		END IF;
+	END IF;
+	IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END SSIPOTM_ACCUMULATED_TRG
+]]></body>
+    </trigger>
+  </database>

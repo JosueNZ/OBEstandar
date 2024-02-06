@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_M_PRODUCTPRICE_CREATE">
+    <function name="SSWH_M_PRODUCTPRICE_CREATE" type="NULL">
+      <parameter name="product" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="pricelist_version" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="listprice" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="standardprice" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="limitprice" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="client" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="org" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="owner" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[productprice_id VARCHAR2(32);
+BEGIN
+  	select m_productprice_id into productprice_id
+    from m_productprice prod_price
+    left join m_product prod ON prod.m_product_id = prod_price.m_product_id
+    left join m_pricelist_version vers on vers.m_pricelist_version_id = prod_price.m_pricelist_version_id
+    where prod.value = product and
+    vers.name = pricelist_version;
+    
+    if(productprice_id is null) then
+	  	insert into m_productprice (m_productprice_id,m_pricelist_version_id,m_product_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,pricelist,pricestd,pricelimit) 
+  		values (get_uuid(),sswh_m_pricelist_version_get(pricelist_version),sswh_m_product_get(product),client,org,'Y',now(),owner,now(),owner,listprice,standardprice,limitprice);
+    end if;
+END SSWH_M_PRODUCTPRICE_CREATE
+]]></body>
+    </function>
+  </database>

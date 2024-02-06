@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAM_GET_RECORD_PARENT">
+    <function name="SSAM_GET_RECORD_PARENT" type="VARCHAR">
+      <parameter name="p_keyreturn" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_record" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_result           VARCHAR2(2000);    
+v_contador NUMBER:=0;
+v_acumulador NUMBER:=0;
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+
+BEGIN
+IF (p_keyreturn = 1) THEN
+ SELECT 
+    coalesce(adtn.parent_id,'0') AS record_parent into v_result
+   FROM ad_table adt
+     JOIN ad_tree adtree ON adtree.ad_table_id = adt.ad_table_id
+     LEFT JOIN ad_treenode adtn ON adtn.ad_tree_id = adtree.ad_tree_id
+	where adt.AD_TABLE_ID ='539' AND adtn.node_id= p_record;
+ELSE IF (p_keyreturn =2) THEN
+FOR Cur_Parameter IN(
+ SELECT adtn.node_id 
+   FROM ad_table adt
+     JOIN ad_tree adtree ON adtree.ad_table_id = adt.ad_table_id
+     LEFT JOIN ad_treenode adtn ON adtn.ad_tree_id = adtree.ad_tree_id
+	where adt.AD_TABLE_ID ='539' AND adtn.parent_id= p_record
+) LOOP
+ SELECT COUNT(*) INTO v_contador FROM A_AMORTIZATIONLINE WHERE A_ASSET_ID = Cur_Parameter.node_id;
+v_acumulador := v_acumulador+v_contador;
+END LOOP;
+ IF (v_acumulador>0) THEN
+ v_result :='Y';
+ ELSE
+ v_result :='N';
+ END IF;
+END IF;
+END IF;
+
+RETURN v_result;
+
+EXCEPTION
+WHEN OTHERS THEN
+  RAISE;
+END SSAM_GET_RECORD_PARENT
+]]></body>
+    </function>
+  </database>

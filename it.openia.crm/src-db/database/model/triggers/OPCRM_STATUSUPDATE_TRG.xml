@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_STATUSUPDATE_TRG">
+    <trigger name="OPCRM_STATUSUPDATE_TRG" table="AD_USER" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[  /* *********************************************************************************
+  * Copyright (C) 2012 Openia Srl                                                    *
+  *                                                                                  *
+  * Licensed under the Openbravo Public License version 1.0                          *
+  * You may obtain a copy of the License at http://www.openbravo.com/legal/obpl.html *
+  ********************************************************************************* */
+BEGIN
+ 
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+ 
+  IF INSERTING THEN
+    IF :NEW.em_opcrm_islead = 'Y' THEN 
+        :NEW.em_opcrm_statusupdated := current_timestamp;
+    END IF;
+  ELSIF UPDATING THEN
+    IF ( (:NEW.em_opcrm_islead = 'Y') AND ( (:NEW.em_opcrm_leadstatus IS NOT NULL AND (:NEW.em_opcrm_leadstatus!=:OLD.em_opcrm_leadstatus OR
+                                                                                     :OLD.em_opcrm_leadstatus IS NULL)) OR
+                                           (:NEW.em_opcrm_stat_stage_id IS NOT NULL AND (:NEW.em_opcrm_stat_stage_id != :OLD.em_opcrm_stat_stage_id OR
+                                                                                        :OLD.em_opcrm_stat_stage_id IS NULL) ) OR
+                                           (:NEW.comments IS NOT NULL AND (:NEW.comments != :OLD.comments OR :OLD.comments IS NULL) ) 
+
+                                          ) ) THEN
+    
+       :NEW.em_opcrm_statusupdated := current_timestamp;
+    END IF;
+  
+  ELSIF DELETING THEN
+  END IF;
+  
+  END OPCRM_STATUSUPDATE_TRG
+]]></body>
+    </trigger>
+  </database>

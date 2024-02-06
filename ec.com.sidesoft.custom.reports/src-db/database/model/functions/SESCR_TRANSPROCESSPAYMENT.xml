@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_TRANSPROCESSPAYMENT">
+    <function name="SESCR_TRANSPROCESSPAYMENT" type="NULL">
+      <parameter name="p_transaction_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_FinFinacTransactionID VARCHAR(32);	--OBTG:VARCHAR2--
+  v_FinFinancialAccountID  VARCHAR(32);	--OBTG:VARCHAR2--
+  v_currentBalance NUMBER;	--OBTG:NUMBER--
+  v_depositAmount NUMBER;	--OBTG:NUMBER--
+  v_paymentAmount NUMBER;	--OBTG:NUMBER--
+  v_TotalCurrentBalance NUMBER;	--OBTG:NUMBER--
+begin
+	v_FinFinacTransactionID:= p_transaction_id;
+
+	SELECT
+		coalesce((select fin_financial_account_id from fin_finacc_transaction where fin_finacc_transaction_ID = v_FinFinacTransactionID),'ND')
+		into v_FinFinancialAccountID
+	from dual;
+
+	select
+		coalesce((select Currentbalance from fin_financial_account where fin_financial_account_id = v_FinFinancialAccountID),0)
+		into v_currentBalance
+	from dual;
+
+	SELECT 
+		COALESCE((SELECT paymentamt FROM fin_finacc_transaction WHERE fin_finacc_transaction_ID = v_FinFinacTransactionID),0)
+	INTO v_paymentAmount
+	FROM DUAL;
+
+	v_depositAmount:=0;
+
+	v_TotalCurrentBalance:= v_currentBalance + (v_depositAmount - v_paymentAmount);
+
+	UPDATE fin_finacc_transaction set  EM_Aprm_Processed ='R'
+	WHERE fin_finacc_transaction_id = v_FinFinacTransactionID;
+
+	
+	UPDATE fin_financial_account SET Currentbalance = v_TotalCurrentBalance WHERE fin_financial_account_id = v_FinFinancialAccountID;
+
+end
+]]></body>
+    </function>
+  </database>

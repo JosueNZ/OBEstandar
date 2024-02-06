@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRBI_OVERTIME">
+    <function name="SPRBI_OVERTIME" type="VARCHAR">
+      <parameter name="v_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cur_mark RECORD;
+    v_validated VARCHAR2 (1);
+    v_nhour50 NUMBER(10, 2);
+    v_nhour100 NUMBER(10, 2);
+    v_salary NUMBER(10, 2);
+    v_nhourp NUMBER(10, 2);
+    v_nhourv NUMBER(10, 2);
+    v_calc NUMBER(10, 2);
+BEGIN
+    SET timezone TO '0';
+    FOR cur_mark IN (SELECT * FROM sprov_employee_overtime WHERE sprov_employee_overtime_id = v_Record_ID) LOOP
+        v_nhour50 := EXTRACT(epoch FROM to_char(cur_mark.time_50,'HH24:mi')::TIME) / 3600;
+        v_nhour100 := EXTRACT(epoch FROM to_char(cur_mark.time_100,'HH24:mi')::TIME) / 3600;
+        -- Si la marcacion tiene el check de validado
+        IF (cur_mark.validated = 'Y') THEN
+            -- Obtenemos el salario
+            SELECT ES.amount INTO v_salary FROM c_bpartner AS BP
+                JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+                JOIN sfpr_evolution_salary AS ES ON ES.sspr_contract_id = C.sspr_contract_id
+            WHERE BP.c_bpartner_id = cur_mark.c_bpartner_id
+                AND TO_CHAR(cur_mark.datemovement, 'yyyy-MM-dd') >= TO_CHAR(ES.startdate, 'yyyy-MM-dd')
+                AND TO_CHAR(cur_mark.datemovement, 'yyyy-MM-dd') <= TO_CHAR(ES.enddate, 'yyyy-MM-dd');
+            -- Horas 50
+            IF (v_nhour50 > 0) THEN
+                -- Obtenemos el valor de las horas 50
+                SELECT CN.Percentage, CN.Value INTO v_nhourp, v_nhourv FROM SPEV_Config_News AS CN
+                    JOIN Sspr_Concept AS C ON C.Sspr_Concept_ID = CN.Sspr_Concept_ID
+                WHERE C.concepttypepayroll = 'HF' AND CN.function = 'sprbi_nhour_50';
+                v_calc := (v_salary / v_nhourv) * v_nhour50 * v_nhourp;
+                IF (v_calc IS NOT NULL) THEN
+                    UPDATE sprov_employee_overtime SET time_value_50 = v_calc
+                    WHERE sprov_employee_overtime_id = v_Record_ID;
+                END IF;
+            END IF;
+            -- Horas 100
+            IF (v_nhour100 > 0) THEN
+                -- Obtenemos el valor de las horas 100
+                SELECT CN.Percentage, CN.Value INTO v_nhourp, v_nhourv
+                FROM SPEV_Config_News AS CN
+                    JOIN Sspr_Concept AS C ON C.Sspr_Concept_ID = CN.Sspr_Concept_ID
+                WHERE C.concepttypepayroll = 'HO' AND CN.function = 'sprbi_nhour_100';
+                v_calc := (v_salary / v_nhourv) * v_nhour100 * v_nhourp;
+                IF (v_calc IS NOT NULL) THEN
+                    UPDATE sprov_employee_overtime SET time_value_100 = v_calc
+                    WHERE sprov_employee_overtime_id = v_Record_ID;
+                END IF;
+            END IF;
+        END IF;
+    END LOOP;
+    RETURN TRUE;
+END SPRBI_OVERTIME
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSspr_ReserveFundReport" pageWidth="842" pageHeight="595" orientation="Landscape" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="98"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<parameter name="DATE_FROM" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATE_TO" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select COALESCE(to_char(cp.startdate,'MM') || '-' ||emp_per.startdate,'TOTAL') AS "startdate",emp_per.value as "ci",emp_per.name as "tercero",emp_per.org,coalesce((valor.importe),0) as valor
+,centro_costo as "costcenter"
+,(select cp.name from c_period cp  where $P{DATE_FROM} BETWEEN cp.startdate AND cp.enddate ) as "periodo_inicio"
+,(select cp.name from c_period cp  where $P{DATE_TO}  BETWEEN cp.startdate AND cp.enddate ) as "periodo_fin"
+,to_char(now(),'dd/MM/yyyy') AS "fecha_actual"
+ from
+ ( select * from (
+select distinct cbp.value,cbp.name,o.name as org,cc.name as centro_costo
+from  c_bpartner cbp
+left join sspr_payroll_ticket prt on prt.c_bpartner_id = cbp.c_bpartner_id
+left join  sspr_payroll pr on pr.sspr_payroll_id = prt.sspr_payroll_id
+left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+left join sspr_concept c on c.sspr_concept_id = prtc.sspr_concept_id
+left join ad_org o on c.ad_org_id=o.ad_org_id
+left join c_period cp on pr.c_period_id=cp.c_period_id
+left join c_costcenter cc on cc.c_costcenter_id = cbp.em_sspr_costcenter_id
+where cbp.isemployee='Y' and c.concepttypepayroll = 'RF' and c.Conceptsubtype ='In'  and cp.startdate  between $P{DATE_FROM} and  $P{DATE_TO}
+group by cbp.value,cbp.name,o.name,cc.name
+) emp,(
+select cp.name as startdate,startdate as ordenar from c_period cp
+where cp.startdate   between $P{DATE_FROM} and  $P{DATE_TO}
+union all
+select 'TOTAL','9999-12-31'
+) per) emp_per
+left join (select distinct
+cp.name as startdate,
+cbp.value,
+o.name as org,
+sum(prtc.amount) as importe
+, cc.name as costcenter
+from  c_bpartner cbp
+left join c_costcenter cc on cc.c_costcenter_id = cbp.em_sspr_costcenter_id
+left join sspr_payroll_ticket prt on prt.c_bpartner_id = cbp.c_bpartner_id
+left join  sspr_payroll pr on pr.sspr_payroll_id = prt.sspr_payroll_id
+left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+left join sspr_concept c on c.sspr_concept_id = prtc.sspr_concept_id
+left join ad_org o on c.ad_org_id=o.ad_org_id
+left join c_period cp on pr.c_period_id=cp.c_period_id
+where cbp.isemployee='Y' and c.concepttypepayroll = 'RF' and c.Conceptsubtype ='In'  and cp.startdate  between  $P{DATE_FROM} and  $P{DATE_TO}
+group by cbp.value,cp.name,o.name,cp.periodno, cc.name
+union all
+select distinct
+'TOTAL' as startdate,
+cbp.value,
+o.name as org,
+sum(prtc.amount) as importe
+, cc.name as costcenter
+from  c_bpartner cbp
+left join c_costcenter cc on cc.c_costcenter_id = cbp.em_sspr_costcenter_id
+left join sspr_payroll_ticket prt on prt.c_bpartner_id = cbp.c_bpartner_id
+left join  sspr_payroll pr on pr.sspr_payroll_id = prt.sspr_payroll_id
+left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+left join sspr_concept c on c.sspr_concept_id = prtc.sspr_concept_id
+left join ad_org o on c.ad_org_id=o.ad_org_id
+left join c_period cp on pr.c_period_id=cp.c_period_id
+where cbp.isemployee='Y' and c.concepttypepayroll = 'RF' and c.Conceptsubtype ='In' and cp.startdate  between $P{DATE_FROM}  and  $P{DATE_TO}
+group by cbp.value,o.name, cc.name) valor
+
+on emp_per.value=valor.value and emp_per.startdate=valor.startdate
+left join c_period cp on cp.name=emp_per.startdate
+
+order by emp_per.name,emp_per.ordenar]]>
+	</queryString>
+	<field name="startdate" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="org" class="java.lang.String"/>
+	<field name="valor" class="java.math.BigDecimal"/>
+	<field name="costcenter" class="java.lang.String"/>
+	<field name="periodo_inicio" class="java.lang.String"/>
+	<field name="periodo_fin" class="java.lang.String"/>
+	<field name="fecha_actual" class="java.lang.String"/>
+	<title>
+		<band height="98" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="802" height="28"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE FONDOS DE RESERVA]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="28" width="802" height="28"/>
+				<textElement textAlignment="Center">
+					<font size="13" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{org}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="56" width="802" height="20"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["PERIODO: " +($F{periodo_inicio}==null?"":$F{periodo_inicio}) + " - "+ ($F{periodo_fin}==null?"":$F{periodo_fin})]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="76" width="802" height="20"/>
+				<textElement textAlignment="Right">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Fecha de impresión: " +($F{fecha_actual}==null?"":$F{fecha_actual})]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<summary>
+		<band height="112" splitType="Stretch">
+			<crosstab>
+				<reportElement positionType="Float" x="0" y="2" width="802" height="110"/>
+				<crosstabHeaderCell>
+					<cellContents>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="159" height="30"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Centro de Costo]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="159" y="0" width="110" height="30"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Cod.]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="269" y="0" width="235" height="30"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Tercero]]></text>
+						</staticText>
+					</cellContents>
+				</crosstabHeaderCell>
+				<rowGroup name="costcenter" width="159" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{costcenter}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="159" height="25"/>
+								<textElement/>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{costcenter}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#005FB3" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="ci" width="110" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{ci}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="110" height="25"/>
+								<textElement/>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{ci}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="345" height="25"/>
+								<textElement/>
+								<textFieldExpression class="java.lang.String"><![CDATA["TOTAL " + ($V{costcenter}==null?"":$V{costcenter})]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="tercero" width="235">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{tercero}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents>
+							<box>
+								<topPen lineWidth="0.5"/>
+								<leftPen lineWidth="0.5"/>
+								<bottomPen lineWidth="0.5"/>
+								<rightPen lineWidth="0.5"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="235" height="25"/>
+								<textElement textAlignment="Left"/>
+								<textFieldExpression class="java.lang.String"><![CDATA["  " +$V{tercero}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<columnGroup name="startdate" height="30" totalPosition="End">
+					<bucket>
+						<bucketExpression class="java.lang.String"><![CDATA[$F{startdate}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="116" height="30"/>
+								<textElement verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<textFieldExpression class="java.lang.String"><![CDATA[$V{startdate}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#BFE1FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+								<topPen lineWidth="0.0"/>
+								<leftPen lineWidth="0.0"/>
+								<bottomPen lineWidth="0.0"/>
+								<rightPen lineWidth="0.0"/>
+							</box>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<measure name="valorMeasure" class="java.math.BigDecimal" calculation="Sum">
+					<measureExpression><![CDATA[$F{valor}]]></measureExpression>
+				</measure>
+				<crosstabCell width="116" height="25">
+					<cellContents>
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="116" height="25"/>
+							<textElement/>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{valorMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="116" height="25" rowTotalGroup="costcenter">
+					<cellContents backcolor="#005FB3" mode="Transparent">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="116" height="25" forecolor="#080101"/>
+							<textElement/>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{valorMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="105" height="25" columnTotalGroup="startdate">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.0"/>
+							<leftPen lineWidth="0.0"/>
+							<bottomPen lineWidth="0.0"/>
+							<rightPen lineWidth="0.0"/>
+						</box>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="105" rowTotalGroup="costcenter" columnTotalGroup="startdate">
+					<cellContents backcolor="#005FB3" mode="Transparent">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.0"/>
+							<leftPen lineWidth="0.0"/>
+							<bottomPen lineWidth="0.0"/>
+							<rightPen lineWidth="0.0"/>
+						</box>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="116" height="25" rowTotalGroup="ci">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="116" height="25"/>
+							<textElement/>
+							<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{valorMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="105" rowTotalGroup="ci" columnTotalGroup="startdate">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.0"/>
+							<leftPen lineWidth="0.0"/>
+							<bottomPen lineWidth="0.0"/>
+							<rightPen lineWidth="0.0"/>
+						</box>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="tercero">
+					<cellContents/>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="tercero" columnTotalGroup="startdate">
+					<cellContents/>
+				</crosstabCell>
+			</crosstab>
+		</band>
+	</summary>
+</jasperReport>

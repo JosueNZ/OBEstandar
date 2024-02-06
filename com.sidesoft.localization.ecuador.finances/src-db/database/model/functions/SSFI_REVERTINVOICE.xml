@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSFI_REVERTINVOICE">
+    <function name="SSFI_REVERTINVOICE" type="VARCHAR">
+      <parameter name="p_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_record_id         	    VARCHAR2(60);      
+v_recordreference_id         	    VARCHAR2(60);      
+v_schedule_id        VARCHAR2(32);      
+v_schedule_amount       NUMBER;
+v_issotrx		CHAR(1); 
+v_doctype		VARCHAR(60); 
+v_docbasetype		VARCHAR(60); 
+
+v_schedule_amount_invoice       NUMBER;
+v_Msg VARCHAR(360); 
+v_InvoiceID VARCHAR2(32);      
+v_InvoiceSchedule VARCHAR2(32);      
+TYPE RECORD IS REF CURSOR;
+   cur_params RECORD;
+BEGIN
+
+v_InvoiceID:= coalesce(to_char(p_record_id),to_char('ND'));
+
+IF (v_InvoiceID<>'ND')THEN
+
+
+	SELECT COALESCE((SELECT FIN_PAYMENT_SCHEDULE_ID FROM FIN_PAYMENT_SCHEDULE WHERE C_INVOICE_ID = v_InvoiceID
+	),TO_CHAR('ND'))
+	INTO v_InvoiceSchedule
+	FROM DUAL;
+
+	IF (v_InvoiceSchedule<>'ND') THEN
+
+		DELETE FROM FIN_PAYMENT_SCHEDULEDETAIL WHERE FIN_PAYMENT_SCHEDULE_INVOICE = v_InvoiceSchedule;
+		DELETE FROM FIN_PAYMENT_SCHEDULE WHERE C_INVOICE_ID = v_InvoiceID;
+		UPDATE C_INVOICE SET outstandingamt = 0, em_aprm_processinvoice='CO', docstatus = 'DR', docaction='CO',processed ='N' WHERE C_INVOICE_ID = v_InvoiceID;
+	END IF;
+	
+v_Msg:='OK';
+
+END IF;
+
+RETURN v_Msg;
+
+ EXCEPTION
+WHEN OTHERS THEN
+RAISE;
+END SSFI_REVERTINVOICE
+]]></body>
+    </function>
+  </database>

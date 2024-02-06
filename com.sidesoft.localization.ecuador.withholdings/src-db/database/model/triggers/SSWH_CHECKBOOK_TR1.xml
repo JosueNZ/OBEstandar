@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_CHECKBOOK_TR1">
+    <trigger name="SSWH_CHECKBOOK_TR1" table="SSWH_CHECKBOOK" fires="after" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+
+v_Count NUMBER;
+v_DateNull DATE := TO_DATE('01-01-1900', 'DD-MM-YYYY');
+v_checkbook_id varchar(32);
+v_nrocheck varchar(32);
+v_from varchar(32);
+v_to varchar(32);
+v_to_check varchar(32);
+v_currency_id varchar(32);
+v_bankaccount_id varchar(32);
+v_processed char(1);
+v_isactive char(1);
+        
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+	 IF INSERTING THEN
+      v_checkbook_id:=:NEW.sswh_CHECKBOOK_ID;
+      
+     ELSE 
+      v_checkbook_id:=:OLD.sswh_CHECKBOOK_ID;
+     END IF;
+     
+   IF UPDATING THEN
+     IF (v_processed='Y'
+        AND ((COALESCE(:old.C_BANKACCOUNT_ID, '0') <> COALESCE(:new.C_BANKACCOUNT_ID, '0'))
+        OR(COALESCE(:old.AD_ORG_ID, '0') <> COALESCE(:new.AD_ORG_ID, '0'))
+        OR(COALESCE(:old.AD_CLIENT_ID, '0') <> COALESCE(:new.AD_CLIENT_ID, '0'))
+        OR(COALESCE(:old.TYPECHECK, '0') <> COALESCE(:new.TYPECHECK, '0'))
+        OR(COALESCE(:old.NROCHECK, '0') <> COALESCE(:new.NROCHECK, '0'))
+        OR(COALESCE(:old.NROFROM, '0') <> COALESCE(:new.NROFROM, '0'))
+        OR(COALESCE(:old.NROTO, '0') <> COALESCE(:new.NROTO, '0'))
+        ))
+      THEN
+      RAISE_APPLICATION_ERROR( -20501, 'Document processed/posted');
+     END IF;
+	END IF;
+   
+   IF(DELETING) THEN
+     IF(v_processed='Y') THEN
+       RAISE_APPLICATION_ERROR(-20501, 'Document processed/posted') ;
+     END IF;
+   END IF;
+   IF(UPDATING) THEN
+   
+    v_isactive:=:new.isactive;
+    
+    if (v_isactive='N') then
+    
+    update sswh_checkbookline 
+    set doc_line_status='D'
+    where sswh_checkbook_id=v_checkbook_id
+    and doc_line_status not in ('C','A');    
+    
+    ELSE
+    update sswh_checkbookline 
+    set doc_line_status='P'
+    where sswh_checkbook_id=v_checkbook_id
+    and doc_line_status not in ('C','A');
+    
+    end if;
+
+    
+   END IF;
+   
+   
+END SSWH_CHECKBOOK_TR1
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_ACTIVITY_FROM_OPPORT">
+    <function name="OPCRM_ACTIVITY_FROM_OPPORT" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+  v_ResultStr VARCHAR2(2000) := '';
+  v_record_id VARCHAR2(32);
+  v_client_id VARCHAR2(32);
+  v_org_id VARCHAR2(32);
+  v_user_id VARCHAR2(32);
+  p_description VARCHAR2(255);
+  v_record RECORD;
+  p_subject VARCHAR2(60);
+  p_startdate DATE WITHOUT TIME ZONE;
+  p_start_h NUMBER;
+  p_start_m NUMBER;
+  p_duration_h NUMBER;
+  p_duration_m NUMBER;
+  v_activity_id VARCHAR2(32);
+  v_opportunity_record RECORD;
+  v_opportunity_user_id VARCHAR2(32);
+  v_activity_access_id VARCHAR2(32);
+  v_exists NUMBER;
+BEGIN
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'Y', NULL, NULL );
+
+  -- Get record ID and parameters
+  SELECT i.Record_ID, i.ad_client_id, i.ad_org_id, i.ad_user_id, pa.p_string, pb.p_date, pc.p_number , pd.p_number, pe.p_number, pf.p_number, ph.p_string
+  INTO v_record_id, v_client_id, v_org_id,v_user_id, p_subject, p_startdate, p_start_h, p_start_m , p_duration_h, p_duration_m, p_description 
+  FROM AD_PInstance i
+  LEFT JOIN ad_pinstance_para pa ON pa.ad_pinstance_id = i.ad_pinstance_id AND pa.parametername = 'subject'
+  LEFT JOIN ad_pinstance_para pb ON pb.ad_pinstance_id = i.ad_pinstance_id AND pb.parametername = 'startdate'
+  LEFT JOIN ad_pinstance_para pc ON pc.ad_pinstance_id = i.ad_pinstance_id AND pc.parametername = 'start_h'
+  LEFT JOIN ad_pinstance_para pd ON pd.ad_pinstance_id = i.ad_pinstance_id AND pd.parametername = 'start_m'
+  LEFT JOIN ad_pinstance_para pe ON pe.ad_pinstance_id = i.ad_pinstance_id AND pe.parametername = 'duration_h'
+  LEFT JOIN ad_pinstance_para pf ON pf.ad_pinstance_id = i.ad_pinstance_id AND pf.parametername = 'duration_m'
+  LEFT JOIN ad_pinstance_para ph ON ph.ad_pinstance_id = i.ad_pinstance_id AND ph.parametername = 'description'
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+
+  SELECT * INTO v_opportunity_record FROM opcrm_opportunities o WHERE o.opcrm_opportunities_id = v_record_id;
+
+  v_activity_id := get_uuid();
+
+
+  INSERT INTO opcrm_activity(
+            opcrm_activity_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, activity_subject, activity_startdate, 
+            start_hour, start_minute, duration_hours, duration_minutes, 
+            related_to, related_lead ,assigned_to, opcrm_opportunities_id,
+            c_bpartner_id, activity_type, description)
+    VALUES (v_activity_id, v_client_id, v_org_id, 'Y', current_timestamp, 
+            v_user_ID, current_timestamp, v_user_ID, p_subject, p_startdate, 
+            p_start_h, p_start_m, p_duration_h, p_duration_m, 
+            'opcrmToOpportunity', v_opportunity_record.related_lead, v_user_ID, v_opportunity_record.opcrm_opportunities_id,
+            v_opportunity_record.c_bpartner_id, 'OPPORTUNITY', p_description);
+  
+  FOR v_opportunity_user_id IN (SELECT AD_User_ID FROM opcrm_opp_access WHERE opcrm_opportunities_id = v_record_id) LOOP
+      v_activity_access_id = get_uuid();
+     
+      IF(v_opportunity_user_id != v_user_ID) THEN
+            select count(*) into v_exists from opcrm_lead_activity where ad_user_id = v_opportunity_user_id and opcrm_activity_id = v_activity_id;
+          IF(v_exists=0) THEN
+                      INSERT INTO opcrm_lead_activity(
+                    opcrm_lead_activity_id, ad_client_id, ad_org_id, isactive, created, 
+                    createdby, updated, updatedby, ad_user_id, opcrm_activity_id)
+                    VALUES (v_activity_access_id, v_client_id, v_org_id, 'Y', current_timestamp, 
+                    v_user_id, current_timestamp, v_user_id, v_opportunity_user_id, v_activity_id);
+          END IF;
+      END IF;
+  END LOOP;               
+ 
+  AD_UPDATE_PINSTANCE( p_PInstance_ID, v_user_id, 'N', 1, '@OPCRM_ACTIVITYOK@' );
+ 
+EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr := '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    IF(p_PInstance_ID IS NOT NULL) THEN
+      AD_UPDATE_PINSTANCE( p_PInstance_ID, NULL, 'N', 0, v_ResultStr ) ;
+    END IF;
+    RETURN;
+END OPCRM_ACTIVITY_FROM_OPPORT
+]]></body>
+    </function>
+  </database>

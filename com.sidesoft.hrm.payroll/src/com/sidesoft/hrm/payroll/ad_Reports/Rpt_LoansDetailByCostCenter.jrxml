@@ -1,0 +1,628 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_LoansDetailByCostCenter" pageWidth="1111" pageHeight="612" orientation="Landscape" columnWidth="1111" leftMargin="0" rightMargin="0" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.9487171000000019"/>
+	<property name="ireport.x" value="1489"/>
+	<property name="ireport.y" value="77"/>
+	<parameter name="DATE_FROM" class="java.util.Date"/>
+	<parameter name="DATE_TO" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select sspr_loans.ad_org_id as "organizationid",
+     sspr_loans.sspr_loans_id as "sspr_loans_id",
+    c_bpartner.name as "empleado",
+    c_doctype.name as "typedocument",
+    sspr_loans.em_sfpr_documentno as "documentno",
+    sspr_typeguarantor.name as "tipogarante",
+    sspr_loans.guarantor as "garante",
+    sspr_loans.requestdate as "fechasolicitud",
+    case when sspr_loans.status = 'ap' then 'Aprobado'
+        when sspr_loans.status = 'cl' then 'Cerrado'
+        when sspr_loans.status = 'ad' then 'Aplicado'
+        when sspr_loans.status = 're' then 'Rechazado'
+    end as "aprobado",
+    sspr_loans.completestatus_approve as "completestatus_approve",
+    sspr_loans.interest as "interes",
+    sspr_line_loans.paydate as "fechaprimera",
+    sspr_loans.description as "descripcion",
+    sspr_loans.amount as "importe",
+    round(coalesce((select sum(sspr_line_loans.loan_advance) from sspr_line_loans
+  where sspr_line_loans.sspr_loans_id = sspr_loans.sspr_loans_id),0.00),2) as "valoranticipo",
+  round(coalesce((select sum(to_number(sspr_line_loans.amount,'999999999999.99')) from sspr_line_loans
+  where sspr_line_loans.sspr_loans_id = sspr_loans.sspr_loans_id
+    and sspr_line_loans.status = 'Cancel'),0.00),2) as "valorcancelado",
+    sspr_loans.time as "tiempocredit",
+    trunc(sspr_loans.amount/sspr_loans.time,2) as "valorcuota",
+        sum(round(to_number(sspr_line_loans.amount),2)) as "valorpendiente",
+    coalesce((select count(sspr_line_loans.status)
+    from sspr_line_loans
+ where sspr_line_loans.sspr_loans_id = sspr_loans.sspr_loans_id
+    and sspr_line_loans.status = 'Pending'),0) as "cuotasfaltantes",
+    now() as "fechaimpresion",
+co.name as "name"
+from sspr_loans
+join sspr_line_loans on sspr_loans.sspr_loans_id = sspr_line_loans.sspr_loans_id
+left join c_bpartner on c_bpartner.c_bpartner_id = sspr_loans.c_bpartner_id
+left join c_doctype on c_doctype.c_doctype_id = sspr_loans.em_sfpr_c_doctype_id
+left join sspr_typeguarantor on sspr_typeguarantor.sspr_typeguarantor_id = sspr_loans.sspr_typeguarantor_id
+left join c_costcenter co on co.c_costcenter_id = c_bpartner.em_sspr_costcenter_id
+left join sspr_category_acct on sspr_category_acct.sspr_category_acct_id = c_bpartner.em_sspr_category_acct_id
+ Where sspr_line_loans.status = 'Pending' and
+(sspr_line_loans.paydate between $P{DATE_FROM}  and $P{DATE_TO} )
+group by sspr_loans.ad_org_id,
+    sspr_loans.sspr_loans_id,
+    c_bpartner.name,
+    c_doctype.name,
+    sspr_loans.em_sfpr_documentno,
+    sspr_typeguarantor.name,
+    sspr_loans.guarantor,
+    sspr_loans.requestdate,
+  sspr_loans.status,
+    sspr_loans.completestatus_approve,
+    sspr_loans.interest,
+    sspr_line_loans.paydate,
+    sspr_loans.description,
+    sspr_loans.amount,
+  sspr_loans.time,
+co.name
+order by co.name,c_bpartner.name,sspr_loans.requestdate]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="sspr_loans_id" class="java.lang.String"/>
+	<field name="empleado" class="java.lang.String"/>
+	<field name="typedocument" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="tipogarante" class="java.lang.String"/>
+	<field name="garante" class="java.lang.String"/>
+	<field name="fechasolicitud" class="java.sql.Timestamp"/>
+	<field name="aprobado" class="java.lang.String"/>
+	<field name="completestatus_approve" class="java.lang.String"/>
+	<field name="interes" class="java.lang.String"/>
+	<field name="fechaprimera" class="java.sql.Timestamp"/>
+	<field name="descripcion" class="java.lang.String"/>
+	<field name="importe" class="java.math.BigDecimal"/>
+	<field name="valoranticipo" class="java.math.BigDecimal"/>
+	<field name="valorcancelado" class="java.math.BigDecimal"/>
+	<field name="tiempocredit" class="java.math.BigDecimal"/>
+	<field name="valorcuota" class="java.math.BigDecimal"/>
+	<field name="valorpendiente" class="java.math.BigDecimal"/>
+	<field name="cuotasfaltantes" class="java.lang.Long"/>
+	<field name="fechaimpresion" class="java.sql.Timestamp"/>
+	<field name="name" class="java.lang.String"/>
+	<variable name="v_sub_importe" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{importe}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_anticipo" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{valoranticipo}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_valorcancelado" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorcancelado}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_tiempocredit" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{tiempocredit}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_valorcuota" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorcuota}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_valorpendiente" class="java.math.BigDecimal" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorpendiente}]]></variableExpression>
+	</variable>
+	<variable name="v_sub_cuotafaltante" class="java.lang.Long" resetType="Group" resetGroup="CostCenter" calculation="Sum">
+		<variableExpression><![CDATA[$F{cuotasfaltantes}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_importe" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{importe}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_anticipo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valoranticipo}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_valorcancelado" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorcancelado}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_tiempocredit" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{tiempocredit}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_valorcuota" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorcuota}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_valorpendiente" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valorpendiente}]]></variableExpression>
+	</variable>
+	<variable name="v_tot_cuotafaltante" class="java.lang.Long" calculation="Sum">
+		<variableExpression><![CDATA[$F{cuotasfaltantes}]]></variableExpression>
+	</variable>
+	<group name="CostCenter">
+		<groupExpression><![CDATA[$F{name}]]></groupExpression>
+		<groupHeader>
+			<band height="74">
+				<staticText>
+					<reportElement x="0" y="41" width="71" height="19"/>
+					<textElement verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[NO. DOCUMENTO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="443" y="41" width="41" height="19"/>
+					<textElement verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[INTERES]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="484" y="41" width="58" height="19"/>
+					<textElement verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[FECHA PAGO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="542" y="41" width="177" height="19"/>
+					<textElement verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[DECRIPCIÓN]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="1069" y="41" width="42" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CUOTAS FALT.]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="1014" y="41" width="55" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[VALOR PENDIENTE]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="957" y="41" width="57" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[VALOR CUOTA]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="902" y="41" width="55" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[TIEMPO CREDITO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="837" y="41" width="65" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[VALOR CANCEL]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="719" y="41" width="63" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[IMPORTE]]></text>
+				</staticText>
+				<line>
+					<reportElement x="0" y="39" width="1111" height="1"/>
+				</line>
+				<staticText>
+					<reportElement x="71" y="41" width="266" height="19"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[EMPLEADO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="337" y="41" width="50" height="19"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[FECHA]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="387" y="41" width="56" height="19"/>
+					<textElement textAlignment="Center" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[ESTADO]]></text>
+				</staticText>
+				<line>
+					<reportElement x="0" y="61" width="1111" height="1"/>
+				</line>
+				<textField isBlankWhenNull="true">
+					<reportElement x="387" y="11" width="450" height="30"/>
+					<textElement verticalAlignment="Middle">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{name}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="11" width="387" height="30"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CENTRO DE COSTOS: ]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="782" y="41" width="55" height="19"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="7" isBold="true"/>
+					</textElement>
+					<text><![CDATA[VALOR ANTICIPO]]></text>
+				</staticText>
+				<staticText>
+					<reportElement positionType="Float" x="0" y="62" width="1111" height="12"/>
+					<textElement/>
+					<text><![CDATA[       ]]></text>
+				</staticText>
+				<staticText>
+					<reportElement positionType="Float" x="0" y="2" width="1111" height="9"/>
+					<textElement/>
+					<text><![CDATA[       ]]></text>
+				</staticText>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="25">
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="719" y="1" width="63" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_importe}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="782" y="1" width="55" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_anticipo}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="837" y="1" width="65" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_valorcancelado}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="902" y="1" width="55" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_tiempocredit}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="957" y="1" width="57" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_valorcuota}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="1014" y="1" width="55" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_valorpendiente}]]></textFieldExpression>
+				</textField>
+				<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+					<reportElement x="1069" y="1" width="42" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.Long"><![CDATA[$V{v_sub_cuotafaltante}]]></textFieldExpression>
+				</textField>
+				<textField isBlankWhenNull="true">
+					<reportElement x="0" y="1" width="719" height="22"/>
+					<box>
+						<topPen lineWidth="1.0"/>
+						<bottomPen lineWidth="1.0"/>
+					</box>
+					<textElement textAlignment="Right" verticalAlignment="Top">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA["TOTAL "+($F{name}==null?"":$F{name}) + ": "]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="67" splitType="Stretch">
+			<staticText>
+				<reportElement x="337" y="0" width="500" height="66"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Detalle de Cuotas Prestamos]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="337" height="66"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="71" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="443" y="0" width="41" height="20"/>
+				<textElement textAlignment="Center">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{interes}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="484" y="0" width="58" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaprimera}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="1069" y="0" width="42" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Long"><![CDATA[$F{cuotasfaltantes}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="1014" y="0" width="55" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valorpendiente}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="957" y="0" width="57" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valorcuota}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="902" y="0" width="55" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{tiempocredit}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="837" y="1" width="65" height="19"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valorcancelado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="719" y="0" width="63" height="20"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{importe}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="542" y="0" width="177" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{descripcion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="71" y="0" width="266" height="20"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{empleado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy">
+				<reportElement x="337" y="0" width="50" height="20"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechasolicitud}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="387" y="0" width="56" height="20"/>
+				<textElement>
+					<font size="8" isBold="false"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{aprobado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="782" y="1" width="55" height="19"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valoranticipo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band height="60">
+			<staticText>
+				<reportElement x="902" y="48" width="112" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="7" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de impresión]]></text>
+			</staticText>
+			<textField pattern="dd/MM/yyyy h.mm a">
+				<reportElement x="1014" y="48" width="97" height="12"/>
+				<textElement>
+					<font size="7"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaimpresion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</lastPageFooter>
+	<summary>
+		<band height="130" splitType="Stretch">
+			<staticText>
+				<reportElement positionType="Float" x="542" y="99" width="177" height="12"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Elaborado por]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="782" y="99" width="175" height="12"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Aprobado por]]></text>
+			</staticText>
+			<staticText>
+				<reportElement positionType="Float" x="0" y="24" width="1111" height="58"/>
+				<textElement/>
+				<text><![CDATA[       ]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="782" y="1" width="55" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_anticipo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="719" y="1" width="63" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_importe}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="837" y="1" width="65" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_sub_valorcancelado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="957" y="1" width="57" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_valorcuota}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="1014" y="1" width="55" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_valorpendiente}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="902" y="1" width="55" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{v_tot_tiempocredit}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="1069" y="1" width="42" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.Long"><![CDATA[$V{v_tot_cuotafaltante}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="1" width="719" height="23"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[GRAN TOTAL CENTRO DE COSTOS:]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

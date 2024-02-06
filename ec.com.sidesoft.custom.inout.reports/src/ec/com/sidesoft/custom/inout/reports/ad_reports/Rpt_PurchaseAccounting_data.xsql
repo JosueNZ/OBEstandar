@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="RptPurchaseAccountingData" package="ec.com.sidesoft.custom.inout.reports.ad_reports">
+   <SqlClassComment></SqlClassComment>
+   <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[
+	    select i.ad_org_id as organizationid, 'ASIENTO DE COMPRAS ' || i.documentno as documentno, i.description as description, to_char(i.dateinvoiced) as date1,
+			bp.name as partner, cbl.name as address, bp.taxid as tax, i.EM_Sswh_Nroauthorization as authorization, to_char(i.EM_Sswh_Expirationdate) as expireddate,
+		e.value as accountcod, e.name as det, a.amtacctdr as debit, a.amtacctcr as credit,
+		fp.name as formpay, i.poreference as reference, cbl.phone as phone,cc.name as costcenter
+		, upper(cd.name) || ' - ' || i.documentno as lbldocumentno
+		,au.name as usuario
+		,to_char(a.created, 'dd/MM/yyyy HH24:MI:SS') as creacion
+		,to_char(now(),'dd/MM/yyyy') as fecha_actual   
+		,i.poreference as referencia_fact 
+		from c_invoice i
+		left join fact_acct a on a.record_id = i.c_invoice_id
+		left join c_elementvalue e on e.c_elementvalue_id = a.account_id
+		left join c_bpartner bp on bp.c_bpartner_id = i.c_bpartner_id
+		left join c_bpartner_location cbl on cbl.c_bpartner_location_id = i.c_bpartner_location_id
+		left join fin_paymentmethod fp on fp.fin_paymentmethod_id = i.FIN_Paymentmethod_ID  
+		left join c_costcenter cc on cc.c_costcenter_id = a.c_costcenter_id
+		left join c_doctype cd on cd.c_doctype_id = a.c_doctype_id  
+		left join ad_user au on au.ad_user_id = a.createdby  
+		where i.c_invoice_id =  ?  and a.ad_table_id ='318'
+        ]]>
+        </Sql>
+        <Parameter name="invoice"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>

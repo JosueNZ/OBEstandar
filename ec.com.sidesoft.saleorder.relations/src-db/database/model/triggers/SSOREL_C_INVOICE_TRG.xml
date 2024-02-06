@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSOREL_C_INVOICE_TRG">
+    <trigger name="SSOREL_C_INVOICE_TRG" table="C_INVOICE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+v_is_return CHAR(1);
+
+v_doc_basetype VARCHAR(60);
+
+v_c_doctype_id VARCHAR(60);
+
+v_count NUMBER:=0;
+
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING) THEN
+          
+      v_c_doctype_id := :NEW.c_doctype_id;
+     
+      SELECT cd.IsReturn, cd.DocBaseType
+         INTO v_is_return, v_doc_basetype
+        FROM c_doctype cd WHERE cd.c_doctype_id = v_c_doctype_id;
+     
+      IF (:NEW.issotrx = 'Y' AND v_doc_basetype = 'ARI_RM'  AND  v_is_return = 'Y' AND :NEW.em_scnr_isref_inv = 'Y' AND :NEW.em_scnr_invoice_id IS NOT NULL) THEN
+            
+      IF (:NEW.docstatus = 'CO' AND :OLD.docstatus = 'DR') then      
+      
+         
+             
+	      UPDATE c_orderline ol 
+	        SET qtyinvoiced = ABS(qtyinvoiced + coalesce((select inl.qtyinvoiced 
+	                                               from c_invoiceline inl 
+	                                              where inl.c_invoice_id = :NEW.c_invoice_id
+			                                               and  inl.m_product_id = ol.m_product_id ), 0) ) 
+		   WHERE ol.c_order_id = :NEW.c_order_id 
+		    AND EXISTS (SELECT 1 
+		                  FROM c_invoiceline invl
+		                 WHERE invl.c_invoice_id = :NEW.c_invoice_id                
+		                   AND (invl.qtyinvoiced + ol.qtyinvoiced) >= 0
+		                   AND (invl.qtyinvoiced + ol.qtyinvoiced) < ol.qtyordered );       
+	    
+			                  
+		INSERT INTO public.sinvmin_square_bill
+               (sinvmin_square_bill_id, 
+               ad_client_id, ad_org_id, 
+               isactive, 
+               created, 
+               createdby, 
+               updated, 
+               updatedby, 
+               c_orderline_id, 
+               m_inoutline_id,
+               c_invoiceline_id, 
+               m_product_id, qty, 
+               datetrx, 
+               ad_table_id)
+              select get_uuid() , 
+	              	  cl2.ad_client_id, 
+		              cl2.ad_org_id, 
+		              cl2.isactive, 
+		              cl2.created, 
+		              cl2.createdby, 
+		              cl2.updated, 
+		              cl2.updatedby, 
+		              sinv.c_orderline_id, 
+		              sinv.m_inoutline_id, 
+		              cl2.c_invoiceline_id, 
+		              cl2.m_product_id,
+		              cl2.qtyinvoiced, 
+		              now(), 
+		              '318'
+              from c_invoiceline cl
+ 				inner join sinvmin_square_bill sinv on sinv.c_invoiceline_id = cl.c_invoiceline_id 
+ 				inner join c_invoiceline cl2 on cl2.c_invoice_id = :NEW.c_invoice_id and cl2.m_product_id = cl.m_product_id
+			  where cl.c_invoice_id = :NEW.EM_Scnr_Invoice_ID and sinv.ad_table_id = '318';	                  
+	     
+        END IF;
+       
+       
+       IF (:NEW.docstatus = 'VO' AND :OLD.docstatus = 'CO') THEN
+       	DELETE FROM sinvmin_square_bill sinv 
+		   WHERE EXISTS (SELECT 1 
+		                   FROM c_invoiceline invl 
+		                  WHERE invl.c_invoice_id = :NEW.c_invoice_id 
+		                   AND invl.c_invoiceline_id = sinv.c_invoiceline_id);       
+       END IF;
+     
+        IF (:NEW.docstatus = 'DR' AND :OLD.docstatus = 'CO') THEN
+        
+       UPDATE c_orderline ol 
+		        SET qtyinvoiced = ABS(qtyinvoiced + ABS((select inl.qtyinvoiced 
+		                                               from c_invoiceline inl 
+		                                              where inl.c_invoice_id = :NEW.c_invoice_id
+				                                               and  inl.m_product_id = ol.m_product_id )) ) 
+			   WHERE ol.c_order_id = :NEW.c_order_id 
+			    AND EXISTS (SELECT 1 
+			                  FROM c_invoiceline invl
+			                 WHERE invl.c_invoice_id = :NEW.c_invoice_id                
+			                   AND invl.m_product_id = ol.m_product_id
+			                   AND (ABS(invl.qtyinvoiced) + ol.qtyinvoiced) <= ol.qtyordered); 
+		
+		 DELETE FROM sinvmin_square_bill sinv 
+		   WHERE EXISTS (SELECT 1 
+		                   FROM c_invoiceline invl 
+		                  WHERE invl.c_invoice_id = :NEW.c_invoice_id 
+		                   AND invl.c_invoiceline_id = sinv.c_invoiceline_id);
+     
+        END IF; 
+    END IF;
+  END IF;
+
+  END SSOREL_C_INVOICE_TRG
+]]></body>
+    </trigger>
+  </database>

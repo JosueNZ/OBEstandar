@@ -1,0 +1,291 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_CHANGE_STATUS_LEAVE">
+    <function name="SSPR_CHANGE_STATUS_LEAVE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_vacations RECORD;
+Cur_leave RECORD;
+Cur_hours RECORD;
+
+v_status VARCHAR(32);   -- ALMACENA EL ESTADO ATADO A LA RAZON DE LA OT
+v_ResultStr VARCHAR2(2000):='';
+v_StatusDocumento_P VARCHAR(60);--OBTG:VARCHAR2--
+v_Client_ID VARCHAR2(32);
+v_Org_ID VARCHAR2(32);
+v_User_ID VARCHAR2(32) ;
+v_Record_ID  VARCHAR2(32);
+v_Message VARCHAR2(2000):='';  
+v_nodays NUMBER;
+v_nohours NUMBER;
+v_hours NUMBER;
+v_status_approve  VARCHAR(60);--OBTG:VARCHAR2-
+v_nodays_standart NUMBER;
+v_nodays_additional NUMBER;
+v_typevacations NUMBER;
+v_c_bpartner_id VARCHAR2(32);
+
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  
+  BEGIN --BODY
+
+   FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+      p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy   
+      FROM AD_PInstance i 
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo       
+      )
+    LOOP
+
+	    IF (Cur_Parameter.ParameterName = 'statusdoc') THEN
+		v_StatusDocumento_P := Cur_Parameter.P_String;      
+		v_Record_ID := Cur_Parameter.Record_ID;	
+		v_Client_ID := Cur_Parameter.AD_Client_ID;
+		v_Org_ID := Cur_Parameter.AD_Org_ID;
+		v_User_ID := Cur_Parameter.CreatedBy;
+            ELSE  
+		DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+	    END IF;       
+    END LOOP; -- End Get Parameter
+
+	v_hours := 0;
+	
+	For Cur_hours in(
+	  select hours
+	  from sspr_hours_work
+	  where value = 'wh'
+	)
+	Loop
+	    
+	v_hours := Cur_hours.hours;
+		
+	End Loop;
+
+        If(v_hours <= 0) Then	    
+        
+		RAISE_APPLICATION_ERROR(-20000,'@DATA_EXCEPTION@');
+
+	End If;
+	    
+	If(v_StatusDocumento_P = 'ap')Then
+	
+		v_status_approve := 'Approved Request';
+		
+	End If ;
+	If(v_StatusDocumento_P = 'cl')Then
+	
+		v_status_approve := 'Closed Request';
+		
+	End If;
+
+	If(v_StatusDocumento_P = 're')Then
+	
+		v_status_approve := 'Rejected Request';
+		
+	End If;
+
+	update sspr_leave_emp
+	set status_approve = v_StatusDocumento_P 
+	where sspr_leave_emp_id = v_Record_ID
+		and status_request = 'ad';	
+
+	v_nodays := 0;
+	
+	For Cur_leave in(
+		select c_bpartner_id,nodays,nohours,typevacations,
+			ad_client_id,ad_org_id,created,createdby,updated,updatedby,sspr_leave_emp_id
+		from sspr_leave_emp
+		where sspr_leave_emp_id = v_Record_ID
+		and status_approve = 'ap'
+		and add_to_vacancies = 'Y' 
+	)
+	Loop
+	
+		v_nodays := Cur_leave.nodays + round((Cur_leave.nohours/v_hours),2);
+
+		--VALIDA DIAS DE VACACIONES DISPONIBLES NORMALES
+		If(Cur_leave.typevacations = 'DN')Then
+
+			select coalesce((select sum(nodays)
+			from sspr_vacations
+			where c_bpartner_id = Cur_leave.c_bpartner_id),0)
+			into v_nodays_standart
+			from dual;
+
+			If(v_nodays_standart < v_nodays)Then
+				RAISE_APPLICATION_ERROR(-20000,'@No tiene vacaciones disponibles días normales@');
+			End if;
+			
+		End If;
+
+		--VALIDA DIAS DE VACACIONES DISPONIBLE ADICIONALES
+		If(Cur_leave.typevacations = 'DA')Then
+
+			select coalesce((select sum(noadditionaltotal)  
+			from sspr_vacations
+			where c_bpartner_id = Cur_leave.c_bpartner_id
+			),0)
+			into v_nodays_additional
+			from dual;
+
+			If(v_nodays_additional < v_nodays)Then
+				RAISE_APPLICATION_ERROR(-20000,'@No tiene vacaciones disponibles días adicionales@');
+			End if;
+		End If;
+
+		
+		If(Cur_leave.typevacations = 'DN')Then
+
+			For Cur_vacations in(
+				select entrydate ,end_date,sspr_vacations_id,
+				nodaysvacations,nodaystomados,nodays,noadditionaldays,noadditionaltomados,noadditionaltotal,nodaystotal,
+				dayvalue
+				from sspr_vacations 
+				where c_bpartner_id = Cur_leave.c_bpartner_id
+				and nodays > 0
+				order by entrydate
+				)
+			Loop
+	
+
+				If(v_nodays > Cur_vacations.nodays)then
+
+					--ACTUALIZA DIAS TOMADOS EN LA TABLA DE VACACIONES
+					update sspr_vacations
+					set nodaystomados = Cur_vacations.nodaystomados + Cur_vacations.nodays, 
+					    nodays = 0,
+					    nodaystotal = Cur_vacations.noadditionaltotal,
+					    vacationsvalue = Cur_vacations.dayvalue * 0 
+					 where sspr_vacations_id = Cur_vacations.sspr_vacations_id;
+							
+					v_nodays := v_nodays - Cur_vacations.nodays;
+
+					--INSERTA RELACION DE DIAS TOMADOS DE VACACIONES EN LAS LINEAS DEL PERMISO
+					insert into sspr_leave_emp_vac(sspr_leave_emp_vac_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,sspr_leave_emp_id,
+								   sspr_vacations_id,startdate,enddate,nodays,amount)
+					values(get_uuid(),Cur_leave.ad_client_id,Cur_leave.ad_org_id,'Y',Cur_leave.created,Cur_leave.createdby,Cur_leave.updated,Cur_leave.updatedby,Cur_leave.sspr_leave_emp_id,
+					       Cur_vacations.sspr_vacations_id,Cur_vacations.entrydate,Cur_vacations.end_date, Cur_vacations.nodays,round((Cur_vacations.nodays)* Cur_vacations.dayvalue,2));
+
+				Else 
+					If(v_nodays > 0 and v_nodays <=  Cur_vacations.nodays ) Then
+
+					update sspr_vacations
+					set nodaystomados =  Cur_vacations.nodaystomados + v_nodays,
+					    nodays = Cur_vacations.nodays - v_nodays,
+					    nodaystotal =  (Cur_vacations.nodays - v_nodays) + Cur_vacations.noadditionaltotal,
+					    vacationsvalue = round(((Cur_vacations.nodays - v_nodays )* Cur_vacations.dayvalue),2)
+					 where sspr_vacations_id = Cur_vacations.sspr_vacations_id;
+
+					--INSERTA RELACION DE DIAS TOMADOS DE VACACIONES EN LAS LINEAS DEL PERMISO
+					insert into sspr_leave_emp_vac(sspr_leave_emp_vac_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,sspr_leave_emp_id,
+								   sspr_vacations_id,startdate,enddate,nodays,amount)
+					values(get_uuid(),Cur_leave.ad_client_id,Cur_leave.ad_org_id,'Y',Cur_leave.created,Cur_leave.createdby,Cur_leave.updated,Cur_leave.updatedby,Cur_leave.sspr_leave_emp_id,
+					       Cur_vacations.sspr_vacations_id,Cur_vacations.entrydate,Cur_vacations.end_date,v_nodays,round(v_nodays * Cur_vacations.dayvalue,2));
+
+					v_nodays := 0;
+						
+					End If;		
+						
+				End If;
+				
+				
+			End Loop;
+			
+		Else
+		
+			For Cur_vacations in(
+				select entrydate ,end_date,sspr_vacations_id,
+				nodaysvacations,nodaystomados,nodays,noadditionaldays,noadditionaltomados,noadditionaltotal,nodaystotal,
+				dayvalue,Earneddays_Add
+				from sspr_vacations 
+				where c_bpartner_id = Cur_leave.c_bpartner_id
+				and noadditionaltotal > 0
+				order by entrydate
+				)
+			Loop
+		--RAISE_APPLICATION_ERROR(-20000,'v_nodays: '||v_nodays ||' noadditionaltotal: '|| Cur_vacations.noadditionaltotal);
+
+				If(v_nodays > Cur_vacations.noadditionaltotal)then
+
+		--RAISE_APPLICATION_ERROR(-20000,'entrydate: '||Cur_vacations.entrydate||' '||Cur_vacations.nodays + Cur_vacations.noadditionaltotal);
+					--ACTUALIZA DIAS TOMADOS EN LA TABLA DE VACACIONES
+					update sspr_vacations
+					set noadditionaltomados = Cur_vacations.noadditionaltomados + Cur_vacations.noadditionaltotal, 
+					    noadditionaltotal = 0,
+					    nodaystotal = Cur_vacations.nodays + 0  -- Cur_vacations.noadditionaltotal--,
+					    --vacationsvalue = Cur_vacations.dayvalue * 0 
+					 where sspr_vacations_id = Cur_vacations.sspr_vacations_id;
+			--RAISE_APPLICATION_ERROR(-20000,'nodays: '|| Cur_vacations.noadditionaltotal);
+					v_nodays := v_nodays - Cur_vacations.noadditionaltotal;
+					--INSERTA RELACION DE DIAS TOMADOS DE VACACIONES EN LAS LINEAS DEL PERMISO
+					insert into sspr_leave_emp_vac(sspr_leave_emp_vac_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,sspr_leave_emp_id,
+								   sspr_vacations_id,startdate,enddate,nodays,amount)
+					values(get_uuid(),Cur_leave.ad_client_id,Cur_leave.ad_org_id,'Y',Cur_leave.created,Cur_leave.createdby,Cur_leave.updated,Cur_leave.updatedby,Cur_leave.sspr_leave_emp_id,
+					       Cur_vacations.sspr_vacations_id,Cur_vacations.entrydate,Cur_vacations.end_date, Cur_vacations.noadditionaltotal,0 --round((Cur_vacations.nodays)* Cur_vacations.dayvalue,2)
+					       );
+
+				Else 
+
+					If(v_nodays > 0 and v_nodays <=  Cur_vacations.noadditionaltotal ) Then
+	--RAISE_APPLICATION_ERROR(-20000,'Cur_vacations.nodays + (Cur_vacations.Noadditionaltotal): '||Cur_vacations.nodays + (Cur_vacations.Earneddays_Add- (Cur_vacations.noadditionaltomados + v_nodays)));
+
+					update sspr_vacations
+					set noadditionaltomados =  Cur_vacations.noadditionaltomados + v_nodays,
+					    noadditionaltotal = Cur_vacations.Earneddays_Add- (Cur_vacations.noadditionaltomados + v_nodays), --Cur_vacations.Earneddays_Add - v_nodays,
+					    nodaystotal = Cur_vacations.nodays + (Cur_vacations.Earneddays_Add- (Cur_vacations.noadditionaltomados + v_nodays)) --(Cur_vacations.noadditionaltotal - Cur_vacations.noadditionaltotal|) + Cur_vacations.nodays --  (Cur_vacations.nodays - v_nodays) + Cur_vacations.noadditionaltotal--,
+					    --vacationsvalue = round(((Cur_vacations.nodays - v_nodays )* Cur_vacations.dayvalue),2)
+					 where sspr_vacations_id = Cur_vacations.sspr_vacations_id;
+
+					--INSERTA RELACION DE DIAS TOMADOS DE VACACIONES EN LAS LINEAS DEL PERMISO
+					insert into sspr_leave_emp_vac(sspr_leave_emp_vac_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,sspr_leave_emp_id,
+								   sspr_vacations_id,startdate,enddate,nodays,amount)
+					values(get_uuid(),Cur_leave.ad_client_id,Cur_leave.ad_org_id,'Y',Cur_leave.created,Cur_leave.createdby,Cur_leave.updated,Cur_leave.updatedby,Cur_leave.sspr_leave_emp_id,
+					       Cur_vacations.sspr_vacations_id,Cur_vacations.entrydate,Cur_vacations.end_date,v_nodays,0 --round(v_nodays * Cur_vacations.dayvalue,2)
+					       );
+--RAISE_APPLICATION_ERROR(-20000,'v_nodays: '||v_nodays) ;
+
+					v_nodays := 0;
+						
+					End If;		
+						
+				End If;
+				
+				
+			End Loop;
+	
+		End If;
+	End Loop;
+ --RAISE_APPLICATION_ERROR(-20000,'Se acabo');
+
+    v_Message := v_status_approve;
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message);
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_CHANGE_STATUS_LEAVE
+]]></body>
+    </function>
+  </database>

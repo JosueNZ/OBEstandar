@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SACCP_PINSTANCE_TRG">
+    <trigger name="SACCP_PINSTANCE_TRG" table="AD_PINSTANCE" fires="after" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_User_ID VARCHAR2(32);
+  v_Record_ID VARCHAR2(32);
+        
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+    IF(UPDATING) THEN
+
+            -- Get Parameters
+
+            SELECT c_period_id
+            INTO v_Record_ID
+            FROM c_periodcontrol_log
+            WHERE c_periodcontrol_log_id = :NEW.record_id; 
+
+            v_User_ID:= :NEW.ad_user_id; 
+
+            IF( v_Record_ID IS NOT NULL ) THEN
+
+                UPDATE c_periodcontrol
+                SET updated = now() , updatedby = v_User_ID
+                WHERE c_period_id = v_Record_ID;
+
+                UPDATE C_Period
+                SET updated = now() , updatedby = v_User_ID
+                WHERE c_period_id = v_Record_ID;
+
+            END IF;
+
+    END IF;
+
+    END SACCP_PINSTANCE_TRG
+]]></body>
+    </trigger>
+  </database>

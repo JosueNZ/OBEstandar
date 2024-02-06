@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPINCO_DATAFIELD_TRG">
+    <trigger name="SPINCO_DATAFIELD_TRG" table="C_BP_BANKACCOUNT" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+	vpartnerId	VARCHAR2(32);
+	vtaxId	VARCHAR2(32);
+	vtypeId	VARCHAR2(32);
+	vSeq			RECORD;
+
+BEGIN
+
+IF AD_isTriggerEnabled() = 'N' THEN RETURN;END IF;
+	
+	
+		IF (INSERTING OR UPDATING) THEN
+		
+			vpartnerId = :new.c_bpartner_id;
+
+				select taxid, EM_Sswh_Taxidtype into vtaxId, vtypeId
+				from C_BPartner cp
+				where cp.c_bpartner_id = vpartnerId;
+					:NEW.em_sswh_taxidno := vtaxId;
+				:NEW.em_sswh_taxidtype :=vtypeId;
+		END IF;
+	
+		END SPINCO_DATAFIELD_TRG
+]]></body>
+    </trigger>
+  </database>

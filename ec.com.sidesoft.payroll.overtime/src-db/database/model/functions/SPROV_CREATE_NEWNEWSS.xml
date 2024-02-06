@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_CREATE_NEWNEWSS">
+    <function name="SPROV_CREATE_NEWNEWSS" type="NULL">
+      <parameter name="p_startdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_enddate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_detovertime RECORD;
+Cur_processed RECORD;
+
+v_period_id VARCHAR2(32);
+v_c_bpartner_id VARCHAR2(32);
+v_client_id VARCHAR2(32);
+v_org_id VARCHAR2(32);
+v_user_id VARCHAR2(32);
+v_startdate DATE;
+v_enddate DATE;
+v_ResultStr VARCHAR2(2000) := '';
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+v_amount NUMBER;
+
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+ 
+	--VARIABLES
+	v_period_id := p_period_id;      
+	v_client_id := p_client_id;
+	v_org_id := p_org_id;
+	v_user_id := p_user_id; 
+	v_startdate := p_startdate;
+	v_enddate := p_enddate;
+	v_c_bpartner_id := p_c_bpartner_id;
+
+    For Cur_detovertime in (
+		select e.sspr_concept_id, coalesce(sum(a.amount), 0) as amount, c.name, b.c_bpartner_id,
+		e.name as name1, e.concepttypepayroll
+		from sprov_newness a
+		left join sprov_employee_overtime b on b.sprov_employee_overtime_id = a.sprov_employee_overtime_id
+		left join c_bpartner c on c.c_bpartner_id = b.c_bpartner_id
+		left join sprbi_maintenance_news d on d.sprbi_maintenance_news_id = a.sprbi_maintenance_news_id
+		left join sspr_concept e on e.sspr_concept_id = d.sspr_concept_id
+		where b.datemovement between v_startdate and v_enddate -- '01-01-2018' and '31-05-2018' --v_startdate and v_enddate
+		and (b.c_bpartner_id = v_c_bpartner_id or v_c_bpartner_id is null)
+		and b.processed = 'N'
+		and e.sspr_concept_id is not null		
+		group by e.sspr_concept_id, c.name, b.c_bpartner_id, e.name, e.concepttypepayroll
+		order by c.name
+	    )
+	    Loop
+		v_amount := 0;	
+		If(Cur_detovertime.concepttypepayroll = 'PM')Then
+			select round(value,2)
+			into v_amount
+			from sprbi_maintenance_news a
+			where sspr_concept_id = Cur_detovertime.sspr_concept_id
+			and a.created = (select max(created)
+					from sprbi_maintenance_news a
+					where sspr_concept_id = Cur_detovertime.sspr_concept_id);
+		Else
+			v_amount := Cur_detovertime.amount;
+		End If;
+		--Inserta novedades de las lineas del detalle de horas extras empleado
+		INSERT INTO SSPR_Concept_Amount
+		    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+		    Created, CreatedBy, Updated, UpdatedBy,
+		    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount)
+		VALUES
+		    (get_uuid(), v_client_id, v_org_id, 'Y',
+		    now(), v_user_id, now(), v_user_id,
+		    Cur_detovertime.sspr_concept_id,Cur_detovertime.c_bpartner_id,v_period_id,v_amount);
+
+		For Cur_processed in (
+			select sprov_employee_overtime_id
+			from sprov_employee_overtime
+			where datemovement between v_startdate and v_enddate --'01-01-2018' and '31-05-2018' --v_startdate and v_enddate
+			and c_bpartner_id = Cur_detovertime.c_bpartner_id
+		)
+		Loop
+
+			update sprov_newness 
+			set processed = 'Y'
+			where sprov_employee_overtime_id = Cur_processed.sprov_employee_overtime_id;
+			
+		End Loop;
+
+	    End Loop;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  				
+RETURN;
+END SPROV_CREATE_NEWNEWSS
+]]></body>
+    </function>
+  </database>

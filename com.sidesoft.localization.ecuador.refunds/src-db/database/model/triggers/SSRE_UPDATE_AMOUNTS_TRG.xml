@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_UPDATE_AMOUNTS_TRG">
+    <trigger name="SSRE_UPDATE_AMOUNTS_TRG" table="SSRE_REFUNDINVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+	v_authorization varchar2(255);
+	v_authorization2 varchar2(255);
+	v_calc NUMBER(20,8);
+	v_taxbaseamt  NUMBER(20,8);
+	v_exemptbase  NUMBER(20,8);
+	v_untaxed_basis NUMBER(20,8);
+	v_taxamt NUMBER(20,8);
+	v_taxice NUMBER(20,8);
+	v_taxbase NUMBER(20,8);
+	v_taxbaserefund NUMBER(20,8);
+	v_GrandTotal  NUMBER(20,8);
+
+	v_taxCalculate   NUMBER(20,8);
+	v_taxCalculateResult NUMBER(20,8);
+	
+	
+	v_InvoiceID varchar2(32);
+
+BEGIN 
+
+IF (INSERTING OR UPDATING ) THEN
+
+	v_InvoiceID:= :new.c_invoice_id;
+
+	v_taxbaseamt:=coalesce(to_number(:new.taxbaseamt),to_number(0));
+	v_taxbaserefund:=coalesce(to_number(:new.taxbaserefund),to_number(0));
+	v_exemptbase:=coalesce(to_number(:new.exemptbase),to_number(0));
+	v_untaxed_basis:= coalesce(to_number(:new.untaxed_basis),to_number(0));
+	v_taxamt:=coalesce(to_number(:new.taxamt),to_number(0));
+	v_taxice:=coalesce(to_number(:new.taxice),to_number(0));
+	v_taxbase:=coalesce(to_number(:new.taxbase),to_number(0));
+	v_taxbaserefund:=coalesce(to_number(:new.taxbaserefund),to_number(0));
+
+        select coalesce((select coalesce( 
+        (select (e.rate) from c_tax e where  e.rate <> 0  and e.istaxdeductable ='Y' and e.isactive='Y'
+         and validfrom = (select max(validfrom) from c_tax e where e.rate <> 0  and e.isactive='Y' and e.istaxdeductable ='Y' and validfrom <= dateinvoiced
+         )),to_number(0))  as tax_res from c_invoice where c_invoice_id = v_InvoiceID),to_number(0))
+         into  v_taxCalculate
+         from dual;
+
+         IF  (v_taxCalculate<>0) THEN
+		v_taxCalculateResult:= trunc((v_taxbaserefund*v_taxCalculate)/100,5);
+		:new.taxamt:= v_taxCalculateResult;
+		v_taxamt:= v_taxCalculateResult;
+         END IF;
+
+         v_GrandTotal:= (v_taxbaseamt + v_exemptbase  + v_untaxed_basis + v_taxamt   + v_taxice + v_taxbase + v_taxbaserefund);
+         :new.grandtotal:= trunc(v_GrandTotal,5);
+ 
+END IF;
+	
+  END SSRE_UPDATE_AMOUNTS_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_VALIDATEDOCUMENTNO_TRG">
+    <trigger name="SSRE_VALIDATEDOCUMENTNO_TRG" table="SSRE_REFUNDINVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+
+    v_Tree_ID VARCHAR2(32);
+    v_count NUMBER;
+    V_InvoiceLength NUMBER;
+    
+    V_InvoiceID VARCHAR2(32);
+    V_DateInvoice DATE;
+    V_DateRefund DATE;
+    V_DocStatus VARCHAR2(40);
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+
+  IF (INSERTING OR UPDATING) THEN    
+    
+    V_InvoiceID := :NEW.C_INVOICE_ID;
+    SELECT DOCSTATUS,DATEINVOICED
+    INTO V_DocStatus,V_DateInvoice
+    FROM C_INVOICE 
+    WHERE C_INVOICE_ID = V_InvoiceID;
+   
+    
+    IF (V_DocStatus='DR') THEN
+    
+      V_InvoiceLength := COALESCE((length(:NEW.POREFERENCE)),0);
+   
+      IF (V_InvoiceLength>0 AND (V_InvoiceLength<9  OR V_InvoiceLength>9)) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@El Nro. de Factura debe tener 9 digitos.@');
+      END IF;
+       
+      V_DateRefund := :NEW.DATEEMISSION;
+
+      IF (V_DateRefund > V_DateInvoice) THEN
+        RAISE_APPLICATION_ERROR(-20000, '@La Fecha del Reembolso no puede ser mayor a la fecha de la Factura(Cabecera).@');
+      END IF;
+      
+      
+    END IF;
+  END IF;
+END SSRE_VALIDATEDOCUMENTNO_TRG
+]]></body>
+    </trigger>
+  </database>

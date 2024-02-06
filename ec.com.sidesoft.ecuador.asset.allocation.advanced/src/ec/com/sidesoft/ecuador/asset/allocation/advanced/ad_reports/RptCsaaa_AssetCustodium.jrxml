@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptCsaaa_AssetCustodium" pageWidth="1260" pageHeight="841" orientation="Landscape" columnWidth="1220" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0000000000000047"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+cbp.name as "custodio"
+, cbp.taxid as "c_i"
+, cc.name as "buque_area"
+, (line/10) as "line"
+, to_char('(N/A)') as "codigo_anterior"
+, ast.value as "codigo_activo"
+, ast.name as "nombre acrivo"
+, ast.name as "descripcion_activo"
+, ast.em_ssam_model as "modelo"
+, ast.em_ssam_serie as "serie"
+, ast.em_ssam_brand as "marca"
+, ccc.name as "ubicacion"
+, (case when ast.em_ssam_condition =to_char('GD') then to_char('Bueno')
+	when ast.em_ssam_condition =to_char('RG') then to_char('Regular')
+	when ast.em_ssam_condition =to_char('BD') then to_char('Malo')
+  end)
+
+ as "condicion"
+ ,csail.description as "descripcion_line"
+,(
+select
+spt.name
+from SSPR_Contract_Position spcp
+join sspr_position spt on spt.sspr_position_id = spcp.sspr_position_id
+where spcp.sspr_contract_id in  (
+select sspr2.sspr_contract_id from sspr_contract sspr2
+where sspr2.c_Bpartner_id = cbp.c_bpartner_id
+and sspr2.enddate = (select max(enddate) from sspr_contract sspr1 where sspr1.c_bpartner_id = cbp.c_bpartner_id ) )
+
+and enddate =  (select max(enddate) from SSPR_Contract_Position spcp1 where spcp1.sspr_contract_id in (
+select sspr2.sspr_contract_id from sspr_contract sspr2
+where sspr2.c_Bpartner_id = cbp.c_bpartner_id
+and sspr2.enddate = (select max(enddate) from sspr_contract sspr1 where sspr1.c_bpartner_id = cbp.c_bpartner_id )
+
+))
+
+ ) AS "cargo"
+, csai.ad_org_id as "ad_org_id"
+,
+case
+	when to_char(date_inv_tak,'MM') = to_char('01') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('ENERO ') || TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('02') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('FEBRERO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('03') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('MARZO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('04') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('ABRIL ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('05') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('MAYO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('06') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('JUNIO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('07') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('JULIO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('08') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('AGOSTO ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('09') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('SEPTIEMBRE ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('10') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('OCTUBRE ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('11') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('NOVIEMBRE ')|| TO_CHAR(date_inv_tak,'YYYY')
+	when to_char(date_inv_tak,'MM') = to_char('12') then to_char(date_inv_tak,'DD') ||' DE ' || TO_CHAR('DICIEMBRE ')|| TO_CHAR(date_inv_tak,'YYYY')
+ELSE to_char('--') end AS "periodo",
+CASE WHEN csail.conciliation ='Y' THEN 'SI' WHEN csail.conciliation ='N' THEN 'NO' END AS "conciliado"
+from csaaa_inventory_taking  csai
+join csaaa_invt_tkg_line csail on csail.csaaa_inventory_taking_id = csai.csaaa_inventory_taking_id
+join a_asset ast on ast.a_asset_id = csail.a_asset_id
+left join c_costcenter ccc on ast.c_costcenter_id = ccc.c_costcenter_id
+join c_bpartner cbp on cbp.c_bpartner_id = csai.custodium_id
+join c_costcenter cc on cc.c_costcenter_id = csail.c_costcenter_id
+where csail.csaaa_inventory_taking_id = $P{DOCUMENT_ID}]]>
+	</queryString>
+	<field name="custodio" class="java.lang.String"/>
+	<field name="c_i" class="java.lang.String"/>
+	<field name="buque_area" class="java.lang.String"/>
+	<field name="line" class="java.math.BigDecimal"/>
+	<field name="codigo_anterior" class="java.lang.String"/>
+	<field name="codigo_activo" class="java.lang.String"/>
+	<field name="nombre acrivo" class="java.lang.String"/>
+	<field name="descripcion_activo" class="java.lang.String"/>
+	<field name="modelo" class="java.lang.String"/>
+	<field name="serie" class="java.lang.String"/>
+	<field name="marca" class="java.lang.String"/>
+	<field name="ubicacion" class="java.lang.String"/>
+	<field name="condicion" class="java.lang.String"/>
+	<field name="descripcion_line" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="conciliado" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="77" splitType="Stretch">
+			<staticText>
+				<reportElement x="131" y="17" width="1013" height="20"/>
+				<textElement textAlignment="Center">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[EMPRESA PUBLICA FLOTA PETROLERA ECUATORIANA]]></text>
+			</staticText>
+			<image>
+				<reportElement x="0" y="0" width="131" height="77"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{ad_org_id})]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement x="131" y="37" width="1013" height="20"/>
+				<textElement textAlignment="Center">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ACTA DE CONSTATACION DE BIENES]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="131" y="57" width="1013" height="20"/>
+				<textElement textAlignment="Center">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="90" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="10" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CUSTODIO:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="30" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[C.I.:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="50" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CARGO:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="70" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[BUQUE/AREA:]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="84" y="10" width="832" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{custodio}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="84" y="30" width="832" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{c_i}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="84" y="50" width="832" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cargo}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="84" y="70" width="832" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{buque_area}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="36" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="36" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[ITEMS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="36" y="0" width="95" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[COD. ANTERIOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="131" y="0" width="100" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[COD. ACTUAL]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="231" y="0" width="234" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DESCRIPCION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="465" y="0" width="100" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[MARCA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="565" y="0" width="100" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[MODELO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="665" y="0" width="100" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[SERIE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="765" y="0" width="151" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[UBICACION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="916" y="0" width="65" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[ESTADO
+CONSTATACION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="981" y="0" width="163" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[OBSERVACION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1144" y="0" width="76" height="36"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CONCILIADO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="###0" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="36" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{line}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="36" y="0" width="95" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigo_anterior}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="131" y="0" width="100" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigo_activo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="231" y="0" width="234" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{descripcion_activo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="465" y="0" width="100" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{marca}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="565" y="0" width="100" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{modelo}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="665" y="0" width="100" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{serie}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="765" y="0" width="151" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ubicacion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="916" y="0" width="65" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{condicion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="981" y="0" width="163" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{descripcion_line}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1144" y="0" width="76" height="20"/>
+				<box leftPadding="1" rightPadding="1">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{conciliado}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="227" splitType="Stretch">
+			<rectangle>
+				<reportElement x="785" y="122" width="359" height="68"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="0" y="33" width="1220" height="27"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Con este documento, se realiza el Traspaso de Responsabilidad y Custodia de los Bienes entregados a usted, para el normal desempeño de sus labores y una vez concluidas, debera realizarse la devolucion de la totalidad de los bienes que constan detallados en la presente Acta de Inventario Fisico.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="13" width="1220" height="20"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[OBSERVACION]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="60" width="1220" height="18"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[En caso de existir faltantes como resultado del inventario, es responsabilidad de cada trabajador justificar documentadamente las diferencias.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="51" y="190" width="354" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DELEGADO DE AREA SERVICIOS GENERALES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="405" y="190" width="380" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[DELEGADO DE AREA CONTROL CONTABLE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="785" y="190" width="359" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[CUSTODIO]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="802" y="169" width="329" height="21"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="0.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Bottom"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{custodio}]]></textFieldExpression>
+			</textField>
+			<rectangle>
+				<reportElement x="405" y="122" width="380" height="68"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="51" y="122" width="354" height="68"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="416" y="169" width="354" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement/>
+				<text><![CDATA[            ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="62" y="169" width="326" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+				</box>
+				<textElement/>
+				<text><![CDATA[            ]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

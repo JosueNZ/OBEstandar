@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_C_VALIDCOMBINATION_CREATE">
+    <function name="SSWH_C_VALIDCOMBINATION_CREATE" type="VARCHAR">
+      <parameter name="elementvalue_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="created_by" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="acctschema_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[validcombination_id VARCHAR2(32);
+  org_name VARCHAR2(60);
+  combin VARCHAR2(101);  
+  descript VARCHAR2(316);
+  client_id VARCHAR2(32);
+  account_value VARCHAR2(40);
+  account_name VARCHAR2(255);
+  
+  TYPE RECORD IS REF CURSOR;
+  cur_limit RECORD;
+BEGIN
+  validcombination_id := get_uuid();
+  SELECT ad_client_id,value,name into client_id,account_value,account_name FROM C_ELEMENTVALUE WHERE c_elementvalue_id = elementvalue_id;
+  
+  
+  FOR cur_limit IN (
+    SELECT name FROM AD_ORG WHERE ad_org_id = org_id)
+  LOOP
+  
+    org_name := cur_limit.name;
+    EXIT;
+  
+  END LOOP;
+  
+  combin := org_name||'-'||account_value;
+  descript := org_name||'-'||account_name;
+
+  INSERT INTO C_VALIDCOMBINATION (c_validcombination_id,ad_client_id,ad_org_id,isactive,created,createdby,updated,updatedby,alias,combination,description,isfullyqualified,c_acctschema_id,account_id)
+  VALUES (validcombination_id,client_id,org_id,'Y',now(),created_by,now(),created_by,account_value,combin,descript,'Y',acctschema_id,elementvalue_id);
+  
+  RETURN validcombination_id;
+END SSWH_C_VALIDCOMBINATION_CREATE
+]]></body>
+    </function>
+  </database>

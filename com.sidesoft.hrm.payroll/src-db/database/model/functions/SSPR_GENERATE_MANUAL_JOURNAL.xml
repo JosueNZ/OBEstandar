@@ -1,0 +1,345 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GENERATE_MANUAL_JOURNAL">
+    <function name="SSPR_GENERATE_MANUAL_JOURNAL" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+  Cur_Period RECORD;
+  Cur_Journal RECORD;
+  Cur_Concept RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_Payroll VARCHAR2(32);
+ 
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_NAMEPERIOD VARCHAR2(60):='';
+  v_ENDDATEPERIOD DATE;
+  v_Payroll_Parameter VARCHAR2(2000):='';
+  V_DOCTYPE_ID VARCHAR2(32);
+  v_Documentno_sec VARCHAR2(60):='';
+  V_gl_journalbatch_id VARCHAR2(32);
+  V_gl_journal_id VARCHAR2(32);
+  V_COUNT_JL NUMBER;
+  V_COUNT_VC NUMBER;
+  v_C_Currency VARCHAR2(32) ;
+  v_documento_jb NUMBER;
+  V_DESCRIPTION_PAYROLL VARCHAR2(32);
+  V_DOCUMENTNO_PAYROLL VARCHAR2(60);
+  V_HABER_V NUMBER;
+  V_MONTO_V NUMBER;
+  V_DEBE_V NUMBER;
+  v_Journal_Description VARCHAR2(60);
+  V_ACCTSCHEMA_ID VARCHAR2(32);
+
+BEGIN
+--  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP      	  
+	
+      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+        v_StartPeriod_ID := Cur_Parameter.P_String;        
+        v_Client_ID := Cur_Parameter.AD_Client_ID;
+        v_Org_ID := Cur_Parameter.AD_Org_ID;
+        v_User_ID := Cur_Parameter.CreatedBy;
+      ELSIF (Cur_Parameter.ParameterName = 'Payroll') THEN
+        v_Payroll := Cur_Parameter.P_String;
+      ELSE  
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;     
+      
+    END LOOP; -- Get Parameter
+
+	v_n_insertions := 0;
+	SELECT NAME INTO v_NAMEPERIOD  FROM C_PERIOD WHERE C_PERIOD_ID = v_StartPeriod_ID;
+	SELECT ENDDATE INTO v_ENDDATEPERIOD  FROM C_PERIOD WHERE C_PERIOD_ID = v_StartPeriod_ID;
+
+	--VERIFICO EL TIPO DE NOMINA
+	SELECT CASE v_Payroll WHEN 'Y' THEN 'Nomina' WHEN 'N' THEN 'Provisiones' END INTO v_Payroll_Parameter FROM DUAL;
+  SELECT CASE v_Payroll WHEN 'Y' THEN 'Nomina' WHEN 'N' THEN 'Nomina Provisiones' END INTO v_Journal_Description FROM DUAL;
+	
+    --VERIFICA QUE VISTA LLAMAR 
+    IF v_Payroll = 'Y' AND v_StartPeriod_ID IS NOT NULL THEN 
+		FOR Cur_Journal IN (
+			SELECT * FROM sspr_rpt_asientonomina WHERE PERIODO = v_NAMEPERIOD AND CUENTA<>'XXXX' AND (DEBE<>0 OR HABER<>0))
+			LOOP
+				IF Cur_Journal.PERIODO IS NOT NULL THEN
+
+          v_Client_ID := Cur_Journal.AD_Client_ID;
+          v_Org_ID := Cur_Journal.AD_Org_ID;
+          v_User_ID := Cur_Journal.CreatedBy;
+          IF Cur_journal.sspr_rpt_asientonomina_id IS NOT NULL THEN 
+             V_DESCRIPTION_PAYROLL:= Cur_journal.sspr_rpt_asientonomina_id;
+           END IF;
+                
+        	INSERT INTO sspr_asientonomina(
+						    sspr_asientonomina_id, ad_client_id, ad_org_id, isactive, created, 
+						    createdby, updated, updatedby, cuenta, tercero, descripcioncuenta, 
+						    movimiento, debe, haber, valor, detalle, periodo)
+					    VALUES (get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), 
+						    Cur_Journal.createdby, now(), Cur_Journal.updatedby, Cur_Journal.cuenta, COALESCE((select TO_CHAR(c_bpartner_id) from sspr_payroll_ticket where sspr_payroll_ticket_id = Cur_journal.sspr_rpt_asientonomina_id),''), Cur_Journal.descripcioncuenta, 
+						    Cur_Journal.movimiento,Cur_Journal.debe, Cur_Journal.haber, Cur_Journal.monto, Cur_Journal.detalle, Cur_Journal.periodo);
+        	 
+        ELSE 
+					DBMS_OUTPUT.PUT_LINE( '@NO EXISTE DATOS PARA EL PERIODO@');--OBTG:2000--
+					 --NO EXISTE DATOS PARA ESE PERIODO
+				END IF;
+     	v_n_insertions := v_n_insertions +1;
+			END LOOP;
+     		
+		
+			UPDATE SSPR_PAYROLL SET GENERATE_ACCOUNTING = 'Y' WHERE ISPAYROLL = v_Payroll AND C_PERIOD_ID = v_StartPeriod_ID;
+      
+  ELSIF v_Payroll = 'N' AND v_StartPeriod_ID IS NOT NULL THEN 
+		FOR Cur_Journal IN (
+			SELECT * FROM sspr_rpt_asientonomina_prov WHERE PERIODO = v_NAMEPERIOD AND CUENTA<>'XXXX'AND (DEBE<>0 OR HABER<>0))
+
+			LOOP
+				IF Cur_Journal.PERIODO IS NOT NULL THEN
+            
+            v_Client_ID := Cur_Journal.AD_Client_ID;
+            v_Org_ID := Cur_Journal.AD_Org_ID;
+            v_User_ID := Cur_Journal.CreatedBy;
+            IF Cur_journal.sspr_rpt_asientonomina_prov_id IS NOT NULL THEN 
+             V_DESCRIPTION_PAYROLL:= Cur_journal.sspr_rpt_asientonomina_prov_id;
+            END IF;
+          
+				    INSERT INTO sspr_asientonomina_prov(
+				    sspr_asientonomina_prov_id, ad_client_id, ad_org_id, isactive, 
+				    created, createdby, updated, updatedby, cuenta, tercero, descripcion, 
+				    movimiento, debe, haber, valor, detalle, periodo)
+					VALUES (get_uuid(), v_Client_ID,v_Org_ID, 'Y', now(), 
+						Cur_Journal.createdby, now(), Cur_Journal.updatedby, Cur_Journal.cuenta, Cur_Journal.tercero, Cur_Journal.descripcion, 
+						Cur_Journal.movimiento, Cur_Journal.debe, Cur_Journal.haber, Cur_Journal.valor, Cur_Journal.detalle, Cur_Journal.periodo);
+         
+         	ELSE 
+					DBMS_OUTPUT.PUT_LINE( '@NO EXISTE DATOS PARA EL PERIODO@'); --OBTG:2000--
+					--NO EXISTE DATOS PARA ESE PERIODO
+				END IF;
+				v_n_insertions := v_n_insertions +1;
+			END LOOP;
+		UPDATE SSPR_PAYROLL SET GENERATE_ACCOUNTING = 'Y' WHERE ISPAYROLL = v_Payroll AND C_PERIOD_ID = v_StartPeriod_ID;
+    END IF;
+
+
+    --** NUEVO  DESARROLLO PARA UNIFICAR EL PROCESO DE CONTABILIDAD DE NOMINA(FERNANDA IGUAMBA)**--
+      
+      --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO PARA CABECERA DEL ASIENTO
+      --select TO_NUMBER(max(documentno))+1 into v_documento_jb from gl_journalbatch;
+      select currentnext into v_documento_jb from ad_sequence where name ='DocumentNo_GL_JournalBatch';
+      --ACTUALIZPO SECUENCIAL
+      update ad_sequence set currentnext = to_number(v_documento_jb)+1 where name ='DocumentNo_GL_JournalBatch';
+
+      --VALIDA QUE HAYA DATOS PARA CREAR EL ASIENTO
+      IF v_n_insertions>0 THEN 
+      --CREA CABECERA DEL ASIENTO
+          V_gl_journalbatch_id:=get_uuid();
+          INSERT INTO gl_journalbatch(
+            gl_journalbatch_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, 
+            documentno, description, postingtype, 
+            datedoc, dateacct, c_period_id, c_currency_id, 
+            totaldr, totalcr, controlamt, processing, processed, 
+            istemplate)
+          VALUES (V_gl_journalbatch_id,v_Client_ID,  v_Org_ID, 'Y', now(), v_User_ID, now(), v_User_ID,
+            COALESCE(TO_NUMBER(v_documento_jb),0000), v_Journal_Description||' - '||'docno'||' - '|| v_NAMEPERIOD, 'A', 
+            v_ENDDATEPERIOD, v_ENDDATEPERIOD, v_StartPeriod_ID, 100, 
+            0, 0, 0,'N', 'N',
+            'N');
+            
+          --TIPO DE DOCUMENTO
+              SELECT TO_CHAR(COALESCE((SELECT TO_CHAR(C_DOCTYPE_ID) FROM C_DOCTYPE WHERE DOCBASETYPE='GLJ' AND ISSOTRX='N'),'ND'))
+              INTO V_DOCTYPE_ID FROM DUAL;
+
+          --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO PARA 
+              IF (V_DOCTYPE_ID = 'ND')THEN
+                RAISE_APPLICATION_ERROR(-20000, 'NO HAY NINGUNA REFERENCIA DE TIPO DE DOCUMENTO PARA GENERAR EL ASIENTO');
+              ELSE 
+                SELECT CURRENTNEXT INTO v_Documentno_sec FROM C_DOCTYPE A 
+                LEFT JOIN AD_SEQUENCE B ON A.DocNoSequence_ID = B.AD_SEQUENCE_ID 
+                WHERE C_DOCTYPE_ID =V_DOCTYPE_ID;
+
+                --ACTUALIZO SECUENCIAL
+                UPDATE AD_SEQUENCE SET CURRENTNEXT=to_number(v_Documentno_sec)+1 
+                WHERE AD_SEQUENCE_ID =(SELECT AD_SEQUENCE_ID FROM C_DOCTYPE A 
+                LEFT JOIN AD_SEQUENCE B ON A.DocNoSequence_ID = B.AD_SEQUENCE_ID 
+                WHERE C_DOCTYPE_ID =V_DOCTYPE_ID);
+          END IF;
+
+          --OBTENGO ESQUMA CONTABLE PARA LA ORGANIZACION
+            SELECT TO_CHAR(COALESCE((select c_acctschema_id from c_acctschema where ad_org_id = v_Org_ID),'ND'))
+            INTO V_ACCTSCHEMA_ID FROM DUAL;
+            
+            --VALIDO QUE EXISTA ESQUEMA CONTABLE PAA LA ORGANIZACION;
+            IF (V_ACCTSCHEMA_ID = 'ND')THEN
+                RAISE_APPLICATION_ERROR(-20000, 'NO EXISTE UN ESQUEMA CONTABLE CONFIGURADO PARA LA ORGANIZACION');
+            END IF;
+
+              
+            V_gl_journal_id:=get_uuid();
+            INSERT INTO gl_journal(
+                gl_journal_id, ad_client_id, ad_org_id, isactive, created, createdby,updated, updatedby, 
+                c_acctschema_id, c_doctype_id, documentno, docstatus, docaction, 
+                isapproved, isprinted, description, postingtype, gl_category_id, 
+                datedoc, dateacct, c_period_id, c_currency_id, currencyratetype, 
+                currencyrate, gl_journalbatch_id, totaldr, totalcr,  
+                processing, processed, posted, isopening)
+         VALUES ( V_gl_journal_id, v_Client_ID,  v_Org_ID, 'Y', now(), v_User_ID, now(), v_User_ID,
+                V_ACCTSCHEMA_ID, V_DOCTYPE_ID, v_Documentno_sec, 'DR', 'CO',
+                'Y', 'N', v_Journal_Description||' - '||'docno'||' - '|| v_NAMEPERIOD, 'A', 'FC670B83E59C4E7CBD6B999D3F28B251', 
+                v_ENDDATEPERIOD,v_ENDDATEPERIOD,v_StartPeriod_ID, 100, 'S', 
+                1, V_gl_journalbatch_id, 0, 0, 
+                'N', 'N', 'N', 'N');
+
+           
+           --  RAISE_APPLICATION_ERROR(-20000, 'ANTES DE PERFORM '||V_gl_journalbatch_id||' '||v_StartPeriod_ID||' '||v_Payroll_Parameter);
+          --EXECUTE IMMEDIATE 'SELECT SSPR_ASIENTO_TOTAL('||V_gl_journalbatch_id||','||v_NAMEPERIOD||','||v_Payroll_Parameter||') FROM DUAL';
+          --SSPR_ASIENTO_TOTAL(V_gl_journal_id,v_NAMEPERIOD,v_Payroll_Parameter);
+          --RAISE_APPLICATION_ERROR(-20000, 'FIN DE PERFORM');
+          
+          IF(v_Payroll_Parameter='Nomina') THEN
+            FOR Cur_journal IN
+            (select * from sspr_asientonomina a where a.periodo=v_NAMEPERIOD AND CUENTA<>'XXXX'AND (DEBE<>0 OR HABER<>0))
+            LOOP   
+                                    -- RAISE exception '%', '@ingreso funcion 7 '||V_gl_journal_id||' '||v_NAMEPERIOD ||' '||Cur_journal.tercero ;--||' '||Cur_journal.cuenta ; --OBTG:2000--		
+            
+              select count(*) INTO V_COUNT_JL from gl_journalline where gl_journal_id=V_gl_journal_id and description=Cur_journal.detalle;
+              IF (V_COUNT_JL=0 ) THEN	
+                INSERT INTO gl_journalline(gl_journalline_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, 
+                    gl_journal_id, line, isgenerated, 
+                    description, amtsourcedr, amtsourcecr, c_currency_id, currencyratetype, 
+                    currencyrate, dateacct, amtacctdr, amtacctcr, c_uom_id, qty, 
+                    c_validcombination_id,-- c_debt_payment_id,
+                    c_bpartner_id,
+                    c_costcenter_id,user1_id,user2_id,c_project_id)			    
+                VALUES (get_uuid(), v_Client_ID,  v_Org_ID, 'Y',  now(), Cur_journal.createdby, now(),Cur_journal.updatedby,
+                    V_gl_journal_id,(CASE WHEN ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)) 
+                    is null then 10 ELSE ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)+10) END),
+                    'N', coalesce(Cur_journal.detalle,('enero-2014')), COALESCE(TO_NUMBER(Cur_journal.debe),0), COALESCE(TO_NUMBER(Cur_journal.haber),0),'100', 'S', 1,
+                    (select enddate from c_period where c_period.name=v_NAMEPERIOD),Cur_journal.debe, Cur_journal.haber,100,0, 
+                    (select c_validcombination_id from c_validcombination 
+                    where alias=
+                    ((CASE WHEN coalesce(Cur_journal.tercero,null) is null 
+                    THEN Cur_journal.cuenta ELSE Cur_journal.cuenta END))),--null,
+                    coalesce((select c_bpartner_id from c_bpartner where c_bpartner_id =coalesce(Cur_journal.tercero,null)),null),
+                    trim(COALESCE((select TO_CHAR(em_sspr_costcenter_id) from c_bpartner where c_bpartner_id = coalesce(Cur_journal.tercero,null)),null)),
+                    trim(COALESCE((select TO_CHAR(em_sspr_user1_id) from c_bpartner where c_bpartner_id = coalesce(Cur_journal.tercero,null)),null)),
+                    trim(COALESCE((select TO_CHAR(em_sspr_user2_id) from c_bpartner where c_bpartner_id = coalesce(Cur_journal.tercero,null)),null)),
+                    trim(COALESCE((select TO_CHAR(em_sspr_project_id) from c_bpartner where c_bpartner_id = coalesce(Cur_journal.tercero,null)),null))
+                    );		
+                                      --RAISE exception '%', '@ingreso funcion 8@'; --OBTG:2000--		
+            /*INSERT INTO gl_journalline(gl_journalline_id, ad_client_id, ad_org_id, isactive, created,
+                    createdby, updated, updatedby, gl_journal_id, line, isgenerated, 
+                    description, amtsourcedr, amtsourcecr, c_currency_id, currencyratetype, 
+                    currencyrate, dateacct, amtacctdr, amtacctcr, c_uom_id, qty, 
+                    c_validcombination_id, --c_debt_payment_id,
+                    c_bpartner_id,c_costcenter_id,user1_id,user2_id)			    
+                VALUES (get_uuid(), v_Client_ID,  v_Org_ID, 'Y',  now()
+                    , Cur_journal.createdby, now(),Cur_journal.updatedby,V_gl_journal_id,
+                    (CASE WHEN ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)) 
+                    is null then 10 ELSE ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)+10) END),
+                    'N', Cur_journal.detalle, COALESCE(TO_NUMBER(Cur_journal.debe),0), COALESCE(TO_NUMBER(Cur_journal.haber),0),'100', 'S', 1,
+                    (select enddate from c_period where c_period.name=v_NAMEPERIOD),Cur_journal.debe, Cur_journal.haber,100,0, 
+                    (select c_validcombination_id from c_validcombination 
+                    where alias=
+                    ((CASE WHEN Cur_journal.tercero is null 
+                    THEN Cur_journal.cuenta ELSE Cur_journal.cuenta END))),--null,
+                    Cur_journal.tercero,
+                    trim(COALESCE((select TO_CHAR(em_sspr_costcenter_id) from c_bpartner where c_bpartner_id = Cur_journal.tercero),'')),
+                    trim(COALESCE((select TO_CHAR(em_sspr_user1_id) from c_bpartner where c_bpartner_id = Cur_journal.tercero),'')),
+                    trim(COALESCE((select TO_CHAR(em_sspr_user2_id) from c_bpartner where c_bpartner_id = Cur_journal.tercero),''))
+                    );	*/
+                  END IF;
+          
+            END LOOP;
+          END IF;      
+          
+          IF(v_Payroll_Parameter='Provisiones') THEN
+            FOR Cur_journal IN
+              (select * from sspr_asientonomina_prov a where a.periodo=v_NAMEPERIOD)
+              LOOP
+              select count(c_validcombination_id) INTO V_COUNT_VC from gl_journalline where gl_journalline_id=Cur_journal.sspr_asientonomina_prov_id ;
+              IF (V_COUNT_VC=0 ) THEN			
+                INSERT INTO gl_journalline(gl_journalline_id, ad_client_id, ad_org_id, isactive, created,createdby, updated, updatedby, gl_journal_id, line, isgenerated,description, amtsourcedr, amtsourcecr, c_currency_id, 
+                currencyratetype, currencyrate, dateacct, amtacctdr, amtacctcr, c_uom_id, qty, c_validcombination_id--, c_debt_payment_id
+                )
+                    
+                VALUES (Cur_journal.sspr_asientonomina_prov_id, Cur_journal.ad_Client_ID, Cur_journal.ad_Org_ID, 'Y', now()
+                    , Cur_journal.createdby,now(),Cur_journal.updatedby,V_gl_journal_id,( CASE WHEN ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)) is null then 10 ELSE ((select MAX(line) from gl_journalline where gl_journal_id=V_gl_journal_id)+10) END), 'N', 
+                    Cur_journal.detalle, Cur_journal.debe, Cur_journal.haber,'100', 'S',
+                     1,(select enddate from c_period where c_period.name=v_NAMEPERIOD),Cur_journal.debe, Cur_journal.haber,null,0, 
+                      (select c_validcombination_id from c_validcombination where alias=
+                      ((CASE WHEN coalesce(Cur_journal.tercero,null) is null 
+                      THEN Cur_journal.cuenta WHEN  Cur_journal.tercero is not null 
+                      THEN Cur_journal.cuenta END
+                      )))--,null
+                      );
+                  END IF;     
+            END LOOP;
+          END IF;
+          
+          --OBTENGO NUMERO DE PAYROLL PARA EL ASIENTO
+          SELECT A.DOCUMENTNO INTO V_DOCUMENTNO_PAYROLL FROM SSPR_PAYROLL A
+          LEFT JOIN SSPR_PAYROLL_TICKET B ON A.SSPR_PAYROLL_ID = B.SSPR_PAYROLL_ID 
+          WHERE SSPR_PAYROLL_TICKET_ID = V_DESCRIPTION_PAYROLL;
+          
+          --ACTUALIZO DESCRIPCION DE LA CABECERA Y LINEAS DEL ASIENTO 
+          UPDATE GL_JOURNAL SET DESCRIPTION=v_Journal_Description||' - '||V_DOCUMENTNO_PAYROLL||' - '|| v_NAMEPERIOD WHERE GL_JOURNAL_ID =V_gl_journal_id;
+          UPDATE GL_JOURNALBATCH SET DESCRIPTION=v_Journal_Description||' - '||V_DOCUMENTNO_PAYROLL||' - '|| v_NAMEPERIOD WHERE GL_JOURNALBATCH_ID =V_gl_journalbatch_id;
+
+          --ACTUALIZO REFERENCIA DE ASIENTO EN LA CABECERA DE LA NOMINA
+          UPDATE SSPR_PAYROLL SET GL_JOURNALBATCH_ID=V_gl_journalbatch_id WHERE DOCUMENTNO = V_DOCUMENTNO_PAYROLL;
+       
+       	ELSE 
+					DBMS_OUTPUT.PUT_LINE( '@NO EXISTE DATOS PARA EL PERIODO@'); --OBTG:2000--
+					--NO EXISTE DATOS PARA ESE PERIODO
+				END IF;   
+      --** FIN DESARROLLO PARA UNIFICAR EL PROCESO DE CONTABILIDAD DE NOMINA **--
+    
+    --v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ') ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+  ROLLBACK;
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_GENERATE_MANUAL_JOURNAL
+]]></body>
+    </function>
+  </database>

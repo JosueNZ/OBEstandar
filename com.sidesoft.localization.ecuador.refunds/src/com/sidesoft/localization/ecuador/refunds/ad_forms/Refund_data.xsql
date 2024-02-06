@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2008-2012 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+
+<SqlClass name="RefundData" package="com.sidesoft.localization.ecuador.refunds.ad_forms">
+  <SqlClassComment></SqlClassComment>
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT '' AS M_ATTRIBUTESETINSTANCE_ID, '' AS FIN_PAYMENTMETHOD_ID, '' AS PAYMENTRULE, '' AS C_PAYMENTTERM_ID, '' AS QTYINVOICED, 
+          '' AS GRANDTOTAL, '' AS C_INVOICE_ID, '' AS DOCUMENTNO, '' AS POREFERENCE, 
+          '' AS M_PRICELIST_ID, '' AS DATEINVOICED,
+          '' AS M_PRODUCT_ID, '' AS CUSTOMER_ID, '' AS CUSTOMER, '' AS VENDOR, '' AS PRODUCT, ''  AS REQUESTER,
+          '' AS PRICELISTID, '' AS AD_ORG_ID, '' AS ORG, '' AS DESCRIPTION,'' AS QUANTITY,
+          '' AS DISCOUNT, '' AS TAX, '' AS UOMNAME, '' AS C_UOM_ID
+        FROM DUAL
+      ]]></Sql>
+    <Field name="rownum" value="count"/>
+  </SqlMethod>
+  <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+  <SqlMethod name="selectLines" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT C_INVOICE_ID, DOCUMENTNO, POREFERENCE, DATEINVOICED, 
+          (GRANDTOTAL - EM_SSWH_TOTALWITHHOLDINGINCOME - EM_SSWH_TOTALWITHHOLDINGVAT) AS GRANDTOTAL,
+          AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(EM_SSRE_C_BPARTNER_ID), ?) AS CUSTOMER,
+          AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(C_BPARTNER_ID), ?) AS VENDOR,
+          AD_COLUMN_IDENTIFIER(to_char('AD_User'), to_char(ci.CREATEDBY), ?) AS REQUESTER
+        FROM C_INVOICE ci LEFT JOIN SSRE_REFUND r ON ci.em_ssre_refunded_id = r.ssre_refund_id
+        WHERE ci.ISACTIVE = 'Y'
+          AND DOCSTATUS = 'CO'
+          AND ISSOTRX = 'N'
+          AND r.TYPE = 'CR'
+          AND EM_SSRE_ISREFUNDED = 'N'
+          AND (EM_SSRE_LOCKEDBY IS NULL OR COALESCE (EM_SSRE_LOCKDATE, TO_DATE('01-01-1900', 'DD-MM-YYYY')) < (now()-3))
+          AND ci.AD_CLIENT_ID IN ('1')
+          AND ci.AD_ORG_ID IN ('1')
+          AND 1=1
+        ORDER BY DATEINVOICED, DOCUMENTNO
+      ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="adUserClient" type="replace" optional="true" after="AND ci.AD_CLIENT_ID IN (" text="'1'"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND ci.AD_ORG_ID IN (" text="'1'"/>
+    <Parameter name="parDateFrom" optional="true" after="AND 1=1"><![CDATA[ AND DATEINVOICED >= TO_DATE(?)]]></Parameter>
+    <Parameter name="parDateTo" optional="true" after="AND 1=1"><![CDATA[ AND C_INVOICE.DATEINVOICED < TO_DATE(?)]]></Parameter>
+    <Parameter name="parRequester" optional="true" after="AND 1=1"><![CDATA[ AND AD_USER_ID = TO_CHAR(?)]]></Parameter>
+    <Parameter name="parCustomerInc" optional="true" after="AND 1=1"><![CDATA[ AND (COALESCE(EM_SSRE_C_BPARTNER_ID, '-1') = TO_CHAR(?) OR (EM_SSRE_C_BPARTNER_ID IS NULL))]]></Parameter>
+    <Parameter name="parCustomer" optional="true" after="AND 1=1"><![CDATA[ AND COALESCE(EM_SSRE_C_BPARTNER_ID,'-1') = TO_CHAR(?)]]></Parameter>
+    <Parameter name="poReference" optional="true" after="AND 1=1"><![CDATA[ AND POREFERENCE LIKE TO_CHAR(?)]]></Parameter>    
+  </SqlMethod>
+  <SqlMethod name="selectSelected" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT cu.NAME AS UOMNAME, rc.QUANTITY, C_INVOICE_ID, DOCUMENTNO, POREFERENCE, DATEINVOICED, 
+          (GRANDTOTAL - EM_SSWH_TOTALWITHHOLDINGINCOME - EM_SSWH_TOTALWITHHOLDINGVAT) AS GRANDTOTAL,
+          COALESCE(EM_SSRE_C_BPARTNER_ID, '-1') AS CUSTOMER_ID,
+          COALESCE(ci.M_PRICELIST_ID, '-1') AS M_PRICELIST_ID,
+          AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(EM_SSRE_C_BPARTNER_ID), ?) AS CUSTOMER,
+          AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(ci.C_BPARTNER_ID), ?) AS VENDOR,
+          AD_COLUMN_IDENTIFIER(to_char('M_Product'), to_char(mp.M_PRODUCT_ID), ?) AS PRODUCT,
+          AD_COLUMN_IDENTIFIER(to_char('M_PriceList'), to_char(ci.M_PRICELIST_ID), ?) AS PRICELISTID
+        FROM C_INVOICE ci LEFT JOIN SSRE_REFUND r ON ci.em_ssre_refunded_id = r.ssre_refund_id,
+             SSRE_REFUND_CONFIGURATION rc 
+             LEFT JOIN M_PRODUCT mp ON mp.M_PRODUCT_ID = rc.M_PRODUCT_ID
+             LEFT JOIN C_UOM cu ON cu.C_UOM_ID = mp.C_UOM_ID
+        WHERE ci.AD_CLIENT_ID = rc.AD_CLIENT_ID
+          AND ci.AD_ORG_ID = rc.AD_ORG_ID
+          AND ci.ISACTIVE = 'Y'
+          AND DOCSTATUS = 'CO'
+          AND ISSOTRX = 'N'
+          AND r.TYPE = 'CR'
+          AND EM_SSRE_ISREFUNDED = 'N'
+          AND EM_SSRE_LOCKEDBY = ?
+          AND EM_SSRE_LOCKDATE >= (now()-3)        
+          AND ci.AD_CLIENT_ID IN ('1')
+          AND ci.AD_ORG_ID IN ('1')
+        ORDER BY CUSTOMER_ID, M_PRICELIST_ID
+        ]]></Sql>
+    <Field name="rownum" value="count"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="language"/>
+    <Parameter name="adUserId"/>
+    <Parameter name="adUserClient" type="replace" optional="true" after="AND ci.AD_CLIENT_ID IN (" text="'1'"/>
+    <Parameter name="adOrgId" optional="true" type="replace" after="AND ci.AD_ORG_ID IN (" text="'1'"/>
+  </SqlMethod>
+  <SqlMethod name="linesToInvoice" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT mp.M_PRODUCT_ID,
+               mp.C_UOM_ID,
+               mp.M_ATTRIBUTESETINSTANCE_ID,
+               ci.DESCRIPTION,
+               rc.QUANTITY AS QTYINVOICED,
+               C_INVOICE_ID,
+               (GRANDTOTAL - EM_SSWH_TOTALWITHHOLDINGINCOME - EM_SSWH_TOTALWITHHOLDINGVAT) AS GRANDTOTAL,
+               0 AS DISCOUNT,
+               C_GetTax(mp.M_PRODUCT_ID, to_date(?), ?, ?, ?, ?, null, 'N') AS TAX
+        FROM C_INVOICE ci, SSRE_REFUND_CONFIGURATION rc 
+             LEFT JOIN M_PRODUCT mp ON mp.M_PRODUCT_ID = rc.M_PRODUCT_ID
+        WHERE 1=1
+              AND ci.AD_CLIENT_ID = rc.AD_CLIENT_ID
+              AND ci.AD_ORG_ID = rc.AD_ORG_ID
+        ORDER BY DOCUMENTNO
+        ]]></Sql>
+    <Field name="rownum" value="count"/>
+    
+    <Parameter name="invoicedate"/>
+    <Parameter name="org"/>
+    <Parameter name="warehouse"/>
+    <Parameter name="billto"/>
+    <Parameter name="shipto"/>
+    
+    <Parameter name="parRefundLines" optional="true" type="argument" after="WHERE 1=1" text=" AND C_INVOICE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectCustomer" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT DISTINCT EM_SSRE_C_BPARTNER_ID AS CUSTOMER_ID
+      FROM C_INVOICE
+      WHERE EM_SSRE_C_BPARTNER_ID IS NOT NULL
+        AND 1=1
+      ]]></Sql>
+    <Parameter name="parRefundLines" optional="true" type="argument" after="AND 1=1" text="AND C_INVOICE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectPriceList" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT DISTINCT C_BPARTNER.M_PRICELIST_ID,
+          AD_COLUMN_IDENTIFIER(to_char('M_PriceList'), to_char(C_BPARTNER.M_PRICELIST_ID), ?) AS PRICELISTID
+        FROM C_INVOICE, C_BPARTNER
+        WHERE C_INVOICE.EM_SSRE_C_BPARTNER_ID = C_BPARTNER.C_BPARTNER_ID
+          AND 1=1
+          ]]></Sql>
+    <Parameter name="language"/>
+    <Parameter name="parRefundLines" optional="true" type="argument" after="AND 1=1" text="AND C_INVOICE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectOrg" type="preparedStatement" return="Multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT DISTINCT AD_ORG_ID,
+          AD_COLUMN_IDENTIFIER(to_char('AD_Org'), to_char(AD_ORG_ID), ?) AS ORG
+        FROM C_INVOICE
+        WHERE 1=1
+          ]]></Sql>
+    <Parameter name="language"/>
+    <Parameter name="parRefundLines" optional="true" type="argument" after="WHERE 1=1" text="AND C_INVOICE_ID IN"/>
+  </SqlMethod>
+  <SqlMethod name="selectCustomerData" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT PaymentRule, C_PaymentTerm_ID, FIN_PaymentMethod_ID
+      FROM C_BPartner
+      WHERE C_BPartner_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="bPartnerDescription" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_COLUMN_IDENTIFIER(to_char('C_BPartner'), to_char(?), to_char(?)) AS CUSTOMER
+        FROM DUAL
+        ]]></Sql>
+    <Parameter name="partnerid"/>
+    <Parameter name="language"/>
+  </SqlMethod>
+  <SqlMethod name="getPricelistVersion" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT M_GET_PRICELIST_VERSION(?, to_date(?)) AS PRICELISTID
+        FROM DUAL
+        ]]></Sql>
+    <Parameter name="pricelist"/>
+    <Parameter name="invoicedate"/>
+  </SqlMethod>
+  <SqlMethod name="treeOrg" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_TREE_ORG_ID FROM AD_CLIENTINFO
+        WHERE AD_CLIENT_ID = ?
+        ]]></Sql>
+    <Parameter name="client"/>
+  </SqlMethod>
+  <SqlMethod name="cDoctypeTarget" type="preparedStatement" return="string" default="">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT AD_GET_DOCTYPE(?, ?, 'ARI', null) FROM DUAL
+      ]]>
+    </Sql>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+  </SqlMethod>
+  <SqlMethod name="cBPartnerLocationId" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT MAX(C_BPARTNER_LOCATION_ID) FROM C_BPARTNER_LOCATION
+        WHERE C_BPARTNER_ID = ?
+        AND C_BPartner_Location.IsActive='Y'
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="billto" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT MAX(C_BPARTNER_LOCATION_ID) FROM C_BPARTNER_LOCATION
+        WHERE  C_BPartner_Location.IsBillTo='Y'
+        AND C_BPartner_Location.IsActive='Y'
+        AND C_BPARTNER_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="cBpartnerId"/>
+  </SqlMethod>
+  <SqlMethod name="selectCurrency" type="preparedStatement" return="string">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        SELECT C_CURRENCY_ID
+        FROM M_PRICELIST
+        WHERE  M_PRICELIST_ID = ?
+      ]]>
+    </Sql>
+    <Parameter name="mPricelistId"/>
+  </SqlMethod>
+  <SqlMethod name="unlock" type="preparedStatement" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE C_INVOICE
+        SET EM_SSRE_LOCKEDBY = null,
+            EM_SSRE_LOCKDATE = null
+        WHERE C_INVOICE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="refundlines" type="replace" optional="true" after="C_INVOICE_ID IN " text="('1')"/>
+  </SqlMethod>
+  <SqlMethod name="lock" type="preparedStatement"  return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        UPDATE C_INVOICE
+        SET EM_SSRE_LOCKEDBY = ?,
+            EM_SSRE_LOCKDATE = now()
+        WHERE C_INVOICE_ID IN ('1')
+      ]]>
+    </Sql>
+    <Parameter name="userId"/>
+    <Parameter name="refundlines" type="replace" optional="true" after="C_INVOICE_ID IN " text="('1')"/>
+  </SqlMethod>
+  <SqlMethod name="insertCInvoice" type="preparedStatement" connection="true" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        INSERT INTO C_INVOICE (C_INVOICE_ID, AD_CLIENT_ID, AD_ORG_ID, CREATED, CREATEDBY, UPDATED, UPDATEDBY, DOCUMENTNO,
+        DOCSTATUS, DOCACTION, C_DOCTYPE_ID, C_DOCTYPETARGET_ID,
+        DATEINVOICED, DATEACCT, C_BPARTNER_ID, C_BPARTNER_LOCATION_ID, C_CURRENCY_ID, 
+        PAYMENTRULE, C_PAYMENTTERM_ID, M_PRICELIST_ID, 
+        C_PROJECT_ID, C_ACTIVITY_ID, C_CAMPAIGN_ID, ISSOTRX,
+        FIN_PAYMENTMETHOD_ID,EM_SSRE_ISREFUND)
+        VALUES (?,?,?,now(),?,now(),?,?,?,?,?,?,TO_DATE(?),TO_DATE(?),?,?,?,?,?,?,?,?,?,'Y',?,'Y')
+      ]]>
+    </Sql>
+    <Parameter name="cInvoiceId"/>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+    <Parameter name="user"/>
+    <Parameter name="user"/>
+    <Parameter name="documentNo"/>
+    <Parameter name="docStatus"/>
+    <Parameter name="docAction"/>
+    <Parameter name="cDoctypeId"/>
+    <Parameter name="cDoctypetargetId"/>
+    <Parameter name="dateinvoiced"/>
+    <Parameter name="dateacct"/>
+    <Parameter name="cBpartnerId"/>
+    <Parameter name="cBpartnerLocationId"/>
+    <Parameter name="cCurrencyId"/>
+    <Parameter name="paymentrule"/>
+    <Parameter name="cPaymenttermId"/>
+    <Parameter name="mPricelistId"/>
+    <Parameter name="cProjectId"/>
+    <Parameter name="cActivityId"/>
+    <Parameter name="cCampaignId"/>
+    <Parameter name="finPaymentMethodId"/>   
+  </SqlMethod>
+  <SqlMethod name="insertCInvoiceline" type="preparedStatement" connection="true" return="rowCount">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        INSERT INTO C_INVOICELINE (C_INVOICELINE_ID, AD_CLIENT_ID, AD_ORG_ID, CREATED, CREATEDBY, UPDATED, UPDATEDBY,
+        C_INVOICE_ID, LINE, C_BPARTNER_ID, DESCRIPTION, 
+        M_PRODUCT_ID, M_ATTRIBUTESETINSTANCE_ID,
+        C_UOM_ID, QTYINVOICED, PRICELIST, 
+        PRICEACTUAL, 
+        LINENETAMT,
+        TAXAMT,
+        TAXBASEAMT, PRICELIMIT, C_TAX_ID, S_RESOURCEASSIGNMENT_ID, PRICESTD, EM_SSRE_REFUNDEDINVOICE_REF_ID)
+        VALUES (?,?,?,now(),?,now(),?,
+        ?,TO_NUMBER(?),?,?,
+        ?,?,
+        ?,TO_NUMBER(?),TO_NUMBER(?),
+        TO_NUMBER(?), 
+        TO_NUMBER(?),
+        TO_NUMBER(?), 
+        TO_NUMBER(?), TO_NUMBER(?),?,?,TO_NUMBER(?),?)
+      ]]>
+    </Sql>
+    <Parameter name="cInvoicelineId"/>
+    <Parameter name="adClientId"/>
+    <Parameter name="adOrgId"/>
+    <Parameter name="user"/>
+    <Parameter name="user"/>
+    <Parameter name="cInvoiceId"/>
+    <Parameter name="line"/>
+    <Parameter name="cBpartnerId"/>
+    <Parameter name="description"/>
+    <Parameter name="mProductId"/>
+    <Parameter name="mAttributeSetInstanceId"/>
+    <Parameter name="cUomId"/>
+    <Parameter name="qtyinvoiced"/>
+    <Parameter name="pricelist"/>
+    <Parameter name="priceactual"/>
+    <Parameter name="linenetamt"/>
+    <Parameter name="taxamt"/>
+    <Parameter name="taxbaseamt"/>
+    <Parameter name="pricelimit"/>
+    <Parameter name="cTaxId"/>
+    <Parameter name="sResourceassignmentId"/>
+    <Parameter name="pricestd"/>
+    <Parameter name="cRefundedInvoiceId"/>
+  </SqlMethod>
+  <SqlMethod name="cInvoicePost0" connection="true" type="callableStatement" return="object" object="RefundData">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql><![CDATA[
+        CALL C_Invoice_Post0(?)
+      ]]></Sql>
+      <Parameter name="adPinstanceId"></Parameter>
+   </SqlMethod>
+   <SqlMethod name="refunded" type="preparedStatement" connection="true" return="rowCount">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql><![CDATA[
+        UPDATE C_Invoice
+        SET em_ssre_isrefunded = 'Y',
+            Updated = TO_DATE(NOW()),
+            UpdatedBy = ?
+            WHERE C_Invoice_ID = ?
+      ]]></Sql>
+      <Parameter name="userId"></Parameter>
+      <Parameter name="cInvoiceId"></Parameter>      
+   </SqlMethod>
+</SqlClass>

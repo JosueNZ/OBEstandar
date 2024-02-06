@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSspr_LiquidationDC" pageWidth="141" pageHeight="198" columnWidth="141" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="2.357947691000002"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="PARTNER_ID" class="java.lang.String"/>
+	<parameter name="REGIMEN_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+tercero as "tercero"
+,periodo as "periodo"
+,dias_trabajados as "dias_trabajados"
+,sum(amount_dc) as "amount_dc"
+,sspr_labor_regime_id as "sspr_labor_regime_id"
+from
+(select
+cp.periodno,
+tercero
+,cp.name as periodo
+,coalesce(to_number(round(dias_trabajados,2)),to_number(0)) as dias_trabajados
+,coalesce(to_number(round(amount_dc,2)),to_number(0)) as amount_dc
+,slrd.sspr_labor_regime_id
+from sspr_labor_regime slr
+join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id
+left join c_period cp on
+(cp.startdate>= slrd.startdate or cp.startdate<= slrd.enddate) and (cp.enddate >= slrd.startdate and cp.enddate <=slrd.enddate)
+
+left JOIN (
+
+SELECT
+sct.sspr_labor_regime_id,
+cbp.name as tercero
+,sp.c_period_id
+,spt.workeddays as dias_trabajados
+,sum((case when sc.concepttypepayroll = 'DC' then sptc.amount else 0 end)) as amount_dc
+,EM_Ssph_Earned
+,sp.ispayroll
+,sp.isliquidation
+,sc.concepttypepayroll
+,cp.name
+from sspr_payroll sp
+join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id
+join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id
+left join c_period cp on cp.c_period_id = sp.c_period_id
+where
+cbp.c_bpartner_id = $P{PARTNER_ID}
+and EM_Ssph_Earned='N'
+and sc.concepttypepayroll = 'DC'
+
+and ((sp.ispayroll= 'Y' and sp.isliquidation='N') or (sp.ispayroll= 'N' and sp.isliquidation='Y')
+or (sp.ispayroll= 'N' and sp.isliquidation='N')
+)
+group by
+sct.sspr_labor_regime_id,
+cbp.name
+,sp.c_period_id
+,spt.workeddays
+,EM_Ssph_Earned
+,sp.ispayroll
+,sp.isliquidation
+,sc.concepttypepayroll
+,cp.name
+order by sspr_labor_regime_id,cbp.name
+,sp.c_period_id
+
+
+
+) sp on cp.c_period_id = sp.c_period_id
+where
+slrd.typeconcept = '14TH'
+and slrd.isactive='Y'
+and cp.startdate <=now()
+group by
+tercero
+,cp.name
+,dias_trabajados
+,amount_dc
+,slrd.sspr_labor_regime_id
+,cp.periodno
+order by cp.periodno
+
+) dc
+where sspr_labor_regime_id = $P{REGIMEN_ID}
+group by
+
+tercero
+,periodo
+,dias_trabajados
+,sspr_labor_regime_id
+,periodno
+order by periodno]]>
+	</queryString>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="dias_trabajados" class="java.math.BigDecimal"/>
+	<field name="amount_dc" class="java.math.BigDecimal"/>
+	<field name="sspr_labor_regime_id" class="java.lang.String"/>
+	<variable name="V_ACUMULADO" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{dias_trabajados}]]></variableExpression>
+	</variable>
+	<variable name="V_VALOR" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount_dc}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="39" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="14" width="40" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[MES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="80" y="14" width="40" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="40" y="14" width="40" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DÍAS]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="120" height="14"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DECIMO CUARTO]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="40" height="14"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="40" y="0" width="40" height="14"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{dias_trabajados}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="80" y="0" width="40" height="14"/>
+				<box>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount_dc}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+</jasperReport>

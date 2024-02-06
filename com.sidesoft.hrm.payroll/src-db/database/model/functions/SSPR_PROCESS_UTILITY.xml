@@ -1,0 +1,517 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_PROCESS_UTILITY">
+    <function name="SSPR_PROCESS_UTILITY" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_Employee RECORD;
+Cur_Family RECORD;
+Cur_Profits RECORD;
+Cur_SupplementaryData RECORD;
+
+v_Client_ID VARCHAR2(32); 
+v_Org_ID VARCHAR2(32);
+v_User_ID VARCHAR2(32); 
+v_ResultStr VARCHAR2(2000) := ''; 
+v_Payroll_ID VARCHAR2(32);
+v_Processed VARCHAR2(60);
+v_Ticket_ID VARCHAR2(32); 
+v_Period_ID VARCHAR2(32); 
+v_Concept_ID VARCHAR2(32); 
+v_n_insertions NUMBER;  --OBTG:NUMBER--
+v_Message VARCHAR2(2000):=''; 
+v_StartPeriod_ID CHARACTER VARYING(32);	--OBTG:VARCHAR2--
+v_amount NUMBER;  --OBTG:NUMBER--
+v_c_year_id CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_ad_org_id CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_deleteutility CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_countconfig  NUMBER;  --OBTG:NUMBER--
+v_livingwage NUMBER;  --OBTG:NUMBER--
+v_year CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_family NUMBER;  --OBTG:NUMBER--
+v_netprofit NUMBER;  --OBTG:NUMBER--
+v_workeddaystotal NUMBER;  --OBTG:NUMBER--
+v_wagecompensationtotal NUMBER;  --OBTG:NUMBER--
+v_workeddayswagetotal NUMBER; --OBTG:NUMBER--
+v_perc_earnings_employee NUMBER; --OBTG:NUMBER-- 
+v_perc_utility_loads NUMBER; --OBTG:NUMBER-- 
+v_numberchargestotal NUMBER; --OBTG:NUMBER-- 
+v_workeddayschargestotal NUMBER; --OBTG:NUMBER-- 
+v_concepttypepayroll VARCHAR2(60);
+v_chargesworkedtotal NUMBER; --OBTG:NUMBER--
+v_JudicialRetention   NUMBER; --OBTG:NUMBER--
+v_SubValue5   NUMBER; --OBTG:NUMBER--
+V_TotalJudicialRetention   NUMBER; --OBTG:NUMBER--
+V_TotalValue5   NUMBER; --OBTG:NUMBER--
+v_sspr_codeformulary107_id  CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_CountUtilities    NUMBER; --OBTG:NUMBER--
+v_sspr_concept_id CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_c_period_id CHARACTER VARYING(32);  --OBTG:VARCHAR2--
+v_countsup NUMBER; --OBTG:NUMBER--
+
+vLivingWageMonth NUMBER; --OBTG:NUMBER--
+vMonthPartialLivingWage NUMBER; --OBTG:NUMBER--
+vCalcLivingWage NUMBER; --OBTG:NUMBER--
+vCalcWageCompensation NUMBER; --OBTG:NUMBER--
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+
+	FOR Cur_Parameter IN
+	(	SELECT i.Record_ID,
+		p.ParameterName,
+		p.P_String,
+		p.P_Number,
+		p.P_Date,
+		p.AD_Client_ID,
+		p.AD_Org_ID,
+		p.CreatedBy        
+		FROM AD_PInstance i
+		LEFT JOIN AD_PInstance_Para p
+		   ON i.AD_PInstance_ID = p.AD_PInstance_ID
+		WHERE i.AD_PInstance_ID = PInstance_ID
+		ORDER BY p.SeqNo
+	)
+	LOOP      	  
+		IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+			v_c_year_id := Cur_Parameter.P_String;      
+			v_Client_ID := Cur_Parameter.AD_Client_ID;
+			v_Org_ID := Cur_Parameter.AD_Org_ID;
+			v_User_ID := Cur_Parameter.CreatedBy;
+		ELSIF (Cur_Parameter.ParameterName = 'ad_org_id') THEN
+			v_ad_org_id := Cur_Parameter.P_String; 
+		ELSIF (Cur_Parameter.ParameterName = 'deleteutility')THEN
+			v_deleteutility := Cur_Parameter.P_String; 
+		ELSE
+			DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+		END IF;     
+	END LOOP; -- Get Parameter
+
+	v_Message := 'Init Process Utilities';
+	v_countconfig:= 0;
+	v_livingwage := 0;
+	v_netprofit := 0;
+	v_workeddaystotal := 0;
+
+	--VALIDA QUE EXISTA CONFIGURACION PARA EL AÑO DE PROCESO
+	select count(*)
+	into v_countconfig
+	from sspr_configurationutility 
+	where c_year_id = v_c_year_id;
+
+	If(v_countconfig > 0)Then
+		select a.livingwage, b.year, netprofit, perc_earnings_employee, perc_utility_loads, concepttypepayroll, sspr_codeformulary107_id,
+		coalesce(sspr_concept_id,'ND') as sspr_concept_id, coalesce(c_period_id,'ND') as c_period_id, Living_Wage_Month, Month_Partial_Living_Wage
+		into v_livingwage, v_year, v_netprofit, v_perc_earnings_employee, v_perc_utility_loads, v_concepttypepayroll, v_sspr_codeformulary107_id,
+		v_sspr_concept_id, v_c_period_id, vLivingWageMonth, vMonthPartialLivingWage
+		from sspr_configurationutility a
+		left join c_year b on b.c_year_id = a.c_year_id
+		where a.c_year_id = v_c_year_id;
+
+	Else
+		RAISE_APPLICATION_ERROR(-20000, 'No existe configuración utilidades para el año de proceso');
+	End If;
+
+	If(v_deleteutility = 'Y')Then
+
+		--ELIMINA REGISTROS DE UTILIDADES POR 
+		delete from sspr_profits
+		where c_year_id = v_c_year_id;
+
+		delete from sspr_utilities
+		where c_year_id = v_c_year_id;
+
+		update sspr_configurationutility
+			set wagecompensationtotal = 0,
+			workeddaystotal = 0,
+			workeddayswagetotal = 0,
+			numberchargestotal = 0,
+			workeddayschargestotal = 0,
+			chargesworkedtotal = 0
+			where c_year_id = v_c_year_id;
+
+		-- Elimino Conceptos
+		If(v_sspr_concept_id = 'ND' or v_c_period_id = 'ND' )Then
+			Delete
+			From sspr_concept_amount
+			Where sspr_concept_id = v_sspr_concept_id
+			and c_period_id = v_c_period_id;
+		End If;
+		
+		v_Message := 'Delete Utilities';
+		v_n_insertions := 0;
+
+	Else
+
+		v_wagecompensationtotal := 0;
+		v_workeddayswagetotal := 0;		
+
+        -- Revisa si existe una Utilidad para el perìodo ejecutado
+
+        select coalesce((select count(*) 
+        from SSPR_UTILITIES
+		where c_year_id = v_c_year_id),0)
+        into v_CountUtilities
+        from dual;
+
+        IF (v_CountUtilities>0) THEN
+            RAISE_APPLICATION_ERROR(-20000, 'Ya existe Utilidades generadas para este período');
+        END IF;
+
+		--ELIMINA TEMPORAL
+		delete from sspr_profits
+		where c_year_id = v_c_year_id;
+
+		update sspr_configurationutility
+			set wagecompensationtotal = 0,
+			workeddaystotal = 0,
+			workeddayswagetotal = 0,
+			numberchargestotal = 0,
+			workeddayschargestotal = 0,
+			chargesworkedtotal = 0
+			where c_year_id = v_c_year_id;
+
+		For Cur_Employee In(
+
+					select
+					b.name
+					,b.c_bpartner_id
+					,b.c_year_id
+					,b.workeddays
+					,b.workingdays
+					--INGRESOS PROMEDIO
+					,premedio_salario as averageincome
+					from (
+					select name, c_bpartner_id, c_year_id, workeddays, workingdays
+					from 
+					(select bp.name, bp.c_bpartner_id, pr.c_year_id, sum(pt.workeddays) as workeddays, sum(pt.workingdays) as workingdays
+					from sspr_payroll_ticket pt
+					left join sspr_payroll p on p.sspr_payroll_id = pt.sspr_payroll_id
+					left join c_bpartner bp on bp.c_bpartner_id = pt.c_bpartner_id
+					left join c_period pr on pr.c_period_id = p.c_period_id
+					where p.ispayroll = 'Y' 
+					and bp.em_sspr_isexecutive='N'
+					and pr.c_year_id =  v_c_year_id 
+					group by bp.name, bp.c_bpartner_id, pr.c_year_id
+					order by bp.name asc) benefits
+					where workeddays > 0) B
+					left join
+					(
+					SELECT
+					round(coalesce(promedio,0) +  coalesce(decimo_cuarto,0) +coalesce(decimo_tercero,0) + coalesce(prom_lh,0)  ,2) as premedio_salario,a.c_bpartner_id
+					FROM (select round(sum(ptc.amount),2) AS promedio
+					,spt.c_bpartner_id
+					,cpr.c_year_id
+					from sspr_payroll_ticket_concept ptc
+					left join sspr_concept sc on sc.sspr_concept_id = ptc.sspr_concept_id AND sc.living_wage_calculation = 'Y'
+					left join sspr_payroll_ticket spt on spt.sspr_payroll_ticket_id = ptc.sspr_payroll_ticket_id
+					left join sspr_payroll sp on sp.sspr_payroll_id = spt.sspr_payroll_id
+					left join c_period cpr on cpr.c_period_id = sp.c_period_id
+					left join sspr_codeformulary107 c107 on c107.sspr_codeformulary107_id = sc.sspr_codeformulary107_id
+					where sp.ispayroll = 'Y'
+					and sc.affectationtype = 'Y'
+					and sc.conceptsubtype = 'In'
+					and sc.concepttypepayroll <> v_concepttypepayroll
+					and (c107.Typeconcept = 'BC' or  c107.Typeconcept = 'ECWS' or c107.Typeconcept = 'FS' or c107.Typeconcept = 'RM' 
+					or c107.Typeconcept = 'RF' or c107.Typeconcept = 'TS' or c107.Typeconcept = 'UT')
+					and cpr.c_year_id = v_c_year_id
+					group by spt.c_bpartner_id,cpr.c_year_id
+					) A 
+					left join ( 
+					select stsl.c_bpartner_id
+					, sum(coalesce(stsl.adjustedamt,0)) as decimo_cuarto 
+					,  sts.c_year_id
+					   from ssph_tenth_settlement_line stsl   
+					   left join ssph_tenth_settlement sts on sts.ssph_tenth_settlement_id=stsl.ssph_tenth_settlement_id  
+					   left join c_bpartner bp on bp.c_bpartner_id=stsl.c_bpartner_id  
+					   left join c_year pp on pp.c_year_id=sts.c_year_id  
+					   left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sts.sspr_labor_regime_id  
+					   left join ad_org og on og.ad_org_id=sts.ad_org_id  
+					  WHERE sts.typeconcept = '14TH'
+					  and sts.c_year_id = v_c_year_id  
+					  group by stsl.c_bpartner_id, sts.c_year_id
+					) decimoc on (decimoc.c_bpartner_id = a.c_bpartner_id and decimoc.c_year_id = a.c_year_id )
+					left join ( 
+					select stsl.c_bpartner_id 
+					,sts.documentno   
+					, coalesce(stsl.adjustedamt,0) as decimo_tercero 
+					,  sts.c_year_id    
+					from ssph_tenth_settlement_line stsl   
+					left join ssph_tenth_settlement sts on sts.ssph_tenth_settlement_id=stsl.ssph_tenth_settlement_id   
+					left join c_bpartner bp on bp.c_bpartner_id=stsl.c_bpartner_id   
+					left join c_year pp on pp.c_year_id=sts.c_year_id    
+					left join sspr_labor_regime ssrg on ssrg.sspr_labor_regime_id=sts.sspr_labor_regime_id   
+					left join ad_org og on og.ad_org_id=sts.ad_org_id   
+					WHERE sts.typeconcept = '13TH'  
+					and sts.c_year_id = v_c_year_id
+					)  decimot on ( decimot.c_bpartner_id = a.c_bpartner_id  and decimot.c_year_id = a.c_year_id )
+					left join
+					(
+                        select
+                        sum(prom_lh) as prom_lh,
+                        c_bpartner_id,
+                        c_year_id
+                        from
+                        (select
+                        (ssl.totalnet) as prom_lh
+                        ,ss.c_bpartner_id
+                        ,(select c_year_id from c_year where c_year_id = v_c_year_id ) as c_year_id
+                        from sspr_settlement ss
+                        join sspr_settlementline ssl on ss.sspr_settlement_id = ssl.sspr_settlement_id 
+                        left join sspr_concept sc on sc.sspr_concept_id = ssl.sspr_concept_id AND sc.living_wage_calculation = 'Y'
+                        left join sspr_codeformulary107 c107 on c107.sspr_codeformulary107_id = sc.sspr_codeformulary107_id
+                        where (c107.Typeconcept = 'BC' or  c107.Typeconcept = 'ECWS' or c107.Typeconcept = 'FS' or c107.Typeconcept = 'RM' 
+                        or c107.Typeconcept = 'RF' or c107.Typeconcept = 'TS' or c107.Typeconcept = 'UT')
+                        and (to_char(ss.movementdate,'yyyy')) = (select c_year.year from c_year where c_year_id = v_c_year_id )
+                        ) settl
+                        group by c_bpartner_id,c_year_id
+					) prome_liqh on ( prome_liqh.c_bpartner_id = a.c_bpartner_id  and prome_liqh.c_year_id = a.c_year_id )
+					) avgvalue on  avgvalue.c_bpartner_id = b.c_bpartner_id
+					group by b.name
+					,b.c_bpartner_id
+					,b.c_year_id
+					,b.workeddays
+					,b.workingdays
+					,premedio_salario
+		)	
+		Loop
+
+			--OBTENGO NUMERO DE CARGAS FAMILIARES
+			v_family := 0;
+			v_JudicialRetention:=0;
+
+			For Cur_Family In(
+				select familyties, birthday, firstname, leavedate, isdisabled, judicial_retention
+				from sspr_family
+				where c_bpartner_id = Cur_Employee.c_bpartner_id -- '830E6F8F2BCB47609A00929C8F47E2BC' -- bp.c_bpartner_id
+				and (Leavedate is null or Leavedate = null or to_number(to_char(leavedate,'yyyy')) > to_number(v_year))
+			)
+			Loop
+				If(Cur_Family.familyties = '01') Then
+					--If(Cur_Family.birthday + INTERVAL '18' year < to_date(to_char(to_date('01-' || '01-' || to_char(v_year)),'dd-mm-yyyy'),'dd-mm-yyyy'))Then
+
+					If(to_number(v_year) < to_number(to_char(Cur_Family.birthday + INTERVAL '18' year,'yyyy')) or Cur_Family.isdisabled = 'Y')Then
+						v_family := v_family + 1;
+					Else
+						v_family := v_family;
+					End If;
+				Else
+					v_family := v_family + 1;
+				End If;
+
+				IF (Cur_Family.judicial_retention='Y') THEN
+					v_JudicialRetention:= v_JudicialRetention+1;
+				END IF;
+
+			End Loop;
+
+			--INSERTA REGISTRO DE UTILIDADES TEMPORAL
+			insert into sspr_profits(sspr_profits_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby,
+						c_bpartner_id, c_year_id, averageincome,livingwage, 
+						wagecompensation, value_tenpct, values_fivepct,
+						 totalprofits, numbercharges, workingdays, workeddays,judicial_retention)
+			values(get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), v_User_ID, now(), v_User_ID,
+				Cur_Employee.c_bpartner_id, Cur_Employee.c_year_id, Cur_Employee.averageincome,v_livingwage,
+				coalesce((case when v_livingwage - Cur_Employee.averageincome <= 0 Then 0.00
+				     when v_livingwage - Cur_Employee.averageincome > 0 Then v_livingwage - Cur_Employee.averageincome end),0),0,0,0, v_family,
+				      Cur_Employee.workingdays, Cur_Employee.workeddays,v_JudicialRetention);
+
+			--ACTUALIZA SUMA DE COMPENSACION SALARIO DIGNO
+			--DIAS LABORADOS
+			update sspr_configurationutility
+			set wagecompensationtotal = wagecompensationtotal + coalesce((case when v_livingwage - Cur_Employee.averageincome <= 0 Then 0.00
+									     when v_livingwage - Cur_Employee.averageincome > 0 Then v_livingwage - Cur_Employee.averageincome end),0)
+			,workeddaystotal = workeddaystotal + Cur_Employee.workeddays,
+			workeddayswagetotal = workeddayswagetotal + (case when v_livingwage - Cur_Employee.averageincome > 0 Then Cur_Employee.workeddays else 0 end),
+			numberchargestotal = numberchargestotal + v_family,
+			workeddayschargestotal = workeddayschargestotal + (case when v_family > 0 Then Cur_Employee.workeddays else 0 end),
+			chargesworkedtotal = chargesworkedtotal + (Cur_Employee.workeddays * v_family)
+			where c_year_id = v_c_year_id;
+
+			v_Message := 'Insert Utilities Temp';
+
+		End Loop;
+
+		-- DATOS COMPLEMENTARIOS
+		FOR Cur_SupplementaryData In(
+			SELECT C_YEAR_ID, TAXID_COMPANY,TAXID_PARTNER,NAME,SURNAME,NUM_CHARGES,DAYSWORKED,SSPR_SUPPLEMENTARY_DATA_ID,judicial_retention
+			FROM SSPR_SUPPLEMENTARY_DATA
+			where c_year_id = v_c_year_id
+		)
+		LOOP
+
+			insert into sspr_profits(sspr_profits_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby,
+						c_bpartner_id,SSPR_SUPPLEMENTARY_DATA_ID, c_year_id, averageincome,livingwage, 
+						wagecompensation, value_tenpct, values_fivepct,
+						 totalprofits, numbercharges, workingdays, workeddays,judicial_retention)
+			values(get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), v_User_ID, now(), v_User_ID,
+				null,Cur_SupplementaryData.SSPR_SUPPLEMENTARY_DATA_ID, Cur_SupplementaryData.c_year_id, 0,0,
+				0,0,0,0, Cur_SupplementaryData.NUM_CHARGES,0, Cur_SupplementaryData.DAYSWORKED,Cur_SupplementaryData.judicial_retention);
+
+			-- ACTUALIZA CONFIGURACIÓN DE UTILIDADES
+			update sspr_configurationutility
+			set workeddaystotal = workeddaystotal + Cur_SupplementaryData.DAYSWORKED,
+			workeddayswagetotal = workeddayswagetotal + Cur_SupplementaryData.DAYSWORKED ,
+			numberchargestotal = numberchargestotal + Cur_SupplementaryData.NUM_CHARGES,
+			workeddayschargestotal = workeddayschargestotal + (case when Cur_SupplementaryData.NUM_CHARGES > 0 Then Cur_SupplementaryData.DAYSWORKED else 0 end),
+			chargesworkedtotal = chargesworkedtotal + (Cur_SupplementaryData.DAYSWORKED * Cur_SupplementaryData.NUM_CHARGES)
+			where c_year_id = v_c_year_id;
+
+		END LOOP;
+
+		-- FIN DATOS COMPLEMENTARIOS
+		select workeddaystotal, wagecompensationtotal, workeddayswagetotal, numberchargestotal, workeddayschargestotal,chargesworkedtotal
+		into v_workeddaystotal, v_wagecompensationtotal, v_workeddayswagetotal, v_numberchargestotal, v_workeddayschargestotal, v_chargesworkedtotal
+		from sspr_configurationutility a
+		left join c_year b on b.c_year_id = a.c_year_id
+		where a.c_year_id = v_c_year_id;
+		
+		v_SubValue5:=0;
+		
+		--INSERTA TABLA DEFINITIVA
+		For Cur_Profits In(
+			select a.sspr_profits_id, a.ad_client_id, a.ad_org_id, a.isactive, a.created, a.createdby, a.updated, a.updatedby, a.c_bpartner_id, a.sspr_supplementary_data_id, 
+				a.c_year_id, a.averageincome, a.livingwage, a.wagecompensation,
+				--COMPENSACION SALARIO DIGNO
+				(case when coalesce(v_wagecompensationtotal,0) <= v_netprofit Then a.wagecompensation
+				     when coalesce(v_wagecompensationtotal,0) > v_netprofit and a.wagecompensation > 0 
+					  Then case when v_workeddayswagetotal > 0 Then ((v_netprofit * a.workeddays)/ v_workeddayswagetotal) else 0 end
+				else 0.0000
+				end) as wagecompensationtotal,
+				--10%
+				coalesce(((v_perc_earnings_employee * a.workeddays)/v_workeddaystotal),0) as value_tenpcttotal,
+				--5%
+				case when v_numberchargestotal > 0 Then coalesce((((v_perc_utility_loads * a.workeddays) * a.numbercharges)/ (v_chargesworkedtotal)),0)
+				     when v_numberchargestotal <= 0 Then coalesce(((v_perc_utility_loads * a.workeddays)/v_workeddaystotal),0) 
+				     end as values_fivepcttotal,
+				--TOTAL 10% + 5%
+				coalesce(trunc(((v_perc_earnings_employee * a.workeddays)/v_workeddaystotal),2),0) +
+				case when v_numberchargestotal > 0 Then coalesce((((v_perc_utility_loads * a.workeddays) * a.numbercharges)/ (v_chargesworkedtotal)),0)
+				     when v_numberchargestotal <= 0 Then coalesce(((v_perc_utility_loads * a.workeddays)/v_workeddaystotal),0) 
+				     end as totalprofits,
+				 a.numbercharges, a.workingdays, a.workeddays, a.judicial_retention,
+				 trim(b.taxid) as identify, c.isPartTime
+			from sspr_profits a
+			left join c_bpartner b on b.c_bpartner_id = a.c_bpartner_id
+			LEFT JOIN (
+				SELECT c.c_bpartner_id, c.startDate, c.isPartTime
+				FROM sspr_contract c
+					JOIN c_year y ON y.c_year_id = v_c_year_id
+						AND y.year::NUMERIC >= TO_CHAR(c.startDate, 'YYYY')::NUMERIC
+						AND y.year::NUMERIC <= TO_CHAR(c.endDate, 'YYYY')::NUMERIC
+				GROUP BY c.c_bpartner_id, c.startDate, c.isPartTime
+				HAVING c.startDate = MAX(c.startDate)
+			) c ON c.c_bpartner_id = b.c_bpartner_id
+			where a.c_year_id = v_c_year_id
+		)
+		Loop
+		
+			vCalcLivingWage := 0;
+			vCalcWageCompensation := 0;
+		
+			IF Cur_Profits.sspr_supplementary_data_id IS NULL THEN
+
+				vCalcLivingWage := CASE
+					WHEN Cur_Profits.isPartTime = 'Y' THEN (v_LivingWage / 30 / vMonthPartialLivingWage) *
+						CASE WHEN Cur_Profits.workingdays = 360 THEN Cur_Profits.workingdays ELSE Cur_Profits.workeddays END
+					ELSE (v_LivingWage / 30) * Cur_Profits.workeddays
+				END;
+
+				vCalcWageCompensation := CASE
+					WHEN COALESCE(Cur_Profits.averageincome, 0) > vCalcLivingWage THEN 0
+					ELSE vCalcLivingWage - COALESCE(Cur_Profits.averageincome, 0)
+				END;
+				
+			END IF;
+
+		IF (Cur_Profits.judicial_retention>0) THEN
+			IF (Cur_Profits.values_fivepcttotal>0) THEN
+				v_SubValue5:= Cur_Profits.values_fivepcttotal / Cur_Profits.numbercharges ;
+				V_TotalJudicialRetention:= v_SubValue5 * Cur_Profits.judicial_retention;
+
+				IF (Cur_Profits.numbercharges <> Cur_Profits.judicial_retention ) THEN
+					V_TotalValue5:= Cur_Profits.values_fivepcttotal - V_TotalJudicialRetention;
+				ELSIF (Cur_Profits.numbercharges = Cur_Profits.judicial_retention ) THEN
+					V_TotalJudicialRetention:= Cur_Profits.values_fivepcttotal;
+					V_TotalValue5:= 0;
+				END IF;
+			ELSE
+				V_TotalJudicialRetention:=0;
+				V_TotalValue5:= Cur_Profits.values_fivepcttotal;
+			END IF;
+                ELSE
+			V_TotalJudicialRetention:= 0; 
+			V_TotalValue5:= Cur_Profits.values_fivepcttotal;              
+		END IF;
+
+		--INSERTA REGISTRO DE UTILIDADES TEMPORAL
+		insert into sspr_utilities(sspr_utilities_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby,
+					c_bpartner_id,sspr_supplementary_data_id, c_year_id, averageincome,livingwage, 
+					wagecompensation, value_tenpct, values_fivepct,
+					 totalprofits, numbercharges, workingdays, workeddays,judicial_retention,sspr_codeformulary107_id)
+		values(get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), v_User_ID, now(), v_User_ID,
+			Cur_Profits.c_bpartner_id,
+			Cur_Profits.sspr_supplementary_data_id
+			, Cur_Profits.c_year_id, coalesce(Cur_Profits.averageincome,0), vCalcLivingWage, vCalcWageCompensation,
+			--Cur_Profits.wagecompensationtotal,
+			Cur_Profits.value_tenpcttotal,
+			V_TotalValue5,
+			Cur_Profits.totalprofits - V_TotalJudicialRetention,
+			Cur_Profits.numbercharges, Cur_Profits.workingdays, Cur_Profits.workeddays,V_TotalJudicialRetention,v_sspr_codeformulary107_id);
+
+		-- Inserta en el concepto de utilidades						  
+		If(v_sspr_concept_id != 'ND' and v_c_period_id != 'ND')Then
+			select count(taxid_partner)
+			into v_countsup
+			from sspr_supplementary_data
+			where c_year_id = v_c_year_id
+			and taxid_partner = Cur_Profits.identify;
+
+			If(v_countsup = 0)Then
+				INSERT INTO SSPR_Concept_Amount
+				    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+				    Created, CreatedBy, Updated, UpdatedBy,
+				    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID, Amount)
+				VALUES
+				    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+				    now(), v_User_ID, now(), v_User_ID,
+				    v_sspr_concept_id,Cur_Profits.c_bpartner_id,v_c_period_id, Cur_Profits.totalprofits - V_TotalJudicialRetention
+				    );
+			End If;
+		End If;
+
+		v_n_insertions := v_n_insertions + 1;	
+		v_Message := 'Insert Utilities Difinitive';
+
+		End Loop;
+
+	End If;
+
+	v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+	DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+ AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+	RETURN;
+
+END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_PROCESS_UTILITY
+]]></body>
+    </function>
+  </database>

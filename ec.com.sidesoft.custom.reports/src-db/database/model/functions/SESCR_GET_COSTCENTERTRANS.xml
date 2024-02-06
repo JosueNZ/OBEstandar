@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GET_COSTCENTERTRANS">
+    <function name="SESCR_GET_COSTCENTERTRANS" type="VARCHAR">
+      <parameter name="p_transaction_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Transaction_id VARCHAR2(32) ;
+v_CostCenter_id  VARCHAR2(32) ;
+v_CostCenterName  VARCHAR2(200) ;
+
+BEGIN
+	v_CostCenter_id:='ND';
+	
+	-- M_InoutLine
+	IF v_CostCenter_id='ND' THEN
+	
+		SELECT COALESCE((
+			SELECT CC.C_COSTCENTER_ID
+			FROM M_INOUT MI
+			JOIN M_INOUTLINE MIL ON MIL.M_INOUT_ID = MI.M_INOUT_ID
+			left join C_COSTCENTER CC ON CC.C_COSTCENTER_ID = COALESCE(MIL.C_COSTCENTER_ID, MI.C_COSTCENTER_ID)
+			WHERE MI.DOCSTATUS = 'CO'
+			AND MIL.M_INOUTLINE_ID = p_transaction_id
+			AND MIL.M_PRODUCT_ID = p_product_id
+		),'ND')
+		INTO v_CostCenter_id
+		FROM DUAL;
+		
+	END IF;
+	
+	-- M_Movement
+	IF v_CostCenter_id='ND' THEN
+	
+		SELECT COALESCE((
+			SELECT CC.C_COSTCENTER_ID
+			FROM M_MOVEMENT MM
+			JOIN M_MOVEMENTLINE MML ON MML.M_MOVEMENT_ID = MM.M_MOVEMENT_ID
+			left join C_COSTCENTER CC ON CC.C_COSTCENTER_ID = MM.C_COSTCENTER_ID
+			WHERE MML.M_MOVEMENTLINE_ID = p_transaction_id
+			AND MML.M_PRODUCT_ID = p_product_id
+		),'ND')
+		INTO v_CostCenter_id
+		FROM DUAL;
+		
+	END IF;
+	
+	-- M_ProductionLine
+
+	IF v_CostCenter_id='ND' THEN
+	
+		SELECT COALESCE((
+			SELECT CC.C_COSTCENTER_ID
+			FROM M_PRODUCTIONLINE MPL
+			JOIN M_PRODUCTIONPLAN MPLN ON 	MPLN.m_productionplan_id= MPL.m_productionplan_id														
+			JOIN M_PRODUCTION MP ON MP.M_PRODUCTION_ID = MPLN.M_PRODUCTION_ID
+			left join C_COSTCENTER CC ON CC.C_COSTCENTER_ID = MP.C_COSTCENTER_ID
+			WHERE MPL.M_PRODUCTIONLINE_ID = p_transaction_id
+			AND MPL.M_PRODUCT_ID = p_product_id
+		),'ND')
+		INTO v_CostCenter_id
+		FROM DUAL;
+		
+	END IF;
+	
+	-- Get Name Cost Center
+	
+	IF v_CostCenter_id<>'ND' THEN
+		
+		SELECT COALESCE((SELECT
+		TO_CHAR(NAME)
+		FROM C_COSTCENTER
+		WHERE C_COSTCENTER_ID = v_CostCenter_id
+		),TO_CHAR(' '))
+		INTO v_CostCenterName
+		FROM DUAL;
+		
+	ELSE
+		
+		v_CostCenterName:=' ';
+		
+	END IF;
+
+
+	return v_CostCenterName;
+END SESCR_GET_COSTCENTERTRANS
+]]></body>
+    </function>
+  </database>

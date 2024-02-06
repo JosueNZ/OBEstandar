@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSATR_ASSET_DETAIL_TRG">
+    <trigger name="SSATR_ASSET_DETAIL_TRG" table="SSATR_ASSET_DETAIL" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[    vStatus VARCHAR2(60);
+BEGIN
+    IF (DELETING) THEN
+        SELECT docstatus INTO vStatus FROM ssatr_asset_transfer WHERE ssatr_asset_transfer_id=:OLD.ssatr_asset_transfer_id;
+        IF (vStatus = 'SSATR_PR') THEN
+            RAISE_APPLICATION_ERROR(-20000, '@SSATR_DocumentProcessed@') ;
+        END IF;
+    END IF;
+    RETURN OLD;
+    IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END SSATR_ASSET_DETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SINNAPP_APPROVE_NEED">
+    <function name="SINNAPP_APPROVE_NEED" type="VARCHAR">
+      <parameter name="pinstanceid" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+        pInstance RECORD;
+        vMessageOK VARCHAR2(2000) := '';
+        vMessageError VARCHAR2(2000) := '';
+        vRecordID VARCHAR2(32);
+        vUserID VARCHAR2(32);
+	BEGIN
+		DBMS_OUTPUT.PUT_LINE( 'Updating PInstance - Processing ' || pInstanceID);
+		vMessageError := 'PInstanceNotFound';
+		AD_UPDATE_PINSTANCE(pInstanceID, NULL, 'Y', NULL, NULL);
+		BEGIN
+			--Obtenemos los parametros
+			FOR pInstance IN (
+				SELECT
+					i.Record_ID,
+					i.AD_User_ID,
+					p.ParameterName,
+					p.P_String,
+					p.P_Number,
+					p.P_Date
+				FROM AD_PInstance AS i
+				LEFT JOIN AD_PInstance_Para AS p ON i.AD_PInstance_ID=p.AD_PInstance_ID
+				WHERE i.AD_PInstance_ID=pInstanceID
+				ORDER BY p.SeqNo
+			) LOOP
+				vRecordID := pInstance.Record_ID;
+				vUserID := pInstance.AD_User_ID;
+			END LOOP;
+			UPDATE m_requisition SET 
+			em_sinnapp_approve_need='Y', 
+			em_sinnapp_approvedby=vUserID, 
+			em_sinnapp_approved=now() 
+			WHERE m_requisition_id=vRecordID;
+			
+			DBMS_OUTPUT.PUT_LINE( 'Updating PInstance - Finished ' || vMessageOK);
+			AD_UPDATE_PINSTANCE(pInstanceID, NULL, 'N', 1, vMessageOK);
+			RETURN TRUE;
+    	END;
+		
+        EXCEPTION WHEN OTHERS THEN
+        vMessageError := '@ERROR=' || SQLERRM;
+    	DBMS_OUTPUT.PUT_LINE( vMessageError);
+        AD_UPDATE_PINSTANCE(pInstanceID, NULL, 'N', 0, vMessageError);
+    	RETURN FALSE;
+END SINNAPP_APPROVE_NEED
+]]></body>
+    </function>
+  </database>

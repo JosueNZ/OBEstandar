@@ -1,0 +1,572 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_INCOMETOTALS_LIQ">
+    <function name="SSPR_INCOMETOTALS_LIQ" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_settlement_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_line" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_concept_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*  FUNCION QUE GENERA IMPUESTO A LA RENTA
+* Explicación:
+*
+*
+**********************************************************************************/
+TYPE RECORD IS REF CURSOR;
+Cur_ConceptIncomeTax RECORD;
+Cur_Parameter RECORD;
+Cur_IncomeT RECORD;
+Cur_IncomeTax RECORD;
+Cur_Period RECORD;
+Cur_ForAcumu  RECORD;
+Cur_ConceptNull RECORD;
+Cur_ForAcumuSum RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+
+  v_ResultStr VARCHAR2(2000) := '';  
+
+  v_Period_ID VARCHAR2(32); 
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_Basic NUMBER:=0 ;
+  v_Excende NUMBER;
+  v_YearTax  NUMBER;
+  v_MontTax  NUMBER;
+
+  v_Basemin NUMBER;
+  v_Basemax NUMBER;
+  v_Taxamount  NUMBER;
+  v_Percentajetax NUMBER;
+
+  v_Basic_1 NUMBER;
+  v_Excende_1 NUMBER;
+  v_YearTax_1 NUMBER;
+  v_MontTax_1 NUMBER;
+
+  v_TotalYearTax NUMBER:=0 ;
+  v_TotalMothTax NUMBER:=0 ;
+  v_TaxBeforeProjected NUMBER:=0 ;
+ v_CumulativePaid NUMBER:=0 ; 
+  v_TaxCharge NUMBER:=0 ;
+  v_TotalMothTax1 NUMBER:=0 ;
+  Cur_TaxMontIncome RECORD ;
+  v_SSPR_CONCEPT_ID VARCHAR(32);
+  v_PARTNER_ID VARCHAR(32);
+  v_SSPR_Ticket_Payroll VARCHAR(32);
+
+  v_TotalmonthTax NUMBER;
+  v_TotalRetenciones NUMBER;
+  V_ISINCOMETAXMOTHCONCEPT VARCHAR(32);
+  v_Total_Paid_Tax_For_Moth NUMBER;
+  V_MESSAGE_RENTA  VARCHAR(2000);
+  v_valor_mayor_cero NUMBER:=0;
+  
+  v_countconcept NUMBER;
+  v_periodno_cur NUMBER:=0;
+   v_period_calculated NUMBER;
+  v_nototalperiod NUMBER;
+  v_CumulativePaid_sum NUMBER;
+
+  v_sspr_settlement_id  VARCHAR2(32);
+  v_line NUMBER;
+  v_concept_id_liquidation VARCHAR2(32);
+  
+  vIT_2022 VARCHAR2(1);
+  vFirstBaseMax NUMBER;
+  vGrossSalaryIncomeAccumulated NUMBER;
+  vGrossSalaryIncome NUMBER;
+  vBasicFamilyBasket NUMBER;
+  vMinPerc NUMBER;
+  vMaxPerc NUMBER;
+  vCalc NUMBER;
+  v_tot_senior NUMBER;  
+  
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound-tax';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+ -- BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+
+    v_sspr_settlement_id := p_sspr_settlement_id;
+    v_line := p_line;
+    v_concept_id_liquidation := p_sspr_concept_id;
+    
+    --SSPR_ACUMULATIVECONCEPTSX();
+    
+    --EXECUTE IMMEDIATE 'SELECT ' || SSPR_ACUMULATIVECONCEPTSX() || 'FROM DUAL';
+	 
+		--TRUNCATE SSPR_INCOMETOTAL;
+		DELETE FROM SSPR_INCOMETOTAL;
+
+		--OBTENGO PERIODO MAXIMO
+		 
+		SELECT MAX(PERIODNO) 
+		INTO v_periodno_cur
+		FROM SSPR_CUMULATIVECONCEPT;
+		
+		-- Impuesto a la renta 2022
+		SELECT CASE WHEN COUNT(*)>0 THEN 'Y' ELSE 'N' END INTO vIT_2022 FROM sspr_process_payroll WHERE isactive='Y' AND processname='IT_2022';
+    
+		---DATOS FINALES  PARA  INSERTAR EN SSPR_INCOMETOTAL
+		FOR Cur_IncomeT IN
+		(
+
+		SELECT A.AD_CLIENT_ID, A.AD_ORG_ID, A.C_YEAR_ID,A.C_BPARTNER_ID,
+		(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT) AS PERIODNO,
+		(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND ISIESS='Y' AND CONCEPTSUBTYPE='In'
+		AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID
+		AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID))) AS TOTALIN,
+		----------TOTAL DE INGRESOS ACUMULABLES Y PROJECTABLES
+		(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND ISIESS='Y' AND CONCEPTSUBTYPE='In'
+		AND C_BPARTNER_ID=A.C_BPARTNER_ID AND C_YEAR_ID = A.C_YEAR_ID  
+		AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) * (SELECT distinct sspr_iessrateline.value/100
+						    from sspr_iessrateline
+						    left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+						    left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+						    left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO = v_periodno_cur -- (SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+						    where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+                and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+                and sspr_iessrateline.isactive = 'Y'
+                and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID))
+		AS TOTALIESS, ---------------------TOTAL DE IEES -EN BASE AL  TOTAL DE INGRESOS ACUMULABLES Y PROJECTABLES
+		(COALESCE (TO_NUMBER((SELECT  COALESCE (B.AMOUNTCOST,0) FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y' AND B.C_YEAR_ID = A.C_YEAR_ID)),0)) AS TOTALDEDUCIBLE,----------TOTAL DEDUCIBLE
+		-------SACAR BASE 1
+		(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y' AND (ISIESS='Y' OR ISIESS = 'N' )AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID
+		AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)) -
+		(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED ='Y'AND (ISIESS='Y' OR ISIESS ='N') AND CONCEPTSUBTYPE='In' AND C_BPARTNER_ID=A.C_BPARTNER_ID
+		AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) * (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO = v_periodno_cur --(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID)) -
+		CASE WHEN vIT_2022='Y' THEN 0
+		ELSE COALESCE (TO_NUMBER((SELECT  COALESCE (B.AMOUNTCOST,0) FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y' AND B.C_YEAR_ID = A.C_YEAR_ID)),0) END) AS BASEIMPONIBLE, ------------BASE 1
+		----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		------TOTAL DE INGRESOS ACUMULABLES Y NO PROYECTABLES Y CON IESS
+		(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)) AS TOTALIN_1_0,
+		--- TOTAL DE INGRESO ACUMULABLES Y NO PROYECTABLES Y SIN IESS
+		(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)) AS TOTALIN_1_1,
+		-----SUM DE INGRESO ACUMULABLES Y NO PROYECTABLES CON Y SIN IESS
+		(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) +
+		COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0))AS TOTALIN_1,
+		-----TOTAL DEL IESS DE VALORES NO PROYECTABLES, SOLO ACUMULABLES Y MENSUALES
+		(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) * (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO = v_periodno_cur--(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID)) AS TOTALIESS_1,
+		--BASE 2 (TOTAL INGRESO  SOLO ACUMULABLES Y MENSUALES - TOTAL DEL IESS)
+		(COALESCE(TO_NUMBER((COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' 
+		AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) +
+		COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='N' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) ) -
+		(COALESCE (TO_NUMBER((SELECT(SUM(ACUMULATIVE) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE ISCUMULATIVE='Y' AND ISPROJECTED='N' AND ISIESS='Y' AND C_BPARTNER_ID=A.C_BPARTNER_ID AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) *  (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO = v_periodno_cur --(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID))),0)) AS BASEIMPONIBLE_1 ,
+		---------------------------------------------------------------------------------------
+		
+		(coalesce(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+		AND C_BPARTNER_ID=A.C_BPARTNER_ID 
+		AND CONCEPTSUBTYPE='In' 
+		AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) 
+		-     
+		(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) 
+		FROM SSPR_CUMULATIVECONCEPT
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+	        AND ISIESS = 'Y'
+	        AND C_BPARTNER_ID=A.C_BPARTNER_ID
+		AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) *  (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO =v_periodno_cur
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID)) 
+		-
+		CASE WHEN vIT_2022='Y' THEN 0
+		ELSE COALESCE (TO_NUMBER((SELECT  COALESCE (TO_NUMBER(B.AMOUNTCOST),0) 
+		FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y'AND B.C_YEAR_ID = A.C_YEAR_ID)),0) END
+		-
+		--Resta Valor por discapacidad
+		Case when to_number(p.em_sspr_disability) > 0 and p.em_sspr_isdisabled = 'Y' then
+			round(((coalesce((select min(sspr_incometaxline.basemax) * 2
+			from sspr_incometax
+			left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+			where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+			*
+			coalesce((select sspr_disabilityline.percentage
+			from sspr_disabilityline
+			left join sspr_disability on sspr_disability.sspr_disability_id = sspr_disabilityline.sspr_disability_id
+			where sspr_disabilityline.grade_disability_from <= to_number(p.em_sspr_disability) and sspr_disabilityline.grade_disability_to >= to_number(p.em_sspr_disability)
+			and sspr_disability.c_year_id = A.C_YEAR_ID),0))/100,2)
+		else 0
+		End
+		-
+		--Resta Valor por tercera edad
+		case when Abs(EXTRACT(YEAR FROM em_sspr_birthday) - EXTRACT(YEAR FROM now())) >= 65 Then
+			round(((coalesce((select min(sspr_incometaxline.basemax) * 2
+			from sspr_incometax
+			left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+			where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+			*
+			coalesce((select sspr_disability.value_seniors
+			from sspr_disability 
+			where  sspr_disability.c_year_id = A.C_YEAR_ID
+			),0))/100,2)
+		else 0
+		end  		
+		) AS  BASETOTAL,
+
+		--Desarrollo Discapacitados
+		p.em_sspr_isdisabled as isdisabled,
+		coalesce(p.em_sspr_disability,'0') as disability,
+		coalesce((select sspr_disabilityline.percentage
+			from sspr_disabilityline
+			left join sspr_disability on sspr_disability.sspr_disability_id = sspr_disabilityline.sspr_disability_id
+			where sspr_disabilityline.grade_disability_from <= to_number(p.em_sspr_disability) and sspr_disabilityline.grade_disability_to >= to_number(p.em_sspr_disability)
+			and sspr_disability.c_year_id = A.C_YEAR_ID),0) 
+		as percent_ben_disab,
+		Case when to_number(p.em_sspr_disability) > 0 and  p.em_sspr_isdisabled = 'Y' then
+			round(((coalesce((select min(sspr_incometaxline.basemax) * 2
+			from sspr_incometax
+			left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+			where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+			*
+			coalesce((select sspr_disabilityline.percentage
+			from sspr_disabilityline
+			left join sspr_disability on sspr_disability.sspr_disability_id = sspr_disabilityline.sspr_disability_id
+			where sspr_disabilityline.grade_disability_from <= to_number(p.em_sspr_disability) and sspr_disabilityline.grade_disability_to >= to_number(p.em_sspr_disability)
+			and sspr_disability.c_year_id = A.C_YEAR_ID),0))/100,2)
+		else 0
+		End as tot_disab,
+		(coalesce(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) FROM SSPR_CUMULATIVECONCEPT
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+		AND C_BPARTNER_ID=A.C_BPARTNER_ID 
+		AND CONCEPTSUBTYPE='In' 
+		AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0)
+		-     
+		(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) 
+		FROM SSPR_CUMULATIVECONCEPT
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+	        AND ISIESS = 'Y'
+	        AND C_BPARTNER_ID=A.C_BPARTNER_ID
+		AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID AND PERIODNO=(SELECT MAX(PERIODNO) FROM SSPR_CUMULATIVECONCEPT)
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) *  (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.C_YEAR_ID=C_YEAR_ID AND C_period.PERIODNO = v_periodno_cur
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID)) 
+		-
+		CASE WHEN vIT_2022='Y' THEN 0
+		ELSE COALESCE (TO_NUMBER((SELECT  COALESCE (TO_NUMBER(B.AMOUNTCOST),0) 
+		FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y'AND B.C_YEAR_ID = A.C_YEAR_ID)),0) END) 
+		as basetotal_disab,
+
+		--Desarrollo Tercera Edad
+		p.em_sspr_birthday,
+		coalesce(Abs(EXTRACT(YEAR FROM p.em_sspr_birthday) - EXTRACT(YEAR FROM now())),0)  as age,
+		case when Abs(EXTRACT(YEAR FROM em_sspr_birthday) - EXTRACT(YEAR FROM now())) >= 65 Then
+			round(((coalesce((select min(sspr_incometaxline.basemax) * 2
+			from sspr_incometax
+			left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+			where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+			*
+			coalesce((select sspr_disability.value_seniors
+			from sspr_disability 
+			where  sspr_disability.c_year_id = A.C_YEAR_ID
+			),0))/100,2)
+		else 0
+		end as tot_seniors,
+		(select sspr_disability.value_seniors
+			from sspr_disability 
+			where  sspr_disability.c_year_id = A.C_YEAR_ID
+		) as value_seniors		
+		
+		FROM SSPR_CUMULATIVECONCEPT A
+		left join c_bpartner p on p.c_bpartner_id = A.c_bpartner_id
+		GROUP BY A.C_YEAR_ID,A.C_BPARTNER_ID,A.AD_CLIENT_ID, A.AD_ORG_ID, A.C_BPARTNER_ID,
+		P.EM_SSPR_ISDISABLED,P.EM_SSPR_DISABILITY, p.em_sspr_birthday
+		)
+		LOOP
+		v_Basic_1 := 0;
+		v_Excende_1 := 0;
+		v_YearTax_1 := 0;
+		v_MontTax_1 := 0;
+		v_TotalYearTax := 0;
+		v_Total_Paid_Tax_For_Moth := 0;
+		v_TaxBeforeProjected := 0;
+		v_CumulativePaid := 0;
+		
+		-- Primera base minima
+		SELECT itl.basemax * 2.13 INTO vFirstBaseMax
+		FROM sspr_incometaxline itl
+			JOIN sspr_incometax it ON it.sspr_incometax_id=itl.sspr_incometax_id
+		WHERE it.isactive='Y' AND it.c_year_id=Cur_IncomeT.c_year_id AND itl.isactive='Y' AND itl.basemin=0;
+
+		-- Ingresos por mes acumulado con el check "Es para cálculo salario bruto"
+		vGrossSalaryIncomeAccumulated := 0;
+		IF Cur_IncomeT.periodno > 1 THEN
+			SELECT COALESCE(SUM(ptc.amount),0) INTO vGrossSalaryIncomeAccumulated
+			FROM sspr_payroll_ticket_concept ptc
+				JOIN sspr_payroll_ticket pt ON pt.sspr_payroll_ticket_id=ptc.sspr_payroll_ticket_id
+				JOIN sspr_payroll p ON p.sspr_payroll_id=pt.sspr_payroll_id
+				JOIN sspr_concept c ON c.sspr_concept_id=ptc.sspr_concept_id
+				JOIN c_period pe ON pe.c_period_id=p.c_period_id
+			WHERE pe.periodno>=1 AND pe.periodno<Cur_IncomeT.periodno AND pe.c_year_id=Cur_IncomeT.c_year_id
+				AND pt.c_bpartner_id=Cur_IncomeT.c_bpartner_id AND c.is_calc_gross_salary='Y' AND c.conceptsubtype='In';
+		END IF;
+		
+		-- Ingresos del mes con el check "Es para cálculo salario bruto"
+		SELECT COALESCE(SUM(ptc.amount),0) * (13 - Cur_IncomeT.periodno) INTO vGrossSalaryIncome
+		FROM sspr_payroll_ticket_concept ptc
+			JOIN sspr_payroll_ticket pt ON pt.sspr_payroll_ticket_id=ptc.sspr_payroll_ticket_id
+			JOIN sspr_payroll p ON p.sspr_payroll_id=pt.sspr_payroll_id
+			JOIN sspr_concept c ON c.sspr_concept_id=ptc.sspr_concept_id
+			JOIN c_period pe ON pe.c_period_id=p.c_period_id
+		WHERE pe.periodno=Cur_IncomeT.periodno AND pe.c_year_id=Cur_IncomeT.c_year_id
+			AND pt.c_bpartner_id=Cur_IncomeT.c_bpartner_id AND c.is_calc_gross_salary='Y' AND c.conceptsubtype='In';
+		
+		vGrossSalaryIncome := vGrossSalaryIncome + vGrossSalaryIncomeAccumulated;
+			
+			FOR Cur_IncomeTax IN
+				(
+				  SELECT  A.basemin, A.basemax, A.taxamount, A.percentajetax,
+				  	b.basic_family_basket, b.min_perc_deduct_expenses, b.max_perc_deduct_expenses
+				  FROM sspr_incometaxline a
+				  LEFT JOIN sspr_incometax b on a.sspr_incometax_id=b.sspr_incometax_id
+				  WHERE B.ISACTIVE='Y' AND A.ISACTIVE='Y' AND B.C_YEAR_ID = Cur_IncomeT.C_YEAR_ID
+				  and Cur_IncomeT.BASETOTAL >= a.basemin  and  Cur_IncomeT.BASETOTAL <= a.basemax
+				)
+				LOOP   
+					v_Basemin:=Cur_IncomeTax.basemin;
+					v_Basemax:=Cur_IncomeTax.basemax;
+					v_Taxamount:=Cur_IncomeTax.taxamount;
+					v_Percentajetax:=Cur_IncomeTax.percentajetax;
+					
+					vBasicFamilyBasket := Cur_IncomeTax.basic_family_basket * 7;
+					vMinPerc := CASE WHEN Cur_IncomeTax.min_perc_deduct_expenses > 0 THEN Cur_IncomeTax.min_perc_deduct_expenses / 100 ELSE 0 END;
+					vMaxPerc := CASE WHEN Cur_IncomeTax.max_perc_deduct_expenses > 0 THEN Cur_IncomeTax.max_perc_deduct_expenses / 100 ELSE 0 END;
+
+					vCalc := CASE WHEN Cur_IncomeT.totaldeducible = 0 OR vBasicFamilyBasket <= Cur_IncomeT.totaldeducible THEN vBasicFamilyBasket ELSE Cur_IncomeT.totaldeducible END;
+					vCalc := CASE WHEN vGrossSalaryIncome > vFirstBaseMax THEN vCalc * vMinPerc ELSE vCalc * vMaxPerc END;
+
+					--Calculo sobre la base
+					v_Basic_1 := v_Taxamount;
+					v_Excende_1:= ((Cur_IncomeT.BASETOTAL - v_Basemin) * v_Percentajetax )/100;
+					v_YearTax_1:= (v_Basic_1 + v_Excende_1);
+					IF vIT_2022='Y' AND Cur_IncomeT.totaldeducible>0 THEN
+						v_YearTax_1 := v_YearTax_1 - vCalc;
+					END IF;
+					v_MontTax_1:= (v_YearTax_1 / 12);
+         
+					v_TotalYearTax := v_YearTax_1 - v_YearTax;--VALOR POR RETENER --DIFERENCIA DE IMPUESTO ANUAL BASE TOTAL - IMPUESTO ANUAL BASE 1
+					v_TaxBeforeProjected := (v_MontTax * Cur_IncomeT.PERIODNO); --PROYECTADO -- IMPUESTO MENSUAL BASE 1 x MESES REPORTADO(No.periodo actual)
+					v_TotalmonthTax := v_MontTax_1 - v_MontTax; -- DIFERENCIA DE IMPUESTO  MENSUAL BASE TOTAL - IMPUESTO MENSUAL BASE 1
+
+				--ACTUALIZAMOS INSERT EL VALOR DEL IMPUESTO A LA RENTA POR MES  DE C/TERCERO
+				SELECT A.SSPR_CONCEPT_ID 
+				INTO V_ISINCOMETAXMOTHCONCEPT 
+				FROM SSPR_CONCEPT  A  
+				LEFT JOIN  SSPR_PROCESS_PAYROLL PP ON PP.SSPR_CONCEPTOUT_ID = A.SSPR_CONCEPT_ID
+				WHERE PP.PROCESSNAME IN ('IT', 'IT_2022') AND PP.ISACTIVE = 'Y';
+
+          v_CumulativePaid := 0;
+          v_period_calculated := 0;
+          For Cur_ForAcumu IN(
+          	SELECT ACUMULATIVE , NOTOTALPERIOD, PERIODNO
+	        FROM SSPR_CUMULATIVECONCEPT A
+	        WHERE A.SSPR_CONCEPT_ID = V_ISINCOMETAXMOTHCONCEPT  
+          	AND A.c_bpartner_id = Cur_IncomeT.C_BPARTNER_ID 
+          	AND A.PERIODNO = (SELECT (MAX(B.PERIODNO)) AS NOPERIODO FROM SSPR_CUMULATIVECONCEPT B 
+                              	WHERE B.c_bpartner_id = Cur_IncomeT.C_BPARTNER_ID 
+                              	AND B.SSPR_CONCEPT_ID = V_ISINCOMETAXMOTHCONCEPT) 
+					)
+					LOOP
+						v_CumulativePaid := Cur_ForAcumu.ACUMULATIVE;
+						v_period_calculated := Cur_ForAcumu.NOTOTALPERIOD - Cur_ForAcumu.PERIODNO;
+					End Loop;
+					if (v_CumulativePaid IS NULL) then
+						v_CumulativePaid:=0.00;
+					end if;
+          --Sumarotia declaraciones de los meses anteriores
+          v_CumulativePaid_sum := 0;
+           For Cur_ForAcumuSum IN(
+            SELECT sum(amountconcept ) as sumlastmont
+            FROM SSPR_CUMULATIVECONCEPT A
+            WHERE A.SSPR_CONCEPT_ID = V_ISINCOMETAXMOTHCONCEPT  
+          	AND A.c_bpartner_id = Cur_IncomeT.C_BPARTNER_ID 
+          	AND A.PERIODNO <= (SELECT (MAX(B.PERIODNO)) AS NOPERIODO FROM SSPR_CUMULATIVECONCEPT B 
+                              	WHERE B.c_bpartner_id = Cur_IncomeT.C_BPARTNER_ID 
+                              	AND B.SSPR_CONCEPT_ID = V_ISINCOMETAXMOTHCONCEPT) 
+					)
+					LOOP
+            v_CumulativePaid_sum := Cur_ForAcumuSum.sumlastmont;
+					End Loop;
+         If(v_CumulativePaid_sum is null or v_CumulativePaid_sum = 0) Then
+            v_CumulativePaid_sum := 0.00;
+         End If;			
+          
+          --If(v_period_calculated <= 0) Then
+            v_Total_Paid_Tax_For_Moth :=((v_YearTax_1 - v_CumulativePaid_sum));
+         -- Else					 
+         --   v_Total_Paid_Tax_For_Moth :=((v_YearTax_1 - v_CumulativePaid_sum)/v_period_calculated);  -- IMPUESTO A DESCONTAR= --TOTAL DE IMPUESTO RETENCIONES   MENOS LA IMPUESTO ACUMULADO--COLUMNA TOTALINCOMEMONTH
+         -- End If;
+          
+					V_MESSAGE_RENTA := '@EMPLEADO@: '||Cur_IncomeT.C_BPARTNER_ID||'@     VALOR DE RENTA :@'|| v_Total_Paid_Tax_For_Moth ||'  @FECHA@'||now();
+					IF (v_TotalMothTax1 < 0 OR v_TotalMothTax1 IS NULL ) THEN 
+						v_TotalMothTax1 :=0 ;
+						DBMS_OUTPUT.PUT_LINE( '@EMPLEADO@: '||Cur_IncomeT.C_BPARTNER_ID||'@     VALOR DE RENTA :@'|| v_Total_Paid_Tax_For_Moth);
+						V_MESSAGE_RENTA := '@EMPLEADO@: '||Cur_IncomeT.C_BPARTNER_ID||'@     VALOR DE RENTA :@'|| v_Total_Paid_Tax_For_Moth ||'  @FECHA@'||now();
+					--	INSERT INTO SSPR_LOG_RENTA VALUES (V_MESSAGE_RENTA);
+					END IF;
+
+					--INSERT INTO SSPR_LOG_RENTA VALUES (V_MESSAGE_RENTA);	
+
+				END LOOP;
+				
+				IF Cur_IncomeT.percent_ben_disab>0 AND Cur_IncomeT.age > Cur_IncomeT.value_seniors THEN
+					v_tot_senior := 0;
+				ELSE
+					v_tot_senior := Cur_IncomeT.tot_seniors;
+				END IF;
+
+				---v_Total_Paid_Tax_For_Moth variable que se guarda en el concepto impuesto a la renta DE CADA MES
+				INSERT INTO SSPR_INCOMETOTAL (SSPR_INCOMETOTAL_ID,AD_CLIENT_ID, AD_ORG_ID,ISACTIVE,CREATED, CREATEDBY,UPDATED, UPDATEDBY, C_YEAR_ID, C_BPARTNER_ID,TOTALIN,
+				TOTALIESS,TOTALDEDUCTIBLE, BASEIMPONIBLE,BASIC,EXCEDENT,TAXYEAR,TAXMOTH,TOTALIN2,TOTALIESS2,BASEIMPONIBLE2,BASETOTAL,BASIC_1,EXCEDENT_1,TAXYEAR_1,TAXMONTH_1,
+				TOTALINCOMEYEAR, TOTALINCOMEMONTH,TAXBEFOREPROJECTED,TAXPAID, TAXPURCHASE,
+				percent_ben_disab,tot_disab,basetotal_disab,
+				age,tot_seniors)
+				VALUES(get_uuid(),Cur_IncomeT.ad_client_id,Cur_IncomeT.ad_org_id, 'Y',now(),p_user_id,now(),p_user_id,Cur_IncomeT.C_YEAR_ID,
+				Cur_IncomeT.C_BPARTNER_ID,Cur_IncomeT.TOTALIN, Cur_IncomeT.TOTALIESS, Cur_IncomeT.TOTALDEDUCIBLE,Cur_IncomeT.BASEIMPONIBLE,v_Basic,v_Excende,
+				v_YearTax, v_MontTax,Cur_IncomeT.TOTALIN_1,Cur_IncomeT.TOTALIESS_1,Cur_IncomeT.BASEIMPONIBLE_1,Cur_IncomeT.BASETOTAL,v_Basic_1,v_Excende_1,v_YearTax_1,v_MontTax_1,
+				v_TotalYearTax,v_Total_Paid_Tax_For_Moth,v_CumulativePaid_sum,v_CumulativePaid, 0,
+				Cur_IncomeT.percent_ben_disab, Cur_IncomeT.tot_disab, Cur_IncomeT.basetotal_disab,
+				Cur_IncomeT.age, v_tot_senior);
+				
+				v_n_insertions :=v_n_insertions + 1;
+		END LOOP;
+
+		--ACTUALIZAMOS INSERT EL VALOR DEL IMPUESTO A LA RENTA POR MES  DE C/TERCERO
+		-- OBTIENE EL CONCEPTO IMPUESTO A LA RENTA 
+		
+    --SELECT A.SSPR_CONCEPT_ID INTO v_SSPR_CONCEPT_ID 
+		--FROM SSPR_CONCEPT  A  WHERE ISINCOMETAX='Y' LIMIT 1;
+
+	SELECT A.SSPR_CONCEPT_ID 
+	INTO V_ISINCOMETAXMOTHCONCEPT 
+	FROM SSPR_CONCEPT  A  
+	LEFT JOIN  SSPR_PROCESS_PAYROLL PP ON PP.SSPR_CONCEPTOUT_ID = A.SSPR_CONCEPT_ID
+	WHERE PP.PROCESSNAME IN ('IT', 'IT_2022') AND PP.ISACTIVE = 'Y';
+    
+        SELECT A.SSPR_CONCEPT_ID INTO v_SSPR_CONCEPT_ID 
+	FROM SSPR_CONCEPT  A  
+	WHERE SSPR_CONCEPT_ID =V_ISINCOMETAXMOTHCONCEPT;
+	
+	v_valor_mayor_cero := 0;
+	
+		FOR Cur_TaxMontIncome IN
+			(
+			SELECT  a.AD_CLIENT_ID, a.AD_ORG_ID, a.CREATEDBY, a.UPDATEDBY, a.C_BPARTNER_ID,cb.name, a.TOTALINCOMEMONTH,a.c_year_id
+			FROM SSPR_INCOMETOTAL a
+			left join c_bpartner cb on cb.C_BPARTNER_ID = a.C_BPARTNER_ID
+			)
+		LOOP
+
+		v_valor_mayor_cero := Cur_TaxMontIncome.TOTALINCOMEMONTH;
+		
+		IF v_valor_mayor_cero <= 0.00 THEN 
+			v_valor_mayor_cero := 0;
+		END IF;
+
+			INSERT INTO sspr_settlementline(sspr_settlementline_id, sspr_settlement_id,AD_Client_ID, AD_Org_ID, IsActive,Created, 
+				CreatedBy, Updated, UpdatedBy,line,sspr_concept_id,amount,qty,totalnet,
+				isincomecalculated,iscumulative,isprojected,isiess)
+			VALUES (get_uuid(),v_sspr_settlement_id, Cur_TaxMontIncome.AD_CLIENT_ID,Cur_TaxMontIncome.AD_ORG_ID,'Y',now(),Cur_TaxMontIncome.CREATEDBY,now(),Cur_TaxMontIncome.UPDATEDBY,
+				v_line,v_concept_id_liquidation,coalesce(to_number(v_valor_mayor_cero),0) * -1,1,coalesce(to_number(v_valor_mayor_cero),0) * -1,
+				'N','N','N','N');
+
+			DBMS_OUTPUT.PUT_LINE('INSERT DE CONCEPTO') ;
+
+		END LOOP;
+			
+    v_Message := '@RowsInserted@: ' || v_n_insertions;
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+  --  RETURN;
+
+  --END; --BODY
+  --EXCEPTION
+  --WHEN OTHERS THEN
+   -- v_ResultStr:= '@ERROR=' || SQLERRM;
+  --  RAISE NOTICE '%',v_ResultStr ;
+  --  PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPR_INCOMETOTALS_LIQ
+]]></body>
+    </function>
+  </database>

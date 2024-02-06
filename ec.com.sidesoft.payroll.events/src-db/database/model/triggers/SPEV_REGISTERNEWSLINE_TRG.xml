@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPEV_REGISTERNEWSLINE_TRG">
+    <trigger name="SPEV_REGISTERNEWSLINE_TRG" table="SPEV_REGISTER_NEWSLINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+  V_STATE VARCHAR2(60); 
+  V_SPEV_REGISTER_NEWS_ID VARCHAR2(32);
+   
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (DELETING) THEN
+
+    V_SPEV_REGISTER_NEWS_ID:= :OLD.SPEV_REGISTER_NEWS_ID; 
+
+    SELECT state 
+    INTO V_STATE
+    FROM spev_register_news
+    WHERE spev_register_news_id = V_SPEV_REGISTER_NEWS_ID; 
+  
+    IF (V_STATE = 'PR') THEN
+      RAISE_APPLICATION_ERROR(-20000, '@SPEV_is_processed@');
+    END IF; 
+    
+  END IF;
+  
+  END SPEV_REGISTERNEWSLINE_TRG
+]]></body>
+    </trigger>
+  </database>

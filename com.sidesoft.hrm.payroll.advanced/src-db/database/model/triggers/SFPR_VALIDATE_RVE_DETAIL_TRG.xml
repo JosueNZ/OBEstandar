@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SFPR_VALIDATE_RVE_DETAIL_TRG">
+    <trigger name="SFPR_VALIDATE_RVE_DETAIL_TRG" table="SFPR_RVE_DETAIL" fires="before" insert="false" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+   V_RVE_ID VARCHAR(32); 	--OBTG:VARCHAR2--
+   V_PROCESSED VARCHAR(1);	--OBTG:VARCHAR2--
+   V_STATUS VARCHAR(60);	--OBTG:VARCHAR2--
+   V_COUNT NUMBER;		--OBTG:NUMBER--
+   
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (DELETING OR UPDATING) THEN
+
+	V_RVE_ID:= :OLD.SFPR_RVE_DETAIL_ID;
+	V_PROCESSED:= :OLD.PROCESSED;
+	V_STATUS:= :OLD.STATUS_RVE;
+	
+	IF V_RVE_ID IS NOT NULL THEN
+
+		IF V_PROCESSED = 'Y' AND V_STATUS = 'CO' THEN
+
+			SELECT COALESCE(TO_NUMBER((SELECT COUNT(*) FROM SSPR_CONCEPT_AMOUNT
+			WHERE EM_SFPR_RVE_DETAIL_ID = V_RVE_ID)),0) INTO V_COUNT FROM DUAL;
+
+			IF (V_COUNT>0) THEN
+			
+				RAISE_APPLICATION_ERROR(-20000, '@Sfpr_ValidRVE@');
+				
+			END IF;
+		END IF;
+		
+	END IF;	
+	 	
+  END IF;
+  
+
+  END SFPR_VALIDATE_RVE_DETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

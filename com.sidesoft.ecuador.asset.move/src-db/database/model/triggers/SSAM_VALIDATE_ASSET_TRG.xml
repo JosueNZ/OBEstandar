@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSAM_VALIDATE_ASSET_TRG">
+    <trigger name="SSAM_VALIDATE_ASSET_TRG" table="C_INVOICELINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_em_ssam_asset CHARACTER(1); --OBTG:VARCHAR2--
+  v_issotrx CHARACTER(1); --OBTG:VARCHAR2--
+  
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  select issotrx
+  into v_issotrx
+  from c_invoice
+  where c_invoice_id = :new.c_invoice_id;
+
+  If(v_issotrx = 'Y')Then
+    
+	  IF(INSERTING OR UPDATING) THEN
+
+	    IF(:new.em_ssam_asset = 'Y' and :new.em_ssam_assetalienate is null)Then
+		RAISE_APPLICATION_ERROR(-20000, '@field Asset/Alienate is null@') ;
+	    End If;
+
+	    IF(:new.em_ssam_asset = 'Y' and :new.em_ssam_assetalienate = 'AS' and :new.em_ssam_a_asset_id is null) THEN
+
+		RAISE_APPLICATION_ERROR(-20000, '@field asset is null@') ;
+	       
+	    END IF;
+
+	    If(:new.em_ssam_asset = 'Y' and :new.em_ssam_assetalienate = 'AL' and :new.em_ssam_alienate_id is null) THEN
+
+		RAISE_APPLICATION_ERROR(-20000, '@field alinate is null@') ;
+
+	    End if;
+		
+		If(:new.em_ssam_asset = 'Y' and :new.em_ssam_assetalienate = 'AL' and :new.em_ssam_alienate_id is null and :new.em_ssam_alienateline_id is null) THEN
+
+		RAISE_APPLICATION_ERROR(-20000, '@Campo Producto Activo Fijo esta vacio@') ;
+
+	    End if;
+
+	    IF(:new.em_ssam_asset = 'Y' and :new.em_ssam_assetalienate is not null and (:new.em_ssam_a_asset_id is not null or :new.em_ssam_alienate_id is not null)) THEN
+	    
+		    select coalesce((select em_ssam_asset 
+		    from m_product_acct a
+		    left join c_validcombination b on b.c_validcombination_id = a.P_Revenue_Acct
+		    left join c_elementvalue c on c.c_elementvalue_id = b.account_id 
+		    where a.m_product_id = :new.m_product_id),'N')
+		    into v_em_ssam_asset
+		    from dual;
+
+		    If(v_em_ssam_asset = 'N')Then
+
+			 RAISE_APPLICATION_ERROR(-20000, '@Account Product is not Fixed Asset@') ;
+
+		    End If;
+
+	     End If;
+	  END IF;
+
+  End If;
+  
+END SSAM_VALIDATE_ASSET_TRG
+]]></body>
+    </trigger>
+  </database>

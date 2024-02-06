@@ -1,0 +1,123 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_UPDATE_SALARY">
+    <function name="SSPR_UPDATE_SALARY" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Employee RECORD; 
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);
+  v_SSconcept_ID VARCHAR2(32);
+
+  --v_StartPeriod_StartDate TIMESTAMP;
+  --v_StartPeriod_EndDate TIMESTAMP;
+  --v_EndPeriod_StartDate TIMESTAMP;
+  --v_EndPeriod_EndDate TIMESTAMP;
+  v_Period_ID VARCHAR2(32);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  --v_SSconceptIess_ID VARCHAR(32); --OBTG:VARCHAR2--
+  v_SSconceptCompany_ID VARCHAR2(32);
+  --v_value NUMERIC;
+  --V_Dias_Laborados NUMERIC;
+  --V_Dias NUMERIC;
+  --v_FondosReserva NUMERIC;
+  --V_ReserveFundsCompany VARCHAR(32); --OBTG:VARCHAR2--
+  --V_ReserveFundsIess VARCHAR(32); --OBTG:VARCHAR2--
+  V_Concept_FR VARCHAR2(32);
+  --v_CONCEPT_EMPLOYEE_ID VARCHAR(32); --OBTG:VARCHAR2--
+  --v_days NUMERIC;
+  v_salary NUMBER;
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+ 
+	--VARIABLES
+	v_Period_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+	v_SSconcept_ID := p_conceptin_id;
+	v_SSconceptCompany_ID := p_conceptout_id;
+
+	--VALIDO SI EXISTE EL CONCEPTO  YA CREADO CON REFERENCIA A ESE EMPLEADO EN LAS LINEAS DEL CONCEPTO
+	--Y LO ELIMINO
+	DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = v_SSconceptCompany_ID AND C_Period_ID = v_Period_ID;
+	        	
+	--OBTENGO EL PERIODO 
+	SELECT startdate, enddate
+	INTO v_StartPeriod,v_EndPeriod
+	FROM C_period
+	WHERE C_period_ID = v_Period_ID;
+
+	
+
+	--CURSOR EMLEADOS
+	FOR Cur_Employee IN
+	(SELECT CBP.C_BPartner_ID,CBP.EM_SSPR_RESERVEFUNDSCOMPANY,CBP.EM_SSPR_RESERVEFUNDSIESS,EM_SSPR_CONCEPT_ID,CBP.EM_SSPR_CURRENTSALARY--, P.SSPR_Period_ID
+	FROM C_BPartner CBP 
+	--LEFT JOIN SSPR_Period P ON CBP.C_BPartner_ID = P.C_BPartner_ID
+	WHERE IsEmployee = 'Y' AND CBP.Ad_Client_ID = v_Client_ID AND CBP.Ad_Org_ID = v_Org_ID
+             --AND P.C_Period_ID = v_Period_ID 
+             --AND CBP.ISACTIVE = 'Y'
+             AND CBP.EM_SSPR_Status='A'
+             AND CBP.em_sspr_create_payroll = 'Y'
+	)
+	LOOP	 
+		v_salary := round(Cur_Employee.EM_SSPR_CURRENTSALARY,2);
+
+		IF v_salary <= 0 OR v_salary IS NULL THEN
+			v_salary := 0;
+		END IF;
+	
+		--VALIDO SI EXISTE EL CONCEPTO  YA CREADO CON REFERENCIA A ESE EMPLEADO EN LAS LINEAS DEL CONCEPTO
+		--Y LO ELIMINO
+		DELETE FROM SSPR_Concept_Amount WHERE SSPR_Concept_ID = V_Concept_FR AND C_Period_ID = v_Period_ID and C_BPARTNER_ID = Cur_Employee.C_BPARTNER_ID;
+
+				          
+		--CREA CONCEPTO EN LAS LINEAS         
+		INSERT INTO SSPR_Concept_Amount
+		    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+		    Created, CreatedBy, Updated, UpdatedBy,
+		    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID,Amount)
+		VALUES
+		    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+		    now(), v_User_ID, now(), v_User_ID,
+		    v_SSconceptCompany_ID,Cur_Employee.C_BPARTNER_ID,v_Period_ID,v_salary
+		    );
+		v_n_insertions:= v_n_insertions +1;
+		
+	END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  				
+RETURN;
+END SSPR_UPDATE_SALARY
+]]></body>
+    </function>
+  </database>

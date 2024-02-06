@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSATR_FIELDS_VALIDATE_TRG">
+    <trigger name="SSATR_FIELDS_VALIDATE_TRG" table="SSATR_ASSET_TRANSFER" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[      v_count NUMBER;
+BEGIN
+ 
+	IF AD_isTriggerEnabled()='N' THEN RETURN;
+	END IF;
+     
+	IF (UPDATING OR INSERTING) THEN
+		IF (:NEW.transaction_type = 'CC' AND (:NEW.custodian_id IS NULL OR :NEW.trasferto_id IS NULL) ) THEN
+			RAISE_APPLICATION_ERROR(-20000, 'Los campos "Custodio" y "Transferir a" son obligatorios.');
+		ELSE
+		    /*
+			IF (:NEW.transaction_type = 'CL' AND (
+			(( :NEW.em_ssal_building_id IS NOT NULL AND :NEW.em_ssal_building_dest_id IS NULL ) OR (:NEW.em_ssal_building_id IS NULL AND :NEW.em_ssal_building_dest_id IS NOT NULL ) )
+			OR (( :NEW.em_ssal_unit_id IS NOT NULL AND :NEW.em_ssal_unit_dest_id IS NULL ) OR (:NEW.em_ssal_unit_id IS NULL AND :NEW.em_ssal_unit_dest_id IS NOT NULL )  )
+			OR (( :NEW.em_ssal_department_id IS NOT NULL AND :NEW.em_ssal_department_dest_id IS NULL ) OR (:NEW.em_ssal_department_id IS NULL AND :NEW.em_ssal_department_dest_id IS NOT NULL ) ) 
+			OR (:NEW.em_ssal_building_id IS NULL AND :NEW.em_ssal_building_id IS NULL AND :NEW.em_ssal_unit_id IS NULL AND :NEW.em_ssal_unit_dest_id IS NULL AND :NEW.em_ssal_department_id IS NULL AND :NEW.em_ssal_department_dest_id IS NULL ) ) ) THEN
+			
+				RAISE_APPLICATION_ERROR(-20000, 'Los campos de ubicación son obligatorios si su origen o destino correspondiente no es nulo.<br>(Edificio - Edificio destino) (Unidad - Unidad destino) (Departamento - Departamento destino).');
+
+			END IF;
+			*/
+		END IF;
+
+		SELECT count(*) INTO v_count FROM ssatr_asset_detail WHERE ssatr_asset_transfer_id = :NEW.ssatr_asset_transfer_id;
+
+		IF (v_count>0) THEN
+			IF ((COALESCE(:NEW.a_asset_group_id,'') <> COALESCE(:OLD.a_asset_group_id,'')) OR (COALESCE(:NEW.ssasl_subcategory_id,'') <> COALESCE(:OLD.ssasl_subcategory_id,'')) OR
+			(COALESCE(:NEW.custodian_id,'') <> COALESCE(:OLD.custodian_id,'')) OR (COALESCE(:NEW.a_asset_id,'') <> COALESCE(:OLD.a_asset_id,'')) OR
+			(COALESCE(:NEW.em_ssal_building_id,'') <> COALESCE(:OLD.em_ssal_building_id,'')) OR (COALESCE(:NEW.em_ssal_unit_id,'') <> COALESCE(:OLD.em_ssal_unit_id,'')) OR (COALESCE(:NEW.em_ssal_department_id,'') <> COALESCE(:OLD.em_ssal_department_id,'')) )THEN 
+				RAISE_APPLICATION_ERROR(-20000, 'Los campos "Grupo activo", "Subcategoría", "Custodio","Edificio","Unidad","Departamento" y "Activo" no se pueden editar si exiten líneas relacionadas.');
+			END IF;
+		END IF;
+
+	END IF;
+ 
+    
+	END SSATR_FIELDS_VALIDATE_TRG
+]]></body>
+    </trigger>
+  </database>

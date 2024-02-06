@@ -1,0 +1,756 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report name" pageWidth="1116" pageHeight="595" orientation="Landscape" columnWidth="1076" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="604"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="c_year_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ssph_tenth_settlement" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ad_user_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select  ROW_NUMBER() OVER (ORDER BY bp.name NULLS LAST ) AS "secuencial",bp.taxid as "cedula",
+bp.EM_Sspr_Firstname as "nombres", bp.EM_SSPR_LASTNAME as"apellidos", bp.EM_Sshr_Gender as "genero",ts.daysworked as "diaslaborados",
+--TOTAL SUELDOS
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+	   select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+	   sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+	   from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+	         where isactive='Y' 
+	         group by c_bpartner_id)x
+	   left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+	   order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and Isliquidation = 'N' and cp.Group_Concept ='S' and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)
+as "totalsueldos",
+--TOTAL COMISIONES
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+	   select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+	   sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+	   from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+	         where isactive='Y'
+	         group by c_bpartner_id)x
+	   left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+	   order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where  (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and cp.Group_Concept ='C' and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)
+as "totalcomisiones",
+--TOTAL HORAS EXTRAS
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+	   select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+	   sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+	   from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+	         where isactive='Y'
+	         group by c_bpartner_id)x
+	   left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+	   order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where  (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and cp.Group_Concept ='E' and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)
+as "totalhorasextras",
+--TOTAL OTROS INGRESOS
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+	   select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+	   sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+	   from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+	         where isactive='Y' 
+	         group by c_bpartner_id)x
+	   left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+	   order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where  (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and cp.Group_Concept ='O' and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)
+as "totalotrosingresos",
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+	   select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+	   sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+	   from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+	         where isactive='Y'
+	         group by c_bpartner_id)x
+	   left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+	   order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where  (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and (cp.Group_Concept ='C' OR cp.Group_Concept ='E' OR cp.Group_Concept ='O') and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)+
+(select coalesce(sum(tc.AMOUNT),0,00)from sspr_payroll sp
+left join sspr_payroll_ticket st on sp.sspr_payroll_id = st.sspr_payroll_id
+left join sspr_payroll_ticket_concept tc on st.sspr_payroll_ticket_id = tc.sspr_payroll_ticket_id
+left join sspr_concept cp on cp.SSPR_CONCEPT_ID = tc.sspr_concept_id
+left join (
+		select (select name from c_bpartner where c_bpartner_id = sspr_contract.c_bpartner_id),
+		sspr_contract.c_bpartner_id,sspr_contract.startdate, sspr_contract.enddate
+		from (select c_bpartner_id,max(startdate) as maxstartdate from sspr_contract
+		      where isactive='Y'
+		      group by c_bpartner_id)x
+		left join sspr_contract on sspr_contract.startdate = x.maxstartdate and sspr_contract.c_bpartner_id = x.c_bpartner_id
+		order by 1
+	   ) sc on st.C_BPARTNER_ID = sc.C_BPARTNER_ID
+where  (sp.datedoc between te.startdate and te.enddate) and sp.ISPAYROLL ='Y' and Isliquidation = 'N' and cp.Group_Concept ='S' and
+st.C_BPARTNER_ID = ts.c_bpartner_id and sp.datedoc >= sc.startdate)
+as "totalingresos",
+ts.adjustedamt as "decimoterceroapagar",
+te.startdate as "fechadesde",te.enddate as "fechahasta",
+bpo.name as "organizacionnombre", ao.ad_org_id as "ad_org_id", (select coalesce(cbp.name,adu.name) from ad_user adu left join c_bpartner cbp on
+adu.c_bpartner_id = cbp.c_bpartner_id where adu.ad_user_id=$P{ad_user_id}) as "usuario",to_char(now(),'dd/MM/yyyy HH24:MI:SS')  as "fechaauditoria"
+from SSPH_Tenth_Settlement_Line ts
+left join c_bpartner bp on ts.c_bpartner_id = bp.c_bpartner_id
+inner join SSPH_Tenth_Settlement te on ts.SSPH_Tenth_Settlement_id = te.SSPH_Tenth_Settlement_id
+left join ad_org ao on te.ad_org_id= ao.ad_org_id
+left join ad_orginfo ai on ao.ad_org_id =ai.ad_org_id
+left join c_bpartner bpo on ai.c_bpartner_id = bpo.c_bpartner_id
+where (te.SSPH_Tenth_Settlement_id =$P{ssph_tenth_settlement} or $P{ssph_tenth_settlement} is null  ) and (te.C_YEAR_ID =$P{c_year_id} or $P{c_year_id}is null) order by bp.EM_SSPR_LASTNAME]]>
+	</queryString>
+	<field name="secuencial" class="java.math.BigDecimal"/>
+	<field name="cedula" class="java.lang.String"/>
+	<field name="nombres" class="java.lang.String"/>
+	<field name="apellidos" class="java.lang.String"/>
+	<field name="genero" class="java.lang.String"/>
+	<field name="diaslaborados" class="java.math.BigDecimal"/>
+	<field name="totalsueldos" class="java.math.BigDecimal"/>
+	<field name="totalcomisiones" class="java.math.BigDecimal"/>
+	<field name="totalhorasextras" class="java.math.BigDecimal"/>
+	<field name="totalotrosingresos" class="java.math.BigDecimal"/>
+	<field name="totalingresos" class="java.math.BigDecimal"/>
+	<field name="decimoterceroapagar" class="java.math.BigDecimal"/>
+	<field name="fechadesde" class="java.sql.Timestamp"/>
+	<field name="fechahasta" class="java.sql.Timestamp"/>
+	<field name="organizacionnombre" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fechaauditoria" class="java.lang.String"/>
+	<variable name="tot_sueldos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalsueldos}]]></variableExpression>
+	</variable>
+	<variable name="tot_comisiones" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalcomisiones}]]></variableExpression>
+	</variable>
+	<variable name="tot_otros" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalotrosingresos}]]></variableExpression>
+	</variable>
+	<variable name="tot_ingresos" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalingresos}]]></variableExpression>
+	</variable>
+	<variable name="tot_decimo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{decimoterceroapagar}]]></variableExpression>
+	</variable>
+	<variable name="tot_horas_extras" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalhorasextras}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="101" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="83" y="0" width="993" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacionnombre}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="83" y="20" width="993" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Pago Décimo Tercero MRL]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement x="83" y="40" width="993" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Período:"+new SimpleDateFormat("dd MMMMM yyyy").format($F{fechadesde})
++" al "+new SimpleDateFormat("dd MMMMM yyyy").format($F{fechahasta})]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="821" y="80" width="70" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Usuario:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="821" y="60" width="70" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="891" y="80" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="891" y="60" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fechaauditoria}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Right" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="83" height="67"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal",$F{ad_org_id})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="25" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="53" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[N°]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="53" y="0" width="78" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Cédula]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="131" y="0" width="120" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nombres]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="251" y="0" width="120" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Apellidos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="371" y="0" width="50" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Género]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="421" y="0" width="50" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Días Lab.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="541" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Comisiones]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="611" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Horas Extras]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="681" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Otros Ingresos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="821" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Décimo Tercero a Pagar]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="891" y="0" width="185" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Firma]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="471" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Sueldos]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="751" y="0" width="70" height="25"/>
+				<box leftPadding="2" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total Ingresos]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="53" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{secuencial}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="53" y="0" width="78" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="131" y="0" width="120" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nombres}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="251" y="0" width="120" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{apellidos}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="371" y="0" width="50" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{genero}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="421" y="0" width="50" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{diaslaborados}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="541" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalcomisiones}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="611" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalhorasextras}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="681" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalotrosingresos}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="891" y="0" width="185" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="471" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalsueldos}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="821" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{decimoterceroapagar}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="751" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalingresos}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="21" splitType="Stretch">
+			<textField>
+				<reportElement x="891" y="1" width="185" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA["Página"+$V{PAGE_NUMBER}+" de " + $V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="471" y="0" width="70" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_sueldos}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="541" y="0" width="70" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="9" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_comisiones}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="681" y="0" width="70" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="9" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_otros}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="751" y="0" width="70" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="9" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_ingresos}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="821" y="0" width="70" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="9" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_decimo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" mode="Transparent" x="611" y="0" width="70" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="9" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{tot_horas_extras}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="53" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="53" y="0" width="78" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="891" y="0" width="185" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="131" y="0" width="120" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="251" y="0" width="120" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="371" y="0" width="50" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="421" y="0" width="50" height="20"/>
+				<box leftPadding="1" rightPadding="2">
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="0.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="9" isBold="true"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

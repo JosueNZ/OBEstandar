@@ -1,0 +1,325 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_SPECIAL_BONUS_CC">
+    <function name="SPEV_SPECIAL_BONUS_CC" type="NULL">
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2009 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s): RODNEY XAVIER JÁCOME TERAN.
+************************************************************************/
+v_Sql VARCHAR2(2000);
+v_spev_config_news_id VARCHAR2(32);
+v_Conceptsubtype  VARCHAR2(32);
+v_sspr_concept_id VARCHAR2(32);
+v_spev_maintenance_news_id  VARCHAR2(32);
+v_name_fuction  VARCHAR2(60);
+V_DATE DATE;   
+v_c_period_id  VARCHAR2(60);
+v_base_value NUMBER;
+v_Utilities NUMBER;
+
+v_Costcenter_id VARCHAR2(32);
+v_Budget_id VARCHAR2(32);
+v_Last_Period_id VARCHAR2(32);
+v_Employee_id VARCHAR2(32);
+V_AD_ORG_ID_BUDGET VARCHAR2(32);
+v_Importefactura NUMBER;
+v_Budget_amount NUMBER; 
+v_Percentage_Compliance NUMBER;
+v_Count_Employee NUMBER;
+v_Operation NUMBER;
+
+TYPE RECORD IS REF CURSOR;
+Cur_Invoice RECORD;
+Cur_Bpartner RECORD;
+Cur_Transactions RECORD;
+Cur_Org RECORD;
+
+BEGIN
+
+  v_name_fuction:='spev_special_bonus_cc';
+
+  SELECT (date_trunc('month',(current_date - interval '1 month'))+'1month'::interval-'1day'::interval)
+  INTO V_DATE
+  FROM dual;
+
+  SELECT spev_get_period(V_DATE,v_name_fuction)
+  INTO v_c_period_id
+  FROM dual;
+
+  /***********Consulta la configuración de novedades*********/
+
+  SELECT conf.spev_config_news_id,Conceptsubtype,spev_maintenance_news_id,conf.sspr_concept_id ,conf.value,conf.Utilities
+  INTO  v_spev_config_news_id,v_Conceptsubtype,v_spev_maintenance_news_id,v_sspr_concept_id,v_base_value,v_Utilities
+  FROM spev_config_news conf
+    INNER JOIN sspr_concept conc on conf.sspr_concept_id = conc.sspr_concept_id
+  WHERE TRIM(UPPER(function)) = UPPER(v_name_fuction);
+    
+  /********FIN Consulta la configuración de novedades********/
+
+    /* ***************************************************************************************** */
+    /*  INICIO ITERAR SOBRE LAS ORGANIZACIONES, QUE TENGAN PRESUÚESTO PARA EL AÑO DEL MES CAIDO  */
+    /* ***************************************************************************************** */
+    FOR Cur_Org IN (  SELECT  org.ad_org_id as orgid
+                      FROM ad_org org
+                      LEFT JOIN c_budget cb ON cb.ad_org_id = org.ad_org_id
+                      LEFT JOIN c_year cy ON cy.c_year_id = CB.c_year_id
+                      WHERE org.isactive = 'Y'
+                      AND cy.year = to_char( (now() - interval '1 month'),'YYYY')
+    ) LOOP
+
+      V_AD_ORG_ID_BUDGET:=Cur_Org.orgid;
+
+      /* ******************************************************************** */
+      /* INICIO BUSCAR PRESUPUESTO DEL AÑO DEL MES CAIDO Y POR ORGANIZACION  */
+      /* ******************************************************************** */    
+      SELECT cb.c_budget_id
+      INTO V_BUDGET_ID
+      FROM c_budget cb 
+      LEFT JOIN c_year cy ON cy.c_year_id = CB.c_year_id
+      WHERE cy.year = to_char( (now() - interval '1 month'),'YYYY')
+      AND cb.isactive = 'Y'
+      AND cb.ad_org_id = V_AD_ORG_ID_BUDGET 
+      ORDER BY cb.created DESC
+      LIMIT 1;      
+
+    --SI HAY UN PRESUPUESTO PARA EL AÑO EN CURSO
+    IF(V_BUDGET_ID IS NOT NULL) THEN
+
+    FOR Cur_Invoice IN(
+
+      SELECT query.centrocosto, query.importe from (
+        SELECT INVOICE.centrocosto, SUM(INVOICE.importe) as importe 
+        FROM(
+          (
+            SELECT org.em_scmba_costcenter_id as centrocosto, SUM(totallines) as importe
+            FROM c_invoice ci
+            LEFT JOIN c_costcenter cc ON cc.c_costcenter_id = ci.c_costcenter_id  
+            LEFT JOIN c_doctype dt ON dt.c_doctype_id = ci.c_doctype_id
+            LEFT JOIN ad_org org ON org.ad_org_id = ci.ad_org_id
+            WHERE to_char(dateinvoiced,'yyyy-MM') = to_char( (now() - interval '1 month'),'yyyy-MM')
+            AND ci.issotrx = 'Y'
+            AND ci.docstatus = 'CO'
+            AND dt.docbasetype = 'ARI'
+            AND dt.isreversal = 'N'
+            AND ci.ad_org_id = V_AD_ORG_ID_BUDGET 
+            GROUP BY org.em_scmba_costcenter_id
+            ORDER BY org.em_scmba_costcenter_id          
+          )
+        UNION ALL
+          (
+            SELECT org.em_scmba_costcenter_id as centrocosto, (ABS(SUM(totallines)) * -1) as importe
+            FROM c_invoice ci
+            LEFT JOIN c_costcenter cc ON cc.c_costcenter_id = ci.c_costcenter_id  
+            LEFT JOIN c_doctype dt ON dt.c_doctype_id = ci.c_doctype_id
+            LEFT JOIN ad_org org ON org.ad_org_id = ci.ad_org_id
+            WHERE to_char(dateinvoiced,'yyyy-MM') = to_char( (now() - interval '1 month'),'yyyy-MM')
+            AND ci.issotrx = 'Y'
+            AND ci.docstatus = 'CO'
+            AND dt.docbasetype = 'ARI_RM'
+            AND dt.isreturn = 'Y'                 
+            AND ci.ad_org_id = V_AD_ORG_ID_BUDGET 
+            GROUP BY org.em_scmba_costcenter_id
+            ORDER BY org.em_scmba_costcenter_id          
+          )
+        )INVOICE
+      GROUP BY INVOICE.centrocosto
+      ORDER BY INVOICE.centrocosto) query
+      where query.importe >= v_base_value
+
+    )LOOP
+
+      v_Costcenter_id:=Cur_Invoice.centrocosto;
+      v_Importefactura:=Cur_Invoice.importe;
+
+      /* *********************************************** */
+      /* INICIO ITERAR SOBRE LAS LINEAS DEL PRESUPUESTO  */
+      /* *********************************************** */
+      FOR Cur_Transactions IN(  SELECT cbl.amount as montopresupuesto
+                              FROM c_budgetline  cbl
+                              LEFT JOIN c_period cp ON cp.c_period_id = cbl.c_period_id
+                              WHERE cbl.c_budget_id = v_Budget_id
+                              AND cbl.c_costcenter_id = v_Costcenter_id
+                              AND cp.periodno = to_char( (now() - interval '1 month'),'MM')
+      )LOOP
+
+        v_Budget_amount:=Cur_Transactions.montopresupuesto;
+
+          /*OBTENGO EL PORCENTAJE DE CUMPLIMIENTO POR CENTRO DE COSTO*/
+          v_Percentage_Compliance := v_Importefactura - v_Budget_amount;  
+
+          -- INICIO SI LAS VENTAS CUMPLEN CON EL PRESUPUESTO
+          IF(v_Percentage_Compliance > 0) THEN
+
+            -- BUSCO EL ID DEL PERIODO DEL MES CAIDO
+            SELECT cp.c_period_id
+            INTO v_Last_Period_id
+            FROM c_period cp 
+            LEFT JOIN c_year cy ON cy.c_year_id = cp.c_year_id
+            WHERE cy.year = to_char( (now() - interval '1 month'),'YYYY')
+            AND cp.periodno = TRIM (LEADING '0' FROM to_char((current_date - interval '1 month'),'MM') )
+            AND cp.isactive = 'Y'
+            ORDER BY cp.periodno;
+
+            /* *************************************************** */
+            /*   INICIO CONTADOR DE EMPLEADOS DEL CENTRO DE COSTO  */
+            /* *************************************************** */
+            SELECT COALESCE((   SELECT count(c_bpartner_id)
+                      FROM c_bpartner  
+                      WHERE  isactive  ='Y' 
+                      AND isemployee ='Y' 
+                      AND em_spev_local = 'Y' 
+                      AND em_sspr_status = 'A'
+                      AND em_sspr_costcenter_id = v_Costcenter_id  
+                      AND EM_SSPR_Entrydate < now()-90 --EMPLEADO TIENE 90 DIAS EN LA EMPRESA   
+                      AND  c_bpartner_id NOT IN   (
+                        SELECT pcte.c_bpartner_id
+                        FROM sspd_pctdist pct
+                        INNER JOIN sspd_pctdist_emp pcte on pcte.sspd_pctdist_id = pct.sspd_pctdist_id
+                        WHERE pct.c_period_id = v_Last_Period_id
+                      )
+                      AND c_bpartner_id NOT IN (
+                        SELECT payt.c_bpartner_id
+                        FROM sspr_payroll pay
+                        LEFT JOIN sspr_payroll_ticket payt ON payt.sspr_payroll_id = pay.sspr_payroll_id
+                        LEFT JOIN sspr_payroll_ticket_concept paytc ON paytc.sspr_payroll_ticket_id = payt.sspr_payroll_ticket_id
+                        LEFT JOIN sspr_concept conc ON conc.sspr_concept_id =  paytc.sspr_concept_id
+                        LEFT JOIN c_bpartner cbp ON cbp.c_bpartner_id =  payt.c_bpartner_id
+                        WHERE pay.c_period_id = v_Last_Period_id
+                        AND pay.ispayroll = 'Y'
+                        AND paytc.amount > 0
+                        AND conc.concepttypepayroll = 'UA'
+                        AND cbp.em_sspr_costcenter_id = v_Costcenter_id             
+                      )  
+                          ),0)
+            INTO v_Count_Employee
+            FROM DUAL;
+            /* *************************************************** */
+            /*    FIN CONTADOR DE EMPLEADOS DEL CENTRO DE COSTO    */
+            /* *************************************************** */
+
+            -- INICIO CONTADOR DE EMPLEADOS
+            IF(v_Count_Employee > 0) THEN
+
+              v_Operation := ( v_Importefactura / v_Count_Employee ); 
+
+              -- INICIO (MONTO FACTURA / NUMERO EMPLEADOS > UTILIDADES DE LA CONFIGURACION)
+              IF(v_Operation > v_Utilities) THEN
+
+                  /* ********************************************************************* */
+                  /* INICIO ITERAR SOBRE LOS EMPLEADOS QUE PERTENEZCAN AL CENTRO DE COSTO  */
+                  /* QUE SEAN DE TIPO LOCAL, QUE TENGAN 90 DIAS EN LA EMPRESA              */
+                  /* ********************************************************************* */
+                  FOR Cur_Bpartner IN(  
+
+                  SELECT c_bpartner_id,ad_org_id,created as "user",ad_client_id
+                  FROM c_bpartner  
+                  WHERE  isactive  ='Y' 
+                  AND isemployee ='Y' 
+                  AND em_spev_local = 'Y' 
+                  AND em_sspr_status = 'A'
+                  AND em_sspr_costcenter_id = v_Costcenter_id  
+                  AND EM_SSPR_Entrydate < now()-90 --EMPLEADO TIENE 90 DIAS EN LA EMPRESA   
+                  AND  c_bpartner_id NOT IN   (
+                    SELECT pcte.c_bpartner_id
+                    FROM sspd_pctdist pct
+                    INNER JOIN sspd_pctdist_emp pcte on pcte.sspd_pctdist_id = pct.sspd_pctdist_id
+                    WHERE pct.c_period_id = v_Last_Period_id
+                  ) 
+                  AND c_bpartner_id NOT IN (
+                    SELECT payt.c_bpartner_id
+                    FROM sspr_payroll pay
+                    LEFT JOIN sspr_payroll_ticket payt ON payt.sspr_payroll_id = pay.sspr_payroll_id
+                    LEFT JOIN sspr_payroll_ticket_concept paytc ON paytc.sspr_payroll_ticket_id = payt.sspr_payroll_ticket_id
+                    LEFT JOIN sspr_concept conc ON conc.sspr_concept_id =  paytc.sspr_concept_id
+                    LEFT JOIN c_bpartner cbp ON cbp.c_bpartner_id =  payt.c_bpartner_id
+                    WHERE pay.c_period_id = v_Last_Period_id
+                    AND pay.ispayroll = 'Y'
+                    AND paytc.amount > 0
+                    AND conc.concepttypepayroll = 'UA'
+                    AND cbp.em_sspr_costcenter_id = v_Costcenter_id             
+            
+                  )
+
+                  )LOOP
+
+                  v_Employee_id:=Cur_Bpartner.c_bpartner_id;
+
+                  /********Insertar en la ventana de Detalle de novedades********/
+
+                    INSERT INTO spev_detail_news(
+                      spev_detail_news_id, ad_client_id--1
+                      , ad_org_id, isactive--2
+                      , created, createdby--3
+                      ,  updated, updatedby--4
+                      , date_detail, doumentno--5
+                      , c_bpartner_id, spev_config_news_id--6
+                      ,  value, sspr_concept_id--7
+                      ,  concept_type, type--8
+                      , process, spev_maintenance_news_id--9
+                      ,C_Period_ID,c_costcenter_id
+                    )
+                    VALUES (
+                      get_uuid(), Cur_Bpartner.ad_client_id--1
+                      , Cur_Bpartner.ad_org_id, 'Y'--2
+                      ,now() ,  Cur_Bpartner.user--3
+                      , now(), Cur_Bpartner.user--4
+                      , V_DATE, null--5
+                      , Cur_Bpartner.c_bpartner_id, v_spev_config_news_id--6
+                      , v_base_value, v_sspr_concept_id--7
+                      , v_Conceptsubtype, 'BR'--8
+                      , 'AU', v_spev_maintenance_news_id--9
+                      ,spev_get_period(V_DATE,v_name_fuction) 
+                      ,v_Costcenter_id
+
+                    );
+                      
+                  /********FIN Insertar en la ventana de Detalle de novedades********/          
+
+                  END LOOP;              
+                  /* ********************************************************************* */
+                  /* INICIO ITERAR SOBRE LOS EMPLEADOS QUE PERTENEZCAN AL CENTRO DE COSTO  */
+                  /*                   Y QUE SEAN DE TIPO SENIOR                           */
+                  /* ********************************************************************* */ 
+
+              END IF;
+
+            END IF;
+            -- FIN CONTADOR DE EMPLEADOS
+
+          END IF; 
+          -- FIN SI LAS VENTAS CUMPLEN CON EL MPRESUPUESTO
+
+      END LOOP; 
+      /* *********************************************** */
+      /*   FIN ITERAR SOBRE LAS LINEAS DEL PRESUPUESTO   */
+      /* *********************************************** */  
+
+    END LOOP; -- Cur_Invoice
+
+    END IF; 
+    --FIN SI HAY UN PRESUPUESTO PARA EL AÑO EN CURSO      
+
+  END LOOP;
+    /* ********************************************************************************************** */
+    /*      FIN ITERAR SOBRE LAS ORGANIZACIONES, QUE TENGAN PRESUÚESTO PARA EL AÑO DEL MES CAIDO      */
+    /* ********************************************************************************************** */
+
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE('spev_special_bonus_cc exception');
+  RAISE;
+END SPEV_SPECIAL_BONUS_CC
+]]></body>
+    </function>
+  </database>

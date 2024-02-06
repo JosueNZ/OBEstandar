@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_FORMULARYLINE_TRG">
+    <trigger name="SSWH_FORMULARYLINE_TRG" table="SSWH_FORMULARYLINE" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+    v_DateNull DATE := TO_DATE('31-12-9999','DD-MM-YYYY');
+
+    v_SswhFormularyID VARCHAR(32); -- OBTG:VARCHAR2
+    v_Status VARCHAR(60); -- OBTG:VARCHAR2
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+
+ IF(DELETING) THEN
+
+	v_SswhFormularyID:=:old.SSWH_FORMULARY_ID;
+	SELECT
+	COALESCE((SELECT STATUS FROM SSWH_FORMULARY WHERE SSWH_FORMULARY_ID = v_SswhFormularyID),TO_CHAR('ND'))
+	INTO v_Status
+	FROM DUAL;
+
+	IF v_Status = 'CO' THEN
+		RAISE_APPLICATION_ERROR(-20000, '@Sswh_FormularyLine@') ;
+	END IF;
+  
+ END IF;
+END SSWH_FORMULARYLINE_TRG
+]]></body>
+    </trigger>
+  </database>

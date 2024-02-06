@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSHR_JOB_POST_TRG1">
+    <trigger name="SSHR_JOB_POST_TRG1" table="SSHR_JOB" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ 
+ v_position_title varchar(32);	--OBTG:VARCHAR2--
+ v_positions_occupied NUMBER;	--OBTG:NUMBER--
+ v_positions_available NUMBER;	--OBTG:NUMBER--
+ v_status VARCHAR(1);		--OBTG:VARCHAR2--
+ 
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING or UPDATING) THEN
+
+         v_position_title := :new.sshr_position_title_id;
+	 v_status := :new.isactive;
+	 
+	 SELECT sshr_position_title_id,positions_occupied,positions_available
+	 INTO v_position_title,v_positions_occupied,v_positions_available
+	 FROM sshr_position_title
+	 WHERE sshr_position_title_id=v_position_title;
+
+	 IF(v_status='Y')
+	 THEN
+		update sshr_position_title 
+		set positions_occupied = (v_positions_occupied + 1), positions_available = (v_positions_available - 1 )
+		where sshr_position_title_id = v_position_title;
+	 END IF;
+
+	 	
+  END IF;
+
+  END SSHR_JOB_POST_TRG1
+]]></body>
+    </trigger>
+  </database>

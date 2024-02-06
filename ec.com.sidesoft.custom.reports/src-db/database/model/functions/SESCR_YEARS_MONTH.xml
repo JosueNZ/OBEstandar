@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_YEARS_MONTH">
+    <function name="SESCR_YEARS_MONTH" type="VARCHAR">
+      <parameter name="pdatebirthday" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_date" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_out" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+Esta función recibe 3 parametros para realizar el cálculo entre 2 fechas:
+
+* pdatebirthday -> Corresponde a la fecha desde
+* p_date	-> Corresponde a la fecha hasta
+* p_out		-> Formato de salida
+ 
+Donde la variable p_out cumplira las siguiente reglas para emitir el resultado que corresponda:
+
+	Si p_out = 'Y' el resultado es: 12 año(s) ,
+	Si p_out = 'YM' el resultado es: 12 año(s) 5 mes(es),
+	Si p_out = 'YMD' el resultado es: 12 año(s) 5 mes(es) 17 día(s),
+	Si p_out = 'YN' el resultado es: 12,
+	Si p_out = 'YN' el resultado es: 5,
+	Si p_out = 'YN' el resultado es: 17
+
+            
+Si la fecha del parámetro p_date o pdatebirthday es la fecha del sistema debe enviar el valor como: to_date(now()).
+	Ejem: select sescr_years_month(to_date('01-10-1993'),to_date(now()),'YMD' ) as fecha from dual;
+
+Si la fecha del paŕametro p_date o pdatebirthday corresponde a un valor de una tabla, solo debe ir el nombre.
+	Ejem: select sescr_years_month(em_sspr_birthday,to_date(now()),'YMD' ) as fecha from c_bpartner
+
+Con los tips menciondos se evitará este error:
+"ERROR:  function sescr_years_month(timestamp without time zone, timestamp with time zone, unknown) does not exist
+LINE 1: select sescr_years_month(to_date('01-10-1993'),(now()),'YMD'...)".
+
+TODO EL RESULTADO GENERADO ES TIPO CHARACTER VARYING
+	
+*/
+
+
+v_Result varchar(100):=' '; --OBTG:VARCHAR2--
+
+v_Da NUMBER;	--OBTG:NUMBER--
+v_Ma NUMBER;	--OBTG:NUMBER--
+v_Ya NUMBER; 	--OBTG:NUMBER-- 
+
+v_Dn NUMBER;	--OBTG:NUMBER--
+v_Mn NUMBER;	--OBTG:NUMBER--
+v_Yn NUMBER; 	--OBTG:NUMBER-- 
+
+v_Dr NUMBER;	--OBTG:NUMBER--
+v_Mr NUMBER;	--OBTG:NUMBER--
+v_Yr NUMBER;  	--OBTG:NUMBER--
+
+BEGIN
+v_Da :=0;
+v_Ma :=0;
+v_Ya :=0;  
+v_Dn :=0;
+v_Mn :=0;
+v_Yn :=0;
+
+v_Da :=to_number(to_char(p_date,'dd'));
+v_Ma :=to_number(to_char(p_date,'MM'));
+v_Ya :=to_number(to_char(p_date,'yyyy'));
+
+v_Dn :=to_number(to_char(pdatebirthday,'dd'));
+v_Mn :=to_number(to_char(pdatebirthday,'MM'));
+v_Yn :=to_number(to_char(pdatebirthday,'yyyy'));
+
+IF v_Da<v_Dn THEN
+v_Da:=v_Da+30;
+v_Ma:=v_Ma-1;
+END IF;
+
+v_Dr:= v_Da-v_Dn;
+
+IF v_Ma<v_Mn THEN
+v_Ma:=v_Ma+12;
+v_Ya:=v_Ya-1;
+END IF;
+
+v_Mr:= v_Ma - v_Mn ;
+
+v_Yr := v_Ya - v_Yn ;  
+
+IF p_out = 'Y' then
+
+	IF v_Yr > 0 and v_Mr>=0 THEN
+		v_Result:= TO_CHAR(v_Yr) || ' año(s)';
+	ELSIF v_Yr=0 AND v_Mr>0 THEN
+		v_Result:=TO_CHAR(v_Mr) || ' mes(es)';
+	ELSIF v_Yr=0 AND v_Mr=0 AND v_Dr>0 THEN
+		v_Result:= TO_CHAR(v_Dr) || ' día(s)';
+	ELSIF v_Yr=0 AND v_Mr=0 AND v_Dr=0 THEN
+		v_Result:='0 días';		
+	END IF;
+	
+ELSIF p_out = 'YM' then
+
+	IF v_Yr > 0 and v_Mr=0 THEN
+		v_Result:= TO_CHAR(v_Yr) || ' año(s)';
+	ELSIF v_Yr > 0 and v_Mr>0 THEN
+		v_Result:= TO_CHAR(v_Yr) || ' año(s) ' || TO_CHAR(v_Mr) || ' mes(es)'  ;
+	ELSIF v_Yr=0 AND v_Mr>0 THEN
+		v_Result:=TO_CHAR(v_Mr) || ' mes(es)'  ;
+	ELSIF v_Yr=0 AND v_Mr=0 THEN
+		v_Result:='0 meses';	
+	END IF;
+
+ELSIF  p_out = 'YMD' then
+
+	IF v_Yr > 0 and v_Mr>0 AND v_Dr>0 THEN
+		v_Result:= TO_CHAR(v_Yr) || ' año(s) ' || TO_CHAR(v_Mr)  || ' mes(es) ' || TO_CHAR(v_Dr) || ' día(s)';
+	ELSIF v_Yr=0 AND v_Mr>0 AND v_Dr>0 THEN
+		v_Result:= TO_CHAR(v_Mr)  || ' mes(es) ' || TO_CHAR(v_Dr) || ' día(s)';
+	ELSIF v_Yr=0 AND v_Mr=0 AND v_Dr>0 THEN
+		v_Result:= TO_CHAR(v_Dr) || ' día(s)';
+	ELSIF v_Yr=0 AND v_Mr=0 AND v_Dr=0 THEN
+		v_Result:='0 días';
+	END IF;
+
+ELSIF  p_out = 'YN' then
+	v_Result:= TO_CHAR(v_Yr);
+ELSIF  p_out = 'MN' then
+	v_Result:= TO_CHAR(v_Mr);
+ELSIF  p_out = 'DN' then
+	v_Result:= TO_CHAR(v_Dr);
+END IF;
+
+return v_Result;
+END SESCR_YEARS_MONTH
+]]></body>
+    </function>
+  </database>

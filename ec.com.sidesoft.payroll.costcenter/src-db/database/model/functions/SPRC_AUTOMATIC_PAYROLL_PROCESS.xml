@@ -1,0 +1,399 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRC_AUTOMATIC_PAYROLL_PROCESS">
+    <function name="SPRC_AUTOMATIC_PAYROLL_PROCESS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_sspr_payrooll_aut_line RECORD;
+Cur_sspr_payrooll_aut_line_val RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_Template_ID VARCHAR2(32);   
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+
+  v_c_Period_ID VARCHAR2(32); 
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_payroll_id VARCHAR2(32);
+  v_name VARCHAR2(60); 
+  v_sspr_payroll_id VARCHAR2(32); 
+  v_ad_pinstance VARCHAR2(32); 
+  v_result AD_PINSTANCE.RESULT%TYPE;
+  v_errormsg VARCHAR2(2000):='';
+  v_sspr_payroll_aut_id VARCHAR2(32);
+  v_sspr_payroll_out_line_id VARCHAR2(32);
+  v_createdby VARCHAR2(32); 
+  v_updatedby VARCHAR2(32); 
+  v_Processed VARCHAR2(60);
+  v_documentno VARCHAR2(30); 
+  v_documentno_men VARCHAR2(30); 
+  v_datedoc DATE;
+  v_ad_pinstance_id VARCHAR2(32); 
+  v_generate_accounting SSPR_PAYROLL.GENERATE_ACCOUNTING%TYPE;
+  v_result1 AD_PINSTANCE.RESULT%TYPE;
+  v_errormsg1 VARCHAR2(2000):='';
+  v_c_doctype_id VARCHAR2(60);
+  v_pinstance_vac_id VARCHAR2(32); 
+  v_PeriodDate DATE;
+  v_posted SSPR_PAYROLL.POSTED%TYPE;
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+
+     FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      v_sspr_payroll_aut_id := Cur_Parameter.Record_ID;	 
+      v_User_ID :=  Cur_Parameter.AD_User_ID;
+
+    END LOOP; -- Get Parameter
+    
+	--Obtengo el periodo de las nomina a procesar
+	select c_period_id, ad_client_id, ad_org_id, createdby, updatedby, processed, datedoc
+	into v_c_Period_ID, v_Client_ID, v_Org_ID, v_createdby, v_updatedby, v_Processed, v_datedoc
+	from sspr_payroll_aut
+	where sspr_payroll_aut_id = v_sspr_payroll_aut_id;
+
+ 
+	--Nombre periodo campo observaciones
+	SELECT name
+	INTO v_name
+	FROM C_Period
+	WHERE C_Period_ID = v_c_Period_ID;
+
+	--CREA INSTANCIA PARA VACACIONES P_INSTANCE AND P_INSTANCE_PARA
+    
+	select enddate 
+    into v_PeriodDate
+    from c_period where c_period_id = v_c_Period_ID;
+    
+	v_pinstance_vac_id := get_uuid();
+	insert into AD_PINSTANCE( ad_pinstance_id, ad_process_id,record_id, isprocessing, created, ad_user_id, updated, 
+				result, errormsg,ad_client_id, ad_org_id,createdby,updatedby,isactive)
+	values(v_pinstance_vac_id,'4757D51B289F4EE8AD0CE8A77E2187DC',0,'N',now(),v_User_ID,now(),1,'@Insert@: Instance vacations',v_Client_ID, v_Org_ID, v_User_ID,v_User_ID,'Y');
+  SSPR_PINSTANCE_PARA_INSERT(v_pinstance_vac_id, '1', 'p_now', NULL, NULL,0,0,coalesce(v_PeriodDate,null),NULL,v_Org_ID,v_Client_ID,v_User_ID);
+
+	v_documentno := NULL;
+	v_documentno_men := NULL;
+
+	IF (v_Processed = 'Y') THEN
+
+		--VALIDA QUE NO EXISTA NINGUNA NOMINA CONTABILIZADA
+		For Cur_sspr_payrooll_aut_line_val In(
+			select sspr_payroll_id 
+			from sspr_payroll_aut_line 
+			where sspr_payroll_aut_id = v_sspr_payroll_aut_id
+		)
+		Loop
+			select generate_accounting, posted
+			into v_generate_accounting, V_posted
+			from sspr_payroll 
+			where sspr_payroll_id = Cur_sspr_payrooll_aut_line_val.sspr_payroll_id; -- CC - Ticket 2589: Corrección en el nombre del cursor
+
+			If(v_generate_accounting = 'Y' OR v_posted = 'Y')Then
+
+				RAISE_APPLICATION_ERROR(-20000,'@sspr_accounting_payroll@');
+
+			End If;
+		End Loop;
+
+		For Cur_sspr_payrooll_aut_line In(
+			select sspr_payroll_id 
+			from sspr_payroll_aut_line 
+			where sspr_payroll_aut_id = v_sspr_payroll_aut_id
+		)
+		Loop
+
+			--RECUPERA INSTANCIA PARA DESPROCESAR NOMINAS
+			select ad_pinstance_id 
+			into v_ad_pinstance_id
+			from ad_pinstance 
+			where record_id = Cur_sspr_payrooll_aut_line.sspr_payroll_id;
+
+			select generate_accounting
+			into v_generate_accounting
+			from sspr_payroll 
+			where sspr_payroll_id = Cur_sspr_payrooll_aut_line.sspr_payroll_id;
+
+			If(v_generate_accounting = 'Y')Then
+
+				RAISE_APPLICATION_ERROR(-20000,'@sspr_accounting_payroll@');
+
+			End If;
+			
+			--DESPROCESA NOMINA
+		 SPRC_PROCESS_PAYROLL(v_ad_pinstance_id);
+
+			--ACTUALIZA VACACIONES
+		 	--PERFORM SSPR_CALCULATEVACATION(v_pinstance_vac_id);
+
+			--RECUPERA ERROR DE LA FUNCION SPRC_PROCESS_PAYROLL
+			select 
+			coalesce(to_number((select pi.result
+			from ad_pinstance pi 
+			where pi.ad_pinstance_id = v_ad_pinstance
+			)),to_number(1))
+			into v_result 
+			from dual;
+
+			select 
+			coalesce(to_char((	select pi.errormsg 
+			from ad_pinstance pi 
+			where pi.ad_pinstance_id = v_ad_pinstance
+			)),to_char(''))
+			into v_errormsg
+			from dual;
+
+          -- RAISE_APPLICATION_ERROR(-20000,v_Processed);
+
+			If v_result = 0 then
+
+			  RAISE_APPLICATION_ERROR(-20000, v_errormsg) ;
+			  
+			End if;
+
+			v_ResultStr:='UpdatingRecord';
+
+			UPDATE sspr_payroll_aut
+			SET Processed = 'N',
+				Updated = now(),
+				UpdatedBy=tO_CHAR(v_User_ID)
+			WHERE sspr_payroll_aut_id = v_sspr_payroll_aut_id;
+
+		End Loop;		
+
+	ELSE
+
+	--VALIDA SI EXISTE TIPO DE DOCUMENTO DE NOMINA
+	select coalesce(to_char((select c_doctype_id
+	from c_doctype 
+	where docbasetype = 'SSPR_PRL')),to_char('ND'))
+	into v_c_doctype_id
+	from dual;
+
+	If(v_c_doctype_id ='ND')Then
+
+		RAISE_APPLICATION_ERROR(-20000,'@sspr_validate_payroll_documenttype@');
+
+	End If;
+
+	--NOMINA DE PROVISIONES
+
+	--INSERTA INSTANCE NOMINA DE PROVISIONES
+	 SSPR_PINSTANCE_PARA_INSERT(PInstance_ID, '1', 'StartPeriod', v_c_Period_ID, NULL,0,0,NULL,NULL,v_Org_ID,v_Client_ID,v_User_ID);
+	 SSPR_PINSTANCE_PARA_INSERT(PInstance_ID,'2','EndPeriod',v_c_Period_ID,NULL,0,0,NULL,NULL,v_Org_ID,v_Client_ID,v_User_ID);
+	 SSPR_PINSTANCE_PARA_INSERT(PInstance_ID,'3','Template','2',NULL,0,0,NULL,NULL,v_Org_ID,v_Client_ID,v_User_ID);
+	 --select * from ad_pinstance where created >= now() - 1  ORDER BY CREATED DESC limit 500 
+
+	-- select * from ad_pinstance_para where ad_pinstance_id IN('EA391EF80CA841A4B56F360DB1B6AE1F','815E4CDD277D4A588A6042C35823A348','11C354D48679466C9AB86EAC61E38A07','22753C4DAE9940659A718D47CF707B7F')
+	--CARGA PLANTILLA DE PROVISIONES
+	 SFPR_LOAD_PAYROLL_TEMPLATE(PInstance_ID);
+
+			select 
+            coalesce(to_number((select pi.result
+			from ad_pinstance pi 
+			where pi.ad_pinstance_id = PInstance_ID
+            )),to_number(1))
+            into v_result1 
+            from dual;
+            
+            
+            
+            select 
+            coalesce(to_char((	select pi.errormsg 
+			from ad_pinstance pi 
+			where pi.ad_pinstance_id = PInstance_ID
+             )),to_char(''))
+            into v_errormsg1
+            from dual;
+            		
+	If v_result1 = 0 then
+	
+	  RAISE_APPLICATION_ERROR(-20000, v_errormsg1) ;
+	  
+	End if;
+		select sspr_payroll_aut_line_id, sspr_payroll_id
+		into v_sspr_payroll_out_line_id, v_sspr_payroll_id
+		from sspr_payroll_aut_line pal 
+		where pal.sspr_payroll_aut_id = v_sspr_payroll_aut_id
+		and pal.ispayroll = 'N';
+		
+		if v_sspr_payroll_id is null then
+			v_sspr_payroll_id := get_uuid();
+
+			SELECT ad_sequence_doctype(v_c_doctype_id, NULL, 'Y') INTO v_documentno;
+
+			--EJECUTA NOMINA DE PROVISIONES
+			insert into sspr_payroll(sspr_payroll_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, documentno, datedoc, 
+						c_period_id, processed, description, ispayroll, generate_accounting, isliquidation,c_bpartner_id,complete_liquidation, automaticprocess,
+						c_doctype_id)
+			values(v_sspr_payroll_id, v_Client_ID, v_Org_ID, 'Y', now(), v_createdby, now(), v_updatedby, v_documentno, v_datedoc, 
+				v_c_Period_ID, 'N', 'NOMINA PROVISIONES ' || v_name, 'N', 'N', 'N', Null, 'N','Y',
+				v_c_doctype_id);
+		end if;
+
+		v_ad_pinstance := get_uuid();
+		
+		insert into ad_pinstance(ad_pinstance_id, ad_process_id, record_id, isprocessing, created, ad_user_id, updated, result, errormsg, ad_client_id, ad_org_id, createdby, updatedby, isactive)
+		values(v_ad_pinstance,'EB6834D84D68474489FE1C9622EA503A', v_sspr_payroll_id,'N',now(),v_updatedby,now(),1,Null,v_Client_ID,v_Org_ID,v_createdby,v_updatedby,'Y');
+
+	  SPRC_PROCESS_PAYROLL(v_ad_pinstance);
+
+		select 
+		coalesce(to_number((select pi.result
+		from ad_pinstance pi 
+		where pi.ad_pinstance_id = v_ad_pinstance
+		)),to_number(1))
+		into v_result 
+		from dual;
+
+		select 
+		coalesce(to_char((	select pi.errormsg 
+		from ad_pinstance pi 
+		where pi.ad_pinstance_id = v_ad_pinstance
+		)),to_char(''))
+		into v_errormsg
+		from dual;
+
+		If v_result = 0 then
+		
+		  RAISE_APPLICATION_ERROR(-20000, v_errormsg) ;
+		  
+		End if;
+		
+		if v_sspr_payroll_out_line_id is null then
+			--INSERTA LINEAS SSPR_PAYROLL_AUT_LINE
+			insert into sspr_payroll_aut_line(sspr_payroll_aut_line_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, sspr_payroll_aut_id, documentno, sspr_payroll_id,ispayroll)
+			values(get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), v_createdby, now(), v_updatedby, v_sspr_payroll_aut_id,v_documentno, v_sspr_payroll_id,'N');
+		end if;
+
+	--VACACIONES
+
+	--PERFORM SSPR_CALCULATEVACATION(v_pinstance_vac_id);
+
+	--SELECT PI.RESULT, PI.ERRORMSG 
+	--INTO v_result, v_errormsg 
+	--FROM AD_PINSTANCE PI WHERE PI.ad_pinstance_id = v_pinstance_vac_id;
+
+	--If v_result = 0 then
+	
+	  --RAISE_APPLICATION_ERROR(-20000, v_errormsg) ;
+	  
+	--End if;
+
+	--NOMINA NORMAL 
+	
+		--Delete provisions payroll instance
+		delete from ad_pinstance_para where ad_pinstance_id = PInstance_ID and seqno = '3' and parametername = 'Template';
+	 SSPR_PINSTANCE_PARA_INSERT(PInstance_ID, '3', 'Template','1', null, 0, 0, null, null,v_Org_ID,v_Client_ID,v_User_ID);
+
+		--CARGA PLATILLA DE NOMINA
+	 SFPR_LOAD_PAYROLL_TEMPLATE(PInstance_ID);
+	 
+	 	select sspr_payroll_aut_line_id, sspr_payroll_id
+		into v_sspr_payroll_out_line_id, v_sspr_payroll_id
+		from sspr_payroll_aut_line pal 
+		where pal.sspr_payroll_aut_id = v_sspr_payroll_aut_id
+		and pal.ispayroll = 'Y';
+		
+		if v_sspr_payroll_id is null then
+			v_sspr_payroll_id := get_uuid();
+
+			SELECT ad_sequence_doctype(v_c_doctype_id, NULL, 'Y') INTO v_documentno_men;
+
+			--EJECUTA NOMINA NORMAL
+			insert into sspr_payroll(sspr_payroll_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, documentno, datedoc, 
+						c_period_id, processed, description, ispayroll, generate_accounting, isliquidation,c_bpartner_id,complete_liquidation,automaticprocess,
+						c_doctype_id)
+			values(v_sspr_payroll_id, v_Client_ID, v_Org_ID, 'Y', now(), v_createdby, now(), v_updatedby,  v_documentno_men, v_datedoc, 
+				v_c_Period_ID, 'N', 'NOMINA MENSUAL ' || v_name, 'Y', 'N', 'N', Null, 'N','Y',
+				v_c_doctype_id);
+		end if;
+
+		v_ad_pinstance := get_uuid();
+		
+		insert into ad_pinstance(ad_pinstance_id, ad_process_id, record_id, isprocessing, created, ad_user_id, updated, result, errormsg, ad_client_id, ad_org_id, createdby, updatedby, isactive)
+		values(v_ad_pinstance,'EB6834D84D68474489FE1C9622EA503A', v_sspr_payroll_id,'N',now(),v_updatedby,now(),1,Null,v_Client_ID,v_Org_ID,v_createdby,v_updatedby,'Y');
+
+	 SPRC_PROCESS_PAYROLL(v_ad_pinstance);
+
+		select 
+		coalesce(to_number((select pi.result
+		from ad_pinstance pi 
+		where pi.ad_pinstance_id = v_ad_pinstance
+		)),to_number(1))
+		into v_result 
+		from dual;
+
+		select 
+		coalesce(to_char((	select pi.errormsg 
+		from ad_pinstance pi 
+		where pi.ad_pinstance_id = v_ad_pinstance
+		)),to_char(''))
+		into v_errormsg
+		from dual;
+		
+		If v_result = 0 then
+		
+		  RAISE_APPLICATION_ERROR(-20000, v_errormsg) ;
+		  
+		End if;
+		
+		if v_sspr_payroll_out_line_id is null then
+			--INSERTA LINEAS SSPR_PAYROLL_AUT_LINE
+			insert into sspr_payroll_aut_line(sspr_payroll_aut_line_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, updatedby, sspr_payroll_aut_id, documentno, sspr_payroll_id, ispayroll)
+			values(get_uuid(), v_Client_ID, v_Org_ID, 'Y', now(), v_createdby, now(), v_updatedby, v_sspr_payroll_aut_id, v_documentno_men, v_sspr_payroll_id, 'Y');
+		end if;
+
+		v_ResultStr:='UpdatingRecord';
+                  
+		  UPDATE sspr_payroll_aut
+		SET Processed = 'Y',
+			Updated = now(),
+			UpdatedBy=tO_CHAR(v_User_ID)
+		WHERE sspr_payroll_aut_id = v_sspr_payroll_aut_id;
+		
+		v_n_insertions := 2;
+	END IF;
+
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SPRC_AUTOMATIC_PAYROLL_PROCESS
+]]></body>
+    </function>
+  </database>

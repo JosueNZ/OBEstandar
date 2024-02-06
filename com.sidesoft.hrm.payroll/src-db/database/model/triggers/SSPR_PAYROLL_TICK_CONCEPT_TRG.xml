@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_PAYROLL_TICK_CONCEPT_TRG">
+    <trigger name="SSPR_PAYROLL_TICK_CONCEPT_TRG" table="SSPR_PAYROLL_TICKET_CONCEPT" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+v_subtype VARCHAR2(60);
+v_Amount NUMBER;
+
+BEGIN
+ 
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+   END IF;
+
+   IF (INSERTING) THEN
+
+     SELECT conceptsubtype INTO v_subtype
+     FROM SSPR_Concept
+     WHERE SSPR_Concept_ID = :new.SSPR_Concept_ID;
+ 
+     IF (v_subtype = 'In') THEN
+
+       UPDATE SSPR_Payroll_Ticket SET totalincome = totalincome + ROUND(:new.amount,2)
+       WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;
+
+     ELSE
+
+       UPDATE SSPR_Payroll_Ticket SET totalexpense = totalexpense + ROUND(:new.amount,2)
+       WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;
+       
+     END IF;
+
+     UPDATE SSPR_Payroll_Ticket SET totalnet = totalincome - totalexpense
+     WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;
+
+     v_Amount:=ROUND(:new.amount,2);
+     :new.amount:= v_Amount;
+     
+   ELSIF (UPDATING) THEN
+
+     SELECT conceptsubtype INTO v_subtype
+     FROM SSPR_Concept
+     WHERE SSPR_Concept_ID = :new.SSPR_Concept_ID;
+
+     IF (v_subtype = 'In') THEN
+
+       UPDATE SSPR_Payroll_Ticket SET totalincome = totalincome + (:new.amount - :old.amount)
+       WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;
+
+     ELSE
+
+       UPDATE SSPR_Payroll_Ticket SET totalexpense = totalexpense + (:new.amount - :old.amount)
+       WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;
+       
+     END IF;
+
+     UPDATE SSPR_Payroll_Ticket SET totalnet = totalincome - totalexpense
+     WHERE SSPR_Payroll_Ticket_ID = :new.SSPR_Payroll_Ticket_ID;  
+
+   ELSIF (DELETING) THEN   
+
+     SELECT conceptsubtype INTO v_subtype
+     FROM SSPR_Concept
+     WHERE SSPR_Concept_ID = :old.SSPR_Concept_ID;
+
+     IF (v_subtype = 'In') THEN
+
+       UPDATE SSPR_Payroll_Ticket SET totalincome = totalincome - :old.amount
+       WHERE SSPR_Payroll_Ticket_ID = :old.SSPR_Payroll_Ticket_ID;
+
+     ELSE
+
+       UPDATE SSPR_Payroll_Ticket SET totalexpense = totalexpense - :old.amount
+       WHERE SSPR_Payroll_Ticket_ID = :old.SSPR_Payroll_Ticket_ID;
+       
+     END IF;
+
+     UPDATE SSPR_Payroll_Ticket SET totalnet = totalincome - totalexpense
+     WHERE SSPR_Payroll_Ticket_ID = :old.SSPR_Payroll_Ticket_ID;  
+   
+   END IF;  
+
+   END SSPR_PAYROLL_TICK_CONCEPT_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchivePaymentTenthProdubancoData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[SELECT 'PA' AS PA, BBA.ACCOUNTNO AS CUENTACOMPANIA, '' AS COMPROBANTEPAGO,
+      BBE.ACCOUNTNO AS CONTRAPARTIDA, CC.ISO_CODE AS USD, ROUND(TSL.ADJUSTEDAMT,2) AS VALOR,
+      'CTA' AS FORMAPAGO, BT.CODE AS CODIGOBANCO, 
+      CASE WHEN BBE.BANKACCOUNTTYPE = 'S' THEN 'AHO' WHEN BBE.BANKACCOUNTTYPE = 'C' THEN  'CTE' ELSE 'NO DEFINIDO' END TIPOCTA,
+      BBE.ACCOUNTNO AS NOCUENTA, 
+      CASE WHEN B.EM_SSPR_DOCUMENTTYPE = 'P' THEN 'P'
+      WHEN B.EM_SSPR_DOCUMENTTYPE = 'SRT' THEN 'R'
+      WHEN B.EM_SSPR_DOCUMENTTYPE = 'NI' THEN 'C'
+      ELSE 'NO DEFINIDO' END AS TIPOIDEMPLEADO,
+      B.TAXID AS CEDULA,
+      B.EM_SSPR_DocumentNo AS DOCUMENTNO,
+      B.NAME AS NOMBREEMPLEADO,
+      '' AS DIRECCION,
+      '' AS CIUDAD, 
+      '' AS TELEFONO, 
+      '' AS LOCALIDAD,
+      TS.DESCRIPTION AS REFERENCIA,
+      '' AS REFERENCIAADICIONAL
+      FROM SSPH_TENTH_SETTLEMENT TS
+      LEFT JOIN SSPH_TENTH_SETTLEMENT_LINE TSL ON TSL.SSPH_TENTH_SETTLEMENT_ID = TS.SSPH_TENTH_SETTLEMENT_ID
+      LEFT JOIN C_BPARTNER B ON B.C_BPARTNER_ID = TSL.C_BPARTNER_ID
+      LEFT JOIN AD_ORGINFO O ON O.AD_ORG_ID = TS.AD_ORG_ID
+      LEFT JOIN C_BPARTNER BA ON BA.C_BPARTNER_ID = O.C_BPARTNER_ID
+      LEFT JOIN C_BP_BANKACCOUNT BBA ON BBA.C_BPARTNER_ID = BA.C_BPARTNER_ID
+      LEFT JOIN C_BP_BANKACCOUNT BBE ON BBE.C_BPARTNER_ID = B.C_BPARTNER_ID
+      LEFT JOIN AD_CLIENT C ON C.AD_CLIENT_ID = TS.AD_CLIENT_ID
+      LEFT JOIN C_CURRENCY CC ON CC.C_CURRENCY_ID = C.C_CURRENCY_ID
+      LEFT JOIN SSFI_BANKTRANSFER BT ON BT.SSFI_BANKTRANSFER_ID = BBE.EM_SSFI_BANKTRANSFER_ID
+      WHERE TS.DOCUMENTNO = ?
+      AND B.EM_SSPR_TYPEOFINCOME = 'D']]>
+    </Sql>
+    <Parameter name="documentno"/>
+  </SqlMethod>
+
+</SqlClass>

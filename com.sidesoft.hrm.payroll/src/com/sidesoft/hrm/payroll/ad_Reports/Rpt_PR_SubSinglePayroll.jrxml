@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_PR_SubSinglePayroll" pageWidth="612" pageHeight="396" orientation="Landscape" columnWidth="612" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="SC_BPartner_ID" class="java.lang.String"/>
+	<parameter name="SC_PERIOD_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select 'SUELDO ' ||c.name as period, d.name as partner, a.totalincome, a.totalexpense,(TO_NUMBER(a.totalincome) - TO_NUMBER(a.totalexpense))AS totalrecibir ,
+f.conceptsubtype,
+case f.conceptsubtype when 'In' then f.name else '-' end as conceptoing,
+case f.conceptsubtype when 'Out' then f.name else '-' end as conceptoegr,
+COALESCE(TO_NUMBER((case f.conceptsubtype when 'In' then e.amount else NULL end)),0)  as ingresoamt,
+COALESCE(TO_NUMBER((case f.conceptsubtype when 'Out' then e.amount else NULL end)),0) as egresoamt,
+C.STARTDATE, C.ENDDATE,
+case extract(month from C.STARTDATE)
+when 1 then 'SUELDO ENERO'
+when 2 then 'SUELDO FEBRERO'
+when 3 then 'SUELDO MARZO'
+when 4 then 'SUELDO ABRIL'
+when 5 then 'SUELDO MAYO'
+when 6 then 'SUELDO JUNIO'
+when 7 then 'SUELDO JULIO'
+when 8 then 'SUELDO AGOSTO'
+when 9 then 'SUELDO SEPTIEMBRE'
+when 10 then 'SUELDO OCTUBRE'
+when 11 then 'SUELDO NOVIEMBRE'
+when 12 then 'SUELDO DICIEMBRE'
+end as  mes,
+d.taxid as cedula,
+(select amount from sspr_concept_amount where sspr_concept_id = (select sspr_concept_id from sspr_concept where upper(TRIM(name)) = 'DIAS LABORADOS' )
+and c_bpartner_id = d.c_bpartner_id and c_period_id = (select c_period_id from c_period where c_period_id = $P{SC_PERIOD_ID} ) ) as diaslaborados,
+(select activity from sspr_contract where c_bpartner_id = d.c_bpartner_id) as departament,
+pst.name as cargo
+, c.name as periodo_sub
+from sspr_payroll_ticket a
+left join sspr_payroll b on a.sspr_payroll_id = b.sspr_payroll_id
+left join c_period c on b.c_period_id = c.c_period_id
+left join c_bpartner d on a.c_bpartner_id = d.c_bpartner_id
+left join sspr_payroll_ticket_concept e on a.sspr_payroll_ticket_id = e.sspr_payroll_ticket_id
+left join sspr_concept  f on e.sspr_concept_id = f.sspr_concept_id
+left join sspr_contract ct on ct.c_bpartner_id = d.c_bpartner_id
+left join sspr_contract_position ctp on ctp.sspr_contract_id = ct.sspr_contract_id
+left join sspr_position pst on ctp.sspr_position_id = pst.sspr_position_id
+where c.c_period_id = $P{SC_PERIOD_ID}  and d.c_bpartner_id= $P{SC_BPartner_ID}
+and e.amount <> 0 and b.ispayroll='Y'
+order by c.periodno, d.name, f.conceptsubtype]]>
+	</queryString>
+	<field name="period" class="java.lang.String"/>
+	<field name="partner" class="java.lang.String"/>
+	<field name="totalincome" class="java.math.BigDecimal"/>
+	<field name="totalexpense" class="java.math.BigDecimal"/>
+	<field name="totalrecibir" class="java.math.BigDecimal"/>
+	<field name="conceptsubtype" class="java.lang.String"/>
+	<field name="conceptoing" class="java.lang.String"/>
+	<field name="conceptoegr" class="java.lang.String"/>
+	<field name="ingresoamt" class="java.math.BigDecimal"/>
+	<field name="egresoamt" class="java.math.BigDecimal"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="cedula" class="java.lang.String"/>
+	<field name="diaslaborados" class="java.math.BigDecimal"/>
+	<field name="departament" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="periodo_sub" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="24" splitType="Stretch">
+			<textField>
+				<reportElement x="3" y="2" width="121" height="20" isRemoveLineWhenBlank="true"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{conceptoing}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="124" y="2" width="71" height="20" isRemoveLineWhenBlank="true"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{ingresoamt}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="208" y="2" width="124" height="20" isRemoveLineWhenBlank="true"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{conceptoegr}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="330" y="2" width="64" height="20" isRemoveLineWhenBlank="true"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{egresoamt}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="104" splitType="Stretch">
+			<rectangle>
+				<reportElement x="2" y="20" width="399" height="20"/>
+			</rectangle>
+			<rectangle>
+				<reportElement x="2" y="0" width="399" height="20"/>
+			</rectangle>
+			<staticText>
+				<reportElement x="17" y="0" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL INCOME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="208" y="0" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL EXPENSES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="208" y="20" width="100" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[NET EXPENSIVE]]></text>
+			</staticText>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="126" y="0" width="71" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalincome}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="323" y="0" width="60" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalexpense}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00" isBlankWhenNull="true">
+				<reportElement x="323" y="20" width="60" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalrecibir}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="2" y="79" width="399" height="20"/>
+				<textElement textAlignment="Center">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[RECEIVED PURSUANT]]></text>
+			</staticText>
+			<line>
+				<reportElement x="113" y="77" width="177" height="1"/>
+			</line>
+		</band>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

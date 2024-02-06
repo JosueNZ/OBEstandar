@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="HISTÓRICO DE CANCELACIONES" pageWidth="1739" pageHeight="1463" orientation="Landscape" whenNoDataType="BlankPage" columnWidth="1679" leftMargin="30" rightMargin="30" topMargin="20" bottomMargin="20" uuid="bdbe0d9b-730a-4fee-8a3d-f36acd5c6b89">
+	<property name="ireport.zoom" value="1.366026910730142"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.scriptlethandling" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.sheet.names.all" value="HISTÓRICO DE CANCELACIONES"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="org.openbravo.dal.core.OBContext"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Datefrom" class="java.util.Date"/>
+	<parameter name="Dateto" class="java.util.Date"/>
+	<parameter name="C_BPartner_ID" class="java.lang.String"/>
+	<parameter name="Docstatus" class="java.lang.String"/>
+	<parameter name="AD_USER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA["100"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_Costcenter_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Org_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getCurrentOrganization().getId()]]></defaultValueExpression>
+	</parameter>
+	<parameter name="User_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getUser().getId()]]></defaultValueExpression>
+	</parameter>
+	<parameter name="UserName" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[OBContext.getOBContext().getUser().getUsername()]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select  arp.doctype as "TIPO_DOC"
+	,to_char($P{Dateto}::date,'dd/MM/yyyy') as fhasta
+          ,arp.bpartner_name as "TERCERO",
+	bp.taxid as "identificador",
+          arp.invoice as "FACTURA",
+          arp.applied as "APLICADO",
+          arp.documentdate::date as "fecha",
+          to_char(arp.documentdate::date,'dd/MM/yyyy') as "FECHA_DOC",
+          arp.poreference as "REFERENCIA_FAC",
+          to_char(arp.description) as "DESCRIPCION",
+          to_char(max(arp.duedate::date),'dd/MM/yyyy') as "FECHA_VENCIMIENTO",
+          sum(arp.grandtotal) as "VALOR",
+          to_char(arp.dateacct::date,'dd/MM/yyyy') AS "DATEACCT",
+          sum(arp.grandtotal) as "GRANDTOTALCONVERT",
+          arp.doctype AS "DOCTYPE",
+          arp.costcenter AS "COSTCENTER"
+, TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS') "fecha_impresion"
+,arp.ad_org_id as "ORGANIZATION"
+FROM sswh_acct_receivab_payab_v arp
+LEFT JOIN c_bpartner bp on bp.c_bpartner_id = arp.c_bpartner_id
+  where arp.isclient = 'Y'
+        and to_date(to_char(arp.documentdate,'YYYY-MM-DD'),'YYYY-MM-DD') <= $P{Dateto}
+        and ($P{Datefrom}::date is null OR to_date(to_char(arp.documentdate,'YYYY-MM-DD'),'YYYY-MM-DD') >= $P{Datefrom})
+        and ($P{Docstatus} is null or arp.posted = $P{Docstatus})
+        and ($P{C_BPartner_ID} is null or arp.c_bpartner_id = $P{C_BPartner_ID})
+        and ($P{C_Costcenter_id} is null or arp.c_costcenter_id = $P{C_Costcenter_id})
+GROUP BY arp.doctype, to_char($P{Dateto}::date,'dd/MM/yyyy'), arp.bpartner_name, bp.taxid, arp.invoice, arp.applied, to_char(arp.documentdate::date,'dd/MM/yyyy'),
+arp.poreference, arp.description,  arp.dateacct, arp.doctype, arp.costcenter, TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS'),
+(select coalesce(to_char(cbp.name), to_char(au.name)) from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = '100'), arp.ad_org_id
+,arp.documentdate::date
+UNION ALL
+select  arp.doctype as "TIPO_DOC"
+	,to_char($P{Dateto}::date,'dd/MM/yyyy') as fhasta
+          ,arp.bpartner_name as "TERCERO",
+	bp.taxid as "identificador",
+          arp.invoice as "FACTURA",
+          arp.applied as "APLICADO",
+          arp.documentdate::date as "fecha",
+          to_char(arp.documentdate::date,'dd/MM/yyyy') as "FECHA_DOC",
+          arp.poreference as "REFERENCIA_FAC",
+          to_char(arp.description) as "DESCRIPCION",
+          to_char(max(arp.duedate::date),'dd/MM/yyyy') as "FECHA_VENCIMIENTO",
+          sum(arp.grandtotal) as "VALOR",
+          to_char(arp.dateacct::date,'dd/MM/yyyy') AS "DATEACCT",
+          sum(arp.grandtotal) as "GRANDTOTALCONVERT",
+          arp.doctype AS "DOCTYPE",
+          arp.costcenter AS "COSTCENTER"
+, TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS') "fecha_impresion"
+,arp.ad_org_id as "ORGANIZATION"
+FROM sswh_acct_receivab_payab_zro_v arp
+LEFT JOIN c_bpartner bp on bp.c_bpartner_id = arp.c_bpartner_id
+  where arp.isclient = 'Y'
+        and to_date(to_char(arp.documentdate,'YYYY-MM-DD'),'YYYY-MM-DD') <= $P{Dateto}
+        and ($P{Datefrom}::date is null OR to_date(to_char(arp.documentdate,'YYYY-MM-DD'),'YYYY-MM-DD') >= $P{Datefrom})
+        and ($P{Docstatus} is null or arp.posted = $P{Docstatus})
+        and ($P{C_BPartner_ID} is null or arp.c_bpartner_id = $P{C_BPartner_ID})
+        and ($P{C_Costcenter_id} is null or arp.c_costcenter_id = $P{C_Costcenter_id})
+GROUP BY arp.doctype, to_char($P{Dateto}::date,'dd/MM/yyyy'), arp.bpartner_name, bp.taxid, arp.invoice, arp.applied, to_char(arp.documentdate::date,'dd/MM/yyyy'),
+arp.poreference, arp.description,  arp.dateacct, arp.doctype, arp.costcenter, TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS'),
+(select coalesce(to_char(cbp.name), to_char(au.name)) from ad_user au left join c_bpartner cbp on cbp.c_bpartner_id = au.c_bpartner_id where au.ad_user_id = '100'), arp.ad_org_id
+,arp.documentdate::date
+ORDER BY 3, 7, 6]]>
+	</queryString>
+	<field name="TIPO_DOC" class="java.lang.String"/>
+	<field name="fhasta" class="java.lang.String"/>
+	<field name="TERCERO" class="java.lang.String"/>
+	<field name="identificador" class="java.lang.String"/>
+	<field name="FACTURA" class="java.lang.String"/>
+	<field name="APLICADO" class="java.lang.String"/>
+	<field name="fecha" class="java.sql.Date"/>
+	<field name="FECHA_DOC" class="java.lang.String"/>
+	<field name="REFERENCIA_FAC" class="java.lang.String"/>
+	<field name="DESCRIPCION" class="java.lang.String"/>
+	<field name="FECHA_VENCIMIENTO" class="java.lang.String"/>
+	<field name="VALOR" class="java.math.BigDecimal"/>
+	<field name="DATEACCT" class="java.lang.String"/>
+	<field name="GRANDTOTALCONVERT" class="java.math.BigDecimal"/>
+	<field name="DOCTYPE" class="java.lang.String"/>
+	<field name="COSTCENTER" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="ORGANIZATION" class="java.lang.String"/>
+	<variable name="sumvalor" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{GRANDTOTALCONVERT}]]></variableExpression>
+	</variable>
+	<pageHeader>
+		<band height="63" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-10" x="150" y="0" width="1379" height="48" uuid="adee737a-335f-405f-bb37-14c049fe171b"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" size="11" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ESTADO CXC - HISTÓRICO DE CANCELACIONES]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="1529" y="0" width="150" height="63" uuid="f4482fce-f2ea-4c11-94a4-d7b00619b50c"/>
+				<textElement markup="html">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>Fecha de Impresión: </b><br>"+$F{fecha_impresion}
++"<br><b>Usuario: </b><br>"+$P{UserName}]]></textFieldExpression>
+			</textField>
+			<textField pattern="yyyy/MM/dd">
+				<reportElement x="150" y="48" width="1379" height="15" uuid="525e9ad9-6265-4a00-afe4-cf2ace3319cc"/>
+				<textElement textAlignment="Center" markup="html">
+					<font fontName="Calibri" size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[($P{Datefrom}==null||$P{Datefrom}.equals("")?"":"<b>FECHA DESDE:</b> "+new SimpleDateFormat("dd/MM/yyyy").format($P{Datefrom})+"  -  ") +"<b>FECHA HASTA:</b> "+$F{fhasta}]]></textFieldExpression>
+			</textField>
+			<image hAlign="Center" vAlign="Middle">
+				<reportElement x="0" y="0" width="150" height="63" uuid="a1f0ab87-d9a0-4245-8ae4-4d27ceab092f"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $P{Org_ID})]]></imageExpression>
+			</image>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="22" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-12" x="297" y="0" width="195" height="22" uuid="a8a15fa9-b56a-42d7-b5fb-7dfef61cb89b"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[TIPO DE DOCUMENTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-2" x="0" y="0" width="196" height="22" uuid="bf075cb0-058a-4bfb-9261-06038f51d552"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[CLIENTE]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-3" x="730" y="0" width="100" height="22" uuid="9984c098-6c3d-4c54-ab56-19bd6e257bfa"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[DOCUMENTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-4" x="492" y="0" width="110" height="22" uuid="744eb9c5-d770-48c8-bb91-144de2e84328"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[DOC. APLICADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-5" x="830" y="0" width="77" height="22" uuid="47fc5485-dc93-4b01-b37c-162c6bbeafbe"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[FECHA DOC.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-7" x="984" y="0" width="78" height="22" uuid="6ab9f329-0463-4ff0-b0b2-c46a6e49f7f6"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[FECHA VENC.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-8" x="1062" y="0" width="100" height="22" uuid="943b3da4-a084-442a-a4bc-0a97991d378c"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-11" x="907" y="0" width="77" height="22" uuid="9467dd33-b309-4a28-b253-3c970706fe05"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[FECHA CONT.]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1162" y="0" width="241" height="22" uuid="bb116414-373b-439b-a450-9c6f047c3c0a"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[ CENTRO DE COSTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-3" x="602" y="0" width="128" height="22" uuid="c8708df3-5424-47a9-a5d5-e46247042acb"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[REFERENCIA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1403" y="0" width="276" height="22" uuid="5089fd47-4469-473e-bc81-b7cfaa61a327"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[ DESCRIPCIÓN]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-2" x="196" y="0" width="101" height="22" uuid="1593991b-3153-416e-acce-9f5624007e46"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.5" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[IDENTIFICADOR]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="18" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="false">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="0" y="0" width="196" height="18" isPrintWhenDetailOverflows="true" uuid="104a02c9-d950-46cc-a4f5-a10d3b99fece"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{TERCERO}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="492" y="0" width="110" height="18" isPrintWhenDetailOverflows="true" uuid="129e37b7-a7df-46cc-bfde-9f4d07ebc671"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{FACTURA}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="730" y="0" width="100" height="18" isPrintWhenDetailOverflows="true" uuid="df014aaf-56bd-46ae-b249-7116e8f8b268"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{APLICADO}.equals( $F{FACTURA} )? "":$F{APLICADO}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="830" y="0" width="77" height="18" isPrintWhenDetailOverflows="true" uuid="023d74cd-c56a-4bab-8540-d7ed1bed03de"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{FECHA_DOC}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="984" y="0" width="78" height="18" isPrintWhenDetailOverflows="true" uuid="e555263f-70fc-4393-9365-9299793a062f"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{FECHA_VENCIMIENTO}]]></textFieldExpression>
+			</textField>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="1062" y="0" width="100" height="18" isPrintWhenDetailOverflows="true" uuid="79ebf72c-f27c-4ad4-9624-c59c223019f4"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{GRANDTOTALCONVERT}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField-1" stretchType="RelativeToBandHeight" x="907" y="0" width="77" height="18" isPrintWhenDetailOverflows="true" uuid="6ef79221-3df2-476b-84ac-5e561022c681"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{DATEACCT}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="1162" y="0" width="241" height="18" isPrintWhenDetailOverflows="true" uuid="3d6cf0b0-be6a-4812-9ef8-5653e1038c57"/>
+				<box leftPadding="2">
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{COSTCENTER}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="297" y="0" width="195" height="18" isPrintWhenDetailOverflows="true" uuid="925eacf9-6823-4850-89f7-c71cbde7a203"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Left">
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{DOCTYPE}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="602" y="0" width="128" height="18" isPrintWhenDetailOverflows="true" uuid="a1b0a501-69e0-465c-8474-3cad21af7551"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{REFERENCIA_FAC}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="1403" y="0" width="276" height="18" isPrintWhenDetailOverflows="true" uuid="393e0d3b-06c0-42eb-b43c-fabf0d8d3fe3"/>
+				<box leftPadding="2">
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{DESCRIPCION}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement key="textField" stretchType="RelativeToBandHeight" x="196" y="0" width="101" height="18" isPrintWhenDetailOverflows="true" uuid="b50324fb-5646-4b44-94fd-3de2ffbc751d"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font fontName="Calibri"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{identificador}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-9" x="984" y="0" width="78" height="20" uuid="daff5878-bdc7-4be7-aaed-b23e919a43f7"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center">
+					<font fontName="Calibri" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[TOTAL :]]></text>
+			</staticText>
+			<textField pattern="" isBlankWhenNull="true">
+				<reportElement key="textField" x="1062" y="0" width="100" height="20" uuid="30cd56b8-3e99-4b5a-aeac-a0b787019701"/>
+				<box>
+					<topPen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right">
+					<font fontName="Calibri" size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{sumvalor}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+		</band>
+	</columnFooter>
+</jasperReport>

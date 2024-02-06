@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchPayrAdvPayRuminahuiBankData" package="com.sidesoft.hrm.payroll.early.payment.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+        select  'PA' as servicecode,
+                bp.em_sspr_documentno as ci,
+                'USD' as currency,
+                round(papl.amount,2) as amount,
+                'CTA' as bankaccount,
+                case bpba.bankaccounttype when 'S' then 'AHO' when 'C' then 'CTE' else '' end as bankacctype,
+                bpba.accountno,
+                pap.observation,
+                case bp.em_sspr_documenttype when 'NI' then 'C' when 'SRT' then 'R' else '' end as typeid,
+                bp.name,
+                bt.code
+        from spep_advance_paymentline papl
+        join spep_advance_payment pap on pap.spep_advance_payment_id = papl.spep_advance_payment_id
+        join c_bpartner bp on papl.c_bpartner_id = bp.c_bpartner_id
+        left join c_bp_bankaccount bpba on bpba.c_bpartner_id = bp.c_bpartner_id and bpba.em_sspr_ispayroll = 'Y'
+        left join ssfi_banktransfer bt on bpba.em_ssfi_banktransfer_id = bt.ssfi_banktransfer_id
+        where pap.documentno = ?
+          and (? is null or papl.typeofincome = ?)
+      ]]>
+    </Sql>
+    <Parameter name="documentno"/>
+    <Parameter name="typeofincome"/>
+    <Parameter name="typeofincome"/>
+  </SqlMethod>
+
+</SqlClass>

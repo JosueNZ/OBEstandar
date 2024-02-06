@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchivePaymentFortnightTXTData" package="com.sidesoft.hrm.payroll.early.payment.ad_process" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      SELECT TO_CHAR('PA') AS CODIGOORIENTACION,LPAD(BA.ACCOUNTNO,11,'0') AS CUENTAEMPRESA ,
+TO_NUMBER(ROW_NUMBER() OVER (ORDER BY PY.created NULLS LAST )) 
+ AS SECUENCIALPAGO ,TO_CHAR(' ') AS COMPROBANTEPAGO, CA.ACCOUNTNO AS CONTRAPARTIDA, UPPER(CC.ISO_CODE) AS MONEDA 
+ , ROUND(PT.amount,2) AS VALOR, TO_CHAR('CTA') AS FORMAPAGO, 
+ BT.CODE AS CODIGOINSTFIN,CASE WHEN UPPER(TRIM(CA.BankAccountType))= 'S' THEN TO_CHAR('AHO') ELSE TO_CHAR('CTE') END AS TIPOCUENTA, 
+   LPAD(CA.ACCOUNTNO,11,'0') AS NUMEROCUENTA,
+ CASE WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) ='NI' THEN TO_CHAR('C')  
+ WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) ='SRT' THEN TO_CHAR('R')  
+ WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) = 'P'THEN TO_CHAR('P') END AS TIPOIDBENEFICIARIO,
+ CB.TAXID AS IDBENEFICIARIO, TO_CHAR(UPPER(CB.NAME)) AS NOMBREBENEF, TO_CHAR(' ')  AS DIRECCIONBENEF ,TO_CHAR(' ')  AS CIUDADBENEF , TO_CHAR(' ')  AS TELEFONOBENEF, 
+ TO_CHAR(' ') AS LOCALIDADPAGO, UPPER(PY.OBSERVATION) AS REFERENCIA
+ , TO_CHAR(' ') AS REFADICIONAL 
+ FROM spep_advance_payment PY  
+LEFT JOIN spep_advance_paymentline PT ON PY.spep_advance_payment_id = PT.spep_advance_payment_id 
+LEFT JOIN C_BPARTNER CB ON PT.C_BPARTNER_id = CB.C_BPARTNER_id    
+LEFT JOIN AD_ORG AO ON PY.AD_ORG_ID = AO.AD_ORG_ID  
+LEFT JOIN AD_ORGINFO AR ON AO.AD_ORG_ID = AR.AD_ORG_ID  
+LEFT JOIN C_BPARTNER CP ON AR.C_BPARTNER_ID = CP.C_BPARTNER_ID  
+LEFT JOIN C_BP_BANKACCOUNT BA ON CP.C_BPARTNER_ID = BA.C_BPARTNER_ID  
+LEFT JOIN C_BP_BANKACCOUNT CA ON CB.C_BPARTNER_ID = CA.C_BPARTNER_ID  
+LEFT JOIN ssfi_banktransfer BT ON CA.em_ssfi_banktransfer_id = BT.ssfi_banktransfer_id   
+LEFT JOIN AD_CLIENT AC ON PY.AD_CLIENT_ID = AC.AD_CLIENT_ID   
+LEFT JOIN C_CURRENCY CC ON AC.C_CURRENCY_ID = CC.C_CURRENCY_ID   
+WHERE CB.isemployee ='Y' 
+AND PY.DOCUMENTNO = ?
+AND CB.EM_SSPR_TYPEOFINCOME = 'D'   
+]]>
+    </Sql>
+    <Parameter name="documentno"/>    
+  </SqlMethod>
+
+</SqlClass>

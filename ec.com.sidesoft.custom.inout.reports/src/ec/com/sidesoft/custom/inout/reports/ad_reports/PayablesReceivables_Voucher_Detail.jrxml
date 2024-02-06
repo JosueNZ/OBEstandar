@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="PayablesReceivables_Voucher_Detail" pageWidth="555" pageHeight="842" columnWidth="555" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="9cf6ed39-13cb-4d08-ba4c-cbf1d7a18b61">
+	<property name="ireport.zoom" value="3.0"/>
+	<property name="ireport.x" value="472"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="fin_payment_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="c_doctype_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="payment_type" class="java.lang.String"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT  (CASE WHEN  FP.ISRECEIPT = 'N' THEN TO_CHAR(PD.Invoice_Reference)
+ WHEN FP.ISRECEIPT = 'Y' THEN TO_CHAR(PD.INVOICENO) ELSE TO_CHAR('') END) AS "FACTURA"
+, DT.NAME AS "TIPODOCUMENTO"
+, coalesce(pd.paidamt,0) AS "VALOR"
+, sescr_getall_costcenter(CI.C_INVOICE_ID) AS "CENTROCOSTO"
+FROM ssfi_fin_payment_detail_v PD
+LEFT JOIN C_INVOICE CI ON PD.C_INVOICE_ID = CI.C_INVOICE_ID
+LEFT JOIN C_DOCTYPE DT ON CI.C_DOCTYPE_ID = DT.C_DOCTYPE_ID
+LEFT JOIN FIN_PAYMENT FP ON FP.FIN_PAYMENT_ID = PD.FIN_PAYMENT_ID
+ WHERE PD.FIN_PAYMENT_ID = (
+select fp.fin_payment_id from fin_payment fp where documentno = $P{fin_payment_id} and fp.c_doctype_id = $P{c_doctype_id})
+ORDER BY PD.InvoiceNo]]>
+	</queryString>
+	<field name="FACTURA" class="java.lang.String"/>
+	<field name="TIPODOCUMENTO" class="java.lang.String"/>
+	<field name="VALOR" class="java.math.BigDecimal"/>
+	<field name="CENTROCOSTO" class="java.lang.String"/>
+	<variable name="TOTAL" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{VALOR}]]></variableExpression>
+	</variable>
+	<variable name="TOTAL_FACTURA" class="java.math.BigDecimal" resetType="Group" resetGroup="invoice" calculation="Sum">
+		<variableExpression><![CDATA[$F{VALOR}]]></variableExpression>
+	</variable>
+	<group name="invoice">
+		<groupExpression><![CDATA[$F{FACTURA}]]></groupExpression>
+		<groupFooter>
+			<band height="12">
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="155" y="0" width="233" height="12" uuid="3c034b8f-0411-496f-83a3-8b661da8a75f"/>
+					<textElement verticalAlignment="Middle">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{TIPODOCUMENTO}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+					<reportElement x="388" y="0" width="92" height="12" uuid="0e537820-7a69-4a6a-b23f-0083e2edf140"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="8" isBold="false"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{TOTAL_FACTURA}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+					<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="480" y="0" width="75" height="12" uuid="0ccb8b45-2fb9-4d21-b64e-74a040eeb3b3"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{CENTROCOSTO}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="0" y="0" width="155" height="12" uuid="0c9e15af-17af-4ea0-bdd6-1d4ad8e86629"/>
+					<textElement verticalAlignment="Middle">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{FACTURA}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="155" height="20" uuid="2ceead34-43d1-417d-b0df-d2c20b51050b"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FACTURA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="155" y="0" width="233" height="20" uuid="56d542d1-ff11-4c0b-9a57-19e8fe59713e"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TIPO DOCUMENTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="388" y="0" width="92" height="20" uuid="730db773-644b-49fd-90b4-10fb74c4d4ed"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="480" y="0" width="75" height="20" uuid="0a649e43-0fc4-4471-b539-9ecaa5c948c6"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[CENTRO DE COSTO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="155" height="20" uuid="8cf6fdd0-d361-4104-b8f5-cc6ac682f29a"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTAL]]></text>
+			</staticText>
+			<textField pattern="">
+				<reportElement x="388" y="0" width="92" height="20" uuid="10f3a265-5e48-4d02-a3d8-06bfb308da9a"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+					<bottomPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{TOTAL}.setScale($P{NUMBERDECIMAL}, java.math.RoundingMode.HALF_UP)]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<staticText>
+				<reportElement x="155" y="0" width="233" height="20" uuid="f3ed3d68-1985-4874-ac16-aa6cacef349e"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[      ]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="480" y="0" width="75" height="20" uuid="40a8bb26-ba83-4ada-a98b-94120d990882"/>
+				<box>
+					<topPen lineWidth="0.75"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[     ]]></text>
+			</staticText>
+		</band>
+	</summary>
+</jasperReport>

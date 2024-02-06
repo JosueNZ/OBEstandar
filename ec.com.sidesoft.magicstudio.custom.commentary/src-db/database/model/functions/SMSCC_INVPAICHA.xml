@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SMSCC_INVPAICHA">
+    <function name="SMSCC_INVPAICHA" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cur_costcenter	RECORD;
+v_invoNNC 		RECORD;
+v_invoProvi		RECORD;
+
+BEGIN
+
+	for cur_costcenter in(
+	select *
+	from c_costcenter
+	)loop
+	
+	-- fact cliente 
+	select sum(i.grandtotal) as Gtotal, sum(i.totalpaid) as Gtotalpaid
+	into v_invoNNC
+	from c_invoice i
+	left join c_doctype dt on dt.c_doctype_id = i.c_doctype_id
+	where dt.docbasetype = 'ARI'
+	and i.issotrx = 'Y'
+	and i.docstatus = 'CO'
+	and i.c_invoice_id not in (select Coalesce(ci.em_scnr_invoice_id,'0') 
+					from c_invoice ci
+					left join c_doctype cdt on cdt.c_doctype_id = ci.c_doctype_id
+					where cdt.docbasetype = 'ARC'
+					and i.issotrx = 'Y'
+					and ci.c_costcenter_id = cur_costcenter.c_costcenter_id)
+					and i.c_costcenter_id = cur_costcenter.c_costcenter_id;
+					
+	-- fact prov 			
+	select sum(i.grandtotal) as Gtotal, sum(i.totalpaid) as Gtotalpaid
+	into v_invoProvi
+	from c_invoice i
+	left join c_doctype dt on dt.c_doctype_id = i.c_doctype_id
+	where 
+	dt.docbasetype = 'API'
+	and 
+	i.issotrx = 'N'
+	and i.docstatus = 'CO'
+	and i.c_invoice_id not in (select Coalesce(ci.em_scnr_invoice_id,'0') 
+					from c_invoice ci
+					left join c_doctype cdt on cdt.c_doctype_id = ci.c_doctype_id
+					where cdt.docbasetype = 'APC'
+					and i.issotrx = 'Y'
+					and ci.c_costcenter_id = cur_costcenter.c_costcenter_id)
+					and i.c_costcenter_id = cur_costcenter.c_costcenter_id;
+	
+	-- Actualiza campos
+	UPDATE public.c_costcenter
+	SET  em_smsp_isinvoiced=Coalesce(v_invoNNC.Gtotal,0), em_smsp_ischarged=COALESCE(v_invoNNC.Gtotalpaid,0), em_smsp_ispaid=COALESCE(v_invoProvi.Gtotalpaid,0)
+	WHERE c_costcenter_id=cur_costcenter.c_costcenter_id;
+	
+		RAISE LOG '%','Funciono: ';
+	END LOOP;
+END SMSCC_INVPAICHA
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPRBI_NHOUR_100">
+    <function name="SPRBI_NHOUR_100" type="VARCHAR">
+      <parameter name="v_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[cur_mark RECORD;
+    v_day NUMBER;
+    v_check VARCHAR2(1);
+    v_endtime DATE;
+    v_overtimeparam DATE;
+    v_auth DATE;
+    v_timecalc DATE;
+    v_weekend NUMBER;
+    v_feed DATE;
+    v_holiday DATE;
+    v_islunch VARCHAR2(1);
+    v_feedp DATE;
+	vMinimumOvertime DATE;
+BEGIN
+    SET timezone TO '0';
+    FOR cur_mark IN (SELECT * FROM sprov_employee_overtime WHERE sprov_employee_overtime_id = v_Record_ID) LOOP
+        -- Obtenemos el dia de la semana
+        SELECT EXTRACT(DOW FROM cur_mark.datemovement) INTO v_day;
+        IF (v_day = 0) THEN
+            v_day := 7;
+        END IF;
+		
+        -- Verificamos si es feriado
+        SELECT value INTO v_holiday FROM sshd_holidays_period_line WHERE value::DATE = cur_mark.datemovement::DATE;
+		
+        -- Obtenemos los parametros del turno del empleado
+        SELECT em_sprbi_overtime_param, islunch, EM_Sprbi_Feed_Param, BP.EM_Sspr_Extra_Hours,
+			COALESCE(S.em_sprov_minimum_overtime, '0001-01-01 00:00:00'::TIMESTAMP)
+            INTO v_overtimeparam, v_islunch, v_feedp, v_check, vMinimumOvertime
+        FROM c_bpartner AS BP JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+            JOIN sspr_shift AS S ON S.sspr_shift_id = C.sspr_shift_id
+        WHERE BP.c_bpartner_id = cur_mark.c_bpartner_id;
+		
+        -- Horas Autorizadas
+        SELECT '0001-01-01 '||SUM(PA.n_hour::TIME) INTO v_auth
+        FROM sprov_period AS P
+            JOIN sprov_employee AS E ON E.sprov_period_id = P.sprov_period_id
+            JOIN sprov_planned_activity PA ON PA.sprov_employee_id = E.sprov_employee_id
+        WHERE P.status = '1' AND PA.payment = 'Y' AND E.c_bpartner_id = cur_mark.c_bpartner_id
+            AND PA.date::DATE = cur_mark.datemovement::DATE;
+        
+        -- Sino tiene check de horas extras
+        IF (v_check = 'N') THEN
+			-- Sino es feriado
+            IF (v_holiday IS NULL) THEN
+				-- Verificamos si tiene horas autorizadas
+				IF (v_auth IS NOT NULL) THEN
+					-- Verificamos si tiene el dia configurado
+					SELECT COUNT(D.day) INTO v_weekend FROM c_bpartner AS BP
+						JOIN sspr_contract AS C ON C.c_bpartner_id = BP.c_bpartner_id
+						JOIN sspr_shift AS S ON S.sspr_shift_id = C.sspr_shift_id
+						JOIN sprbi_days AS D ON D.sspr_shift_id = S.sspr_shift_id
+					WHERE BP.c_bpartner_id = cur_mark.c_bpartner_id AND D.day = v_day::VARCHAR;
+
+					-- Verificamos si es sabado o domingo y lo tiene configurado 
+					IF (v_day >= 6 AND v_day <= 7) AND (v_weekend > 0) THEN
+						v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.exit_1::TIME);
+						IF (v_timecalc::TIME >= v_overtimeparam::TIME) THEN
+							-- Si las horas extras son mayores a las autorizadas
+							IF (v_timecalc::TIME > v_auth::TIME) THEN
+								v_timecalc := '0001-01-01 '||v_auth::TIME;
+							END IF;
+
+							UPDATE sprov_employee_overtime SET
+								time_100 = (cur_mark.datemovement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+							WHERE sprov_employee_overtime_id = v_Record_ID;
+						END IF;
+					END IF;
+					-- Sino tiene el dia configurado
+					IF (v_weekend = 0) THEN
+						-- Alimentacion
+						v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.entry_time_processed::TIME);
+						IF (v_islunch = 'Y') AND (v_timecalc::TIME > vMinimumOvertime::TIME) THEN
+								v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.entry_time_processed::TIME - v_feedp::TIME);    
+						END IF;
+
+						-- Si las horas extras son mayores a las autorizadas
+						IF (v_timecalc::TIME > v_auth::TIME) THEN
+							v_timecalc := '0001-01-01 '||v_auth::TIME;
+						END IF;
+
+						UPDATE sprov_employee_overtime SET
+							time_100 = (cur_mark.datemovement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+						WHERE sprov_employee_overtime_id = v_Record_ID;
+					END IF;
+				END IF;
+            -- Si es feriado
+            ELSE
+                -- Alimentacion
+				v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.entry_time_processed::TIME);
+                IF (v_islunch = 'Y') AND (v_timecalc::TIME > vMinimumOvertime::TIME) THEN
+                        v_timecalc := '0001-01-01 '||(cur_mark.output_time_processed::TIME - cur_mark.entry_time_processed::TIME - v_feedp::TIME);   
+                END IF;
+				
+                UPDATE sprov_employee_overtime SET
+                    time_100 = (cur_mark.datemovement::DATE||' '||v_timecalc::TIME)::TIMESTAMP
+                WHERE sprov_employee_overtime_id = v_Record_ID;
+            END IF;
+			
+			--Si existen horas 100, no pagar alimentacion ni calcular atraso
+			UPDATE sprov_employee_overtime SET Feed_Value=0, Delay_1=(cur_mark.datemovement::DATE||' 00:00:00')::TIMESTAMP
+			WHERE time_100::TIME > '00:00:00' AND sprov_employee_overtime_id=v_Record_ID;
+        END IF;
+    END LOOP;
+    RETURN TRUE;
+END SPRBI_NHOUR_100
+]]></body>
+    </function>
+  </database>

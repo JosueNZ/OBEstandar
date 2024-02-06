@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER CSAAA_PROCESS_NOCONCIL_TRG">
+    <trigger name="CSAAA_PROCESS_NOCONCIL_TRG" table="CSAAA_CUSTODIANLINE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+v_Processed VARCHAR(60) ;
+v_CsaaaCustodian_ID VARCHAR2(32) ;
+    
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+    v_CsaaaCustodian_ID:=:NEW.csaaa_custodian_id;
+  END IF;
+
+  IF  (DELETING) THEN
+    v_CsaaaCustodian_ID:=:OLD.csaaa_custodian_id;
+  END IF;
+  
+  SELECT PROCESSED
+  INTO v_Processed
+  FROM csaaa_custodian
+  WHERE csaaa_custodian_id=v_CsaaaCustodian_ID;
+          
+  IF((DELETING OR INSERTING) AND v_Processed='Y') THEN
+	RAISE_APPLICATION_ERROR(-20000, '@20501@');
+  END IF;
+END CSAAA_PROCESS_NOCONCIL_TRG
+]]></body>
+    </trigger>
+  </database>

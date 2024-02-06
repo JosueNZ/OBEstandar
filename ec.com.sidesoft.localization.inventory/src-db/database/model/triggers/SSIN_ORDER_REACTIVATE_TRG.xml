@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSIN_ORDER_REACTIVATE_TRG">
+    <trigger name="SSIN_ORDER_REACTIVATE_TRG" table="C_ORDER" fires="after" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_Contador NUMBER:=0;
+  v_Valor VARCHAR2(100):='';
+      TYPE RECORD IS REF CURSOR;
+  Cur_OrderLines RECORD;
+  
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN IF DELETING THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  IF (UPDATING) THEN
+
+    IF( :new.docaction='RE') THEN
+ 
+
+    IF (:old.issotrx='N') THEN
+          SELECT value INTO v_Valor FROM AD_Preference WHERE  property= 'Ssin_ReactivatePurchase' 
+          and (visibleat_org_id = :old.ad_org_id or visibleat_org_id='0' or  visibleat_org_id is null);
+    END IF;
+    IF (:old.issotrx='Y') THEN
+          SELECT value INTO v_Valor FROM AD_Preference WHERE  property= 'Ssin_ReactivateSales' 
+          and (visibleat_org_id = :old.ad_org_id or visibleat_org_id='0' or  visibleat_org_id is null);
+    END IF;
+
+    IF (v_Valor='Y') THEN
+
+  FOR Cur_OrderLines IN
+    (
+    SELECT c_orderline_id from c_orderline where c_order_id= :old.c_order_id
+    )
+  LOOP
+
+v_Contador:=0;
+    
+	SELECT  count(*) INTO v_Contador FROM m_inoutline WHERE c_orderline_id= Cur_OrderLines.c_orderline_id;
+
+	IF (v_Contador >0 ) THEN
+		RAISE_APPLICATION_ERROR(-20000, '@Ssin_InoutRelated@') ;
+	END IF;
+	END LOOP;
+    END IF;
+   
+    
+    END IF;
+  END IF;
+
+  END SSIN_ORDER_REACTIVATE_TRG
+]]></body>
+    </trigger>
+  </database>

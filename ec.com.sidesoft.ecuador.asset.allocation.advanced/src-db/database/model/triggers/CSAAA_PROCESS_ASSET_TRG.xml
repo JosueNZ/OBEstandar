@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER CSAAA_PROCESS_ASSET_TRG">
+    <trigger name="CSAAA_PROCESS_ASSET_TRG" table="SSAL_APPL_ACTIVE" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+v_Processed VARCHAR(60) ;
+v_activeMain_ID VARCHAR2(32) ;
+    
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+    v_activeMain_ID:=coalesce(:NEW.ssal_active_main_id,to_char('ND'));
+  ELSE
+    v_activeMain_ID:=coalesce(:OLD.ssal_active_main_id,to_char('ND'));
+  END IF;
+
+	SELECT coalesce((SELECT PROCESSED
+	FROM ssal_active_main
+	WHERE ssal_active_main_id=coalesce(v_activeMain_ID,to_char('ND'))),to_char('ND'))
+	INTO v_Processed
+	FROM dual;
+
+  IF((DELETING OR INSERTING) AND v_Processed='Y') THEN
+	RAISE_APPLICATION_ERROR(-20000, '@20501@');
+  END IF;
+END CSAAA_PROCESS_ASSET_TRG
+]]></body>
+    </trigger>
+  </database>

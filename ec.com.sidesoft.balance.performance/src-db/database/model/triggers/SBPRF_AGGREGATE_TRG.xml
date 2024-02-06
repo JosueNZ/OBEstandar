@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SBPRF_AGGREGATE_TRG">
+    <trigger name="SBPRF_AGGREGATE_TRG" table="FACT_ACCT" fires="before" insert="true" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+  v_fact_acct_aggd_id VARCHAR2(32);
+
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+  
+    BEGIN
+        SELECT sbprf_fact_acct_aggd_id INTO v_fact_acct_aggd_id
+        FROM sbprf_fact_acct_aggd 
+        WHERE ad_client_id = :new.ad_client_id AND ad_org_id = :new.ad_org_id AND c_acctschema_id = :new.c_acctschema_id AND account_id = :new.account_id 
+        AND	dateacct = :new.dateacct AND  COALESCE(c_period_id,'-') = COALESCE(:new.c_period_id,'-') AND c_currency_id = :new.c_currency_id 
+        AND COALESCE(c_salesregion_id,'-') =  COALESCE(:new.c_salesregion_id,'-') AND COALESCE(c_project_id,'-') =  COALESCE(:new.c_project_id,'-')
+        AND COALESCE(c_campaign_id,'-') =  COALESCE(:new.c_campaign_id,'-') AND COALESCE(c_activity_id,'-') =  COALESCE(:new.c_activity_id,'-') 
+        AND COALESCE(user1_id,'-') =  COALESCE(:new.user1_id ,'-') AND COALESCE(user2_id,'-') =  COALESCE(:new.user2_id ,'-') 
+        AND COALESCE(c_costcenter_id,'-') =  COALESCE(:new.c_costcenter_id,'-') AND COALESCE(factaccttype,'-') =  COALESCE(:new.factaccttype,'-');
+    EXCEPTION
+       WHEN OTHERS THEN
+       v_fact_acct_aggd_id := NULL;
+    END;
+
+
+
+	IF (v_fact_acct_aggd_id IS NOT NULL) THEN
+
+		UPDATE sbprf_fact_acct_aggd SET amtsourcedr=coalesce(amtsourcedr,0)+coalesce(:new.amtsourcedr,0),amtsourcecr=coalesce(amtsourcecr,0)+coalesce(:new.amtsourcecr,0),
+		amtacctdr=coalesce(amtacctdr,0)+coalesce(:new.amtacctdr,0) ,amtacctcr=coalesce(amtacctcr,0)+coalesce(:new.amtacctcr,0), updated=now()
+		WHERE sbprf_fact_acct_aggd_id = v_fact_acct_aggd_id;
+
+	ELSE
+
+		INSERT INTO sbprf_fact_acct_aggd(
+		sbprf_fact_acct_aggd_id, ad_client_id, ad_org_id, isactive, created, 
+		createdby, updated, updatedby, c_acctschema_id, account_id, dateacct, 
+		c_period_id, c_currency_id, amtsourcedr, amtsourcecr, amtacctdr, 
+		amtacctcr, c_salesregion_id, c_project_id, c_campaign_id, c_activity_id, 
+		user1_id, user2_id, c_costcenter_id, factaccttype)
+		VALUES (get_uuid(),:new.ad_client_id,:new.ad_org_id,'Y',now(),
+		'100',now(),'100',:new.c_acctschema_id,:new.account_id,:new.dateacct,
+		:new.c_period_id,:new.c_currency_id,:new.amtsourcedr,:new.amtsourcecr,:new.amtacctdr,
+		:new.amtacctcr,:new.c_salesregion_id,:new.c_project_id,:new.c_campaign_id,:new.c_activity_id,
+		:new.user1_id,:new.user2_id,:new.c_costcenter_id,:new.factaccttype);
+
+	END IF;
+
+  
+  END IF;
+
+  IF (DELETING) THEN
+
+    BEGIN
+        SELECT sbprf_fact_acct_aggd_id INTO v_fact_acct_aggd_id
+        FROM sbprf_fact_acct_aggd 
+        WHERE ad_client_id = :old.ad_client_id AND ad_org_id = :old.ad_org_id AND c_acctschema_id = :old.c_acctschema_id AND account_id = :old.account_id 
+        AND	dateacct = :old.dateacct AND  COALESCE(c_period_id,'-') = COALESCE(:old.c_period_id,'-') AND c_currency_id = :old.c_currency_id 
+        AND COALESCE(c_salesregion_id,'-') =  COALESCE(:old.c_salesregion_id,'-') AND COALESCE(c_project_id,'-') =  COALESCE(:old.c_project_id,'-')
+        AND COALESCE(c_campaign_id,'-') =  COALESCE(:old.c_campaign_id,'-') AND COALESCE(c_activity_id,'-') =  COALESCE(:old.c_activity_id,'-') 
+        AND COALESCE(user1_id,'-') =  COALESCE(:old.user1_id ,'-') AND COALESCE(user2_id,'-') =  COALESCE(:old.user2_id ,'-') 
+        AND COALESCE(c_costcenter_id,'-') =  COALESCE(:old.c_costcenter_id,'-') AND COALESCE(factaccttype,'-') =  COALESCE(:old.factaccttype,'-');
+    EXCEPTION
+       WHEN OTHERS THEN
+       v_fact_acct_aggd_id := NULL;
+    END;
+
+	IF (v_fact_acct_aggd_id IS NOT NULL) THEN
+
+		UPDATE sbprf_fact_acct_aggd SET amtsourcedr=coalesce(amtsourcedr,0)-coalesce(:old.amtsourcedr,0),amtsourcecr=coalesce(amtsourcecr,0)-coalesce(:old.amtsourcecr,0),
+		amtacctdr=coalesce(amtacctdr,0)-coalesce(:old.amtacctdr,0) ,amtacctcr=coalesce(amtacctcr,0)-coalesce(:old.amtacctcr,0), updated=now()
+		WHERE sbprf_fact_acct_aggd_id = v_fact_acct_aggd_id;
+		
+	END IF;	
+	
+  
+  END IF;
+
+  END SBPRF_AGGREGATE_TRG
+]]></body>
+    </trigger>
+  </database>

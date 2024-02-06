@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SLPS_GET_PROD_WITH_COST">
+    <function name="SLPS_GET_PROD_WITH_COST" type="NUMERIC">
+      <parameter name="p_product_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_movementdate" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_locator_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_Cost NUMBER; --OBTG:NUMBER--
+BEGIN
+
+
+SELECT
+COALESCE(((
+SELECT
+(case when stock > 0 Then CASE iscostcalculated WHEN 'Y' THEN total_cost / stock ELSE NULL END else  0 end ) AS AVERAGE_COST
+FROM
+(
+select  t.m_locator_id,sum(t.movementqty) as stock,     round( (C_CURRENCY_CONVERT_PRECISION (sum(CASE WHEN t.MOVEMENTQTY < 0 THEN - tc.trxcost ELSE tc.trxcost END)
+,tc.c_currency_id,tc.c_currency_id,p_movementdate,NULL,mp.AD_CLIENT_ID,mp.ad_org_id,'C')),2)
+	AS TOTAL_COST,t.iscostcalculated
+from m_transaction t 
+left join m_product mp on mp.m_product_id = t.m_product_id
+LEFT JOIN (SELECT sum(cost) AS trxcost, m_transaction_id, c_currency_id
+                               FROM M_TRANSACTION_COST
+                                 GROUP BY m_transaction_id, c_currency_id) tc ON t.m_transaction_id = tc.m_transaction_id
+where  t.movementdate <= p_movementdate
+and t.m_product_id = p_product_id
+and t.m_locator_id = p_locator_id
+group by 1, tc.c_currency_id, mp.AD_CLIENT_ID, mp.ad_org_id,t.iscostcalculated
+) costo)),0) 
+INTO v_Cost
+FROM DUAL;
+
+
+RETURN COALESCE(v_Cost,0);
+END SLPS_GET_PROD_WITH_COST
+]]></body>
+    </function>
+  </database>

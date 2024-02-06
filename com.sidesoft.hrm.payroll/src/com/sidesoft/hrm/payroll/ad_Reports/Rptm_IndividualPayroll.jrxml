@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptm_IndividualPayroll" pageWidth="612" pageHeight="792" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.2396694214876032"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="ireport.encoding" value="UTF-8"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="c_bpartner_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREP_Rpt_IndividualPayrollIng" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="documentno" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA[$P{BASE_DESIGN} + "/src/com/sidesoft/hrm/payroll/ad_Reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select a.ad_org_id as "organizationid",
+d.c_bpartner_id as "c_bpartner_id",'SUELDO '||c.name as "period", d.name as "partner",a.totalincome as "totalincome", a.totalexpense as "totalexpense",(a.totalincome - a.totalexpense)AS "totalrecibir" ,
+C.STARTDATE as "startdate",
+case when  b.ispayroll='Y'  and b.isliquidation= 'Y' then repl.enddate
+else c.ENDDATE
+end as "enddate",
+'ROL INDIVIDUAL '||
+case extract(month from C.STARTDATE)
+when 1 then 'ENERO'
+when 2 then 'FEBRERO'
+when 3 then 'MARZO'
+when 4 then 'ABRIL'
+when 5 then 'MAYO'
+when 6 then 'JUNIO'
+when 7 then 'JULIO'
+when 8 then 'AGOSTO'
+when 9 then 'SEPTIEMBRE'
+when 10 then 'OCTUBRE'
+when 11 then 'NOVIEMBRE'
+when 12 then 'DICIEMBRE'
+end || ' ' || c_year.year  as  "mes",
+d.taxid as "cedula",
+b.documentno as "documentno",
+pst.name as "cargo",
+c.name as "periodo",
+sspr_labor_regime.name as "laborregime",
+c_costcenter.name as "costcenter",
+'El valor a recibir se encuentra acreditado en su cuenta ' ||
+
+	case when C_BP_BankAccount.bankaccounttype = 'S' then 'ahorros'
+	     when C_BP_BankAccount.bankaccounttype = 'C' then 'corriente'
+	end  || ' No. ' || C_BP_BankAccount.accountno || ' del ' || upper(ssfi_banktransfer.name)
+as "commentario",
+cbu.name as "usuario", adu.title as "cargousuario",
+'Fecha de Impresión: ' || TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS') "fecha_impresion"
+from sspr_payroll_ticket a
+left join sspr_payroll b on a.sspr_payroll_id = b.sspr_payroll_id
+left join c_period c on b.c_period_id = c.c_period_id
+left join c_bpartner d on a.c_bpartner_id = d.c_bpartner_id
+left join sspr_contract ct on ct.c_bpartner_id = d.c_bpartner_id and ct.isactive='Y' and ct.enddate >= c.startdate and (c.enddate between ct.startdate and ct.enddate )
+left join sspr_contract_position ctp on ctp.sspr_contract_id = ct.sspr_contract_id and ctp.isactive='Y'
+left join sspr_position pst on ctp.sspr_position_id = pst.sspr_position_id
+left join c_year on c_year.c_year_id = c.c_year_id
+left join sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = ct.sspr_labor_regime_id
+left join c_costcenter on c_costcenter.c_costcenter_id = d.em_sspr_costcenter_id
+left join C_BP_BankAccount on C_BP_BankAccount.c_bpartner_id = d.c_bpartner_id and C_BP_BankAccount.em_sspr_ispayroll = 'Y'
+left join ssfi_banktransfer on ssfi_banktransfer.ssfi_banktransfer_id = C_BP_BankAccount.em_ssfi_banktransfer_id
+left join ad_user adu on adu.ad_user_id = b.createdby
+left join c_bpartner cbu on cbu.c_bpartner_id = adu.c_bpartner_id
+left join (
+select
+sp.enddate
+,c_period_id
+,c_bpartner_id
+from sspr_contract sp
+left join c_period cp on   sp.enddate between cp.startdate and cp.enddate
+order by c_bpartner_id
+) repl on repl.c_bpartner_id = a.c_bpartner_id and repl.c_period_id = b.c_period_id
+where b.documentno = $P{documentno}
+and (d.c_bpartner_id= $P{c_bpartner_id} or $P{c_bpartner_id} is null)
+order by d.name]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="period" class="java.lang.String"/>
+	<field name="partner" class="java.lang.String"/>
+	<field name="totalincome" class="java.math.BigDecimal"/>
+	<field name="totalexpense" class="java.math.BigDecimal"/>
+	<field name="totalrecibir" class="java.math.BigDecimal"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="enddate" class="java.sql.Timestamp"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="cedula" class="java.lang.String"/>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="laborregime" class="java.lang.String"/>
+	<field name="costcenter" class="java.lang.String"/>
+	<field name="commentario" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="cargousuario" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<variable name="subreporting" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} +  "/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollIng.jasper"]]></variableExpression>
+	</variable>
+	<variable name="subreportegr" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollIEgr.jasper"]]></variableExpression>
+	</variable>
+	<variable name="subreporttot" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollTot.jasper"]]></variableExpression>
+	</variable>
+	<variable name="subreportimp" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollImportePatronal.jasper"]]></variableExpression>
+	</variable>
+	<variable name="subreportobs" class="java.lang.String">
+		<variableExpression><![CDATA[$P{BASE_DESIGN} + "/com/sidesoft/hrm/payroll/ad_Reports/Rpt_IndividualPayrollObservation.jasper"]]></variableExpression>
+	</variable>
+	<group name="Group Partner" isStartNewPage="true">
+		<groupExpression><![CDATA[$F{c_bpartner_id}]]></groupExpression>
+		<groupHeader>
+			<band height="95">
+				<textField pattern="dd/MM/yyyy">
+					<reportElement x="388" y="30" width="60" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{startdate}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="450" y="30" width="12" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[AL]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="320" y="17" width="247" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{mes}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="320" y="30" width="64" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[PERIODO: DEL]]></text>
+				</staticText>
+				<textField pattern="dd/MM/yyyy">
+					<reportElement x="467" y="30" width="68" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{enddate}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="351" y="76" width="47" height="12"/>
+					<textElement textAlignment="Right">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Cargo:]]></text>
+				</staticText>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="401" y="76" width="170" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{cargo}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="401" y="62" width="170" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{costcenter}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="63" width="57" height="12"/>
+					<textElement textAlignment="Left">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Nombres:]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="462" y="46" width="70" height="12">
+						<printWhenExpression><![CDATA[$P{c_bpartner_id}==null]]></printWhenExpression>
+					</reportElement>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Número de rol:]]></text>
+				</staticText>
+				<textField isBlankWhenNull="true">
+					<reportElement x="87" y="49" width="124" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="87" y="76" width="243" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{laborregime}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="57" y="62" width="250" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{partner}]]></textFieldExpression>
+				</textField>
+				<staticText>
+					<reportElement x="0" y="49" width="50" height="12"/>
+					<textElement textAlignment="Left">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Código:]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="535" y="46" width="32" height="12">
+						<printWhenExpression><![CDATA[$P{c_bpartner_id}== null]]></printWhenExpression>
+					</reportElement>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.Integer"><![CDATA[$V{PAGE_NUMBER}]]></textFieldExpression>
+				</textField>
+				<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+					<reportElement key="image-1" x="6" y="3" width="301" height="41"/>
+					<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+				</image>
+				<staticText>
+					<reportElement x="0" y="75" width="84" height="12"/>
+					<textElement textAlignment="Left">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Régimen Laboral: ]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="307" y="62" width="91" height="12"/>
+					<textElement textAlignment="Right">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[Centro de Costo: ]]></text>
+				</staticText>
+				<textField>
+					<reportElement x="351" y="3" width="215" height="11"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_impresion}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="189">
+				<staticText>
+					<reportElement x="52" y="28" width="96" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[ELABORADO POR]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="351" y="28" width="110" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[RECIBI CONFORME]]></text>
+				</staticText>
+				<staticText>
+					<reportElement x="365" y="73" width="17" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[CI]]></text>
+				</staticText>
+				<line>
+					<reportElement x="365" y="67" width="130" height="1"/>
+				</line>
+				<textField isBlankWhenNull="true">
+					<reportElement x="384" y="72" width="113" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+				</textField>
+				<subreport>
+					<reportElement x="369" y="0" width="200" height="25"/>
+					<subreportParameter name="c_bpartner_id">
+						<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+					</subreportParameter>
+					<subreportParameter name="documentno">
+						<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+					</subreportParameter>
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<subreportExpression class="java.lang.String"><![CDATA[$V{subreporttot}]]></subreportExpression>
+				</subreport>
+				<line>
+					<reportElement x="49" y="68" width="164" height="1"/>
+				</line>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="49" y="99" width="197" height="37"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{commentario}]]></textFieldExpression>
+				</textField>
+				<subreport>
+					<reportElement x="0" y="138" width="569" height="51"/>
+					<subreportParameter name="c_bpartner_id">
+						<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+					</subreportParameter>
+					<subreportParameter name="documentno">
+						<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+					</subreportParameter>
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<subreportExpression class="java.lang.String"><![CDATA[$V{subreportobs}]]></subreportExpression>
+				</subreport>
+				<subreport>
+					<reportElement x="279" y="89" width="293" height="43"/>
+					<subreportParameter name="c_bpartner_id">
+						<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+					</subreportParameter>
+					<subreportParameter name="documentno">
+						<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+					</subreportParameter>
+					<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+					<subreportExpression class="java.lang.String"><![CDATA[$V{subreportimp}]]></subreportExpression>
+				</subreport>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="35" y="72" width="211" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+				</textField>
+				<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+					<reportElement x="35" y="85" width="211" height="12"/>
+					<textElement textAlignment="Center">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{cargousuario}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="40" splitType="Stretch">
+			<subreport>
+				<reportElement x="2" y="0" width="277" height="37"/>
+				<subreportParameter name="c_bpartner_id">
+					<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="documentno">
+					<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$V{subreporting}]]></subreportExpression>
+			</subreport>
+			<subreport>
+				<reportElement x="279" y="0" width="293" height="37"/>
+				<subreportParameter name="c_bpartner_id">
+					<subreportParameterExpression><![CDATA[$F{c_bpartner_id}]]></subreportParameterExpression>
+				</subreportParameter>
+				<subreportParameter name="documentno">
+					<subreportParameterExpression><![CDATA[$F{documentno}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression class="java.lang.String"><![CDATA[$V{subreportegr}]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

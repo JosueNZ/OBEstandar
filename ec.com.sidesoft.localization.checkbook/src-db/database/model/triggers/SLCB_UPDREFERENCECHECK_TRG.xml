@@ -1,0 +1,191 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SLCB_UPDREFERENCECHECK_TRG">
+    <trigger name="SLCB_UPDREFERENCECHECK_TRG" table="FIN_PAYMENT" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+    v_PaymentScheduleDetail_ID VARCHAR2(32);
+    v_Payment VARCHAR2(32);
+    v_Ssws_WithhSalesID  VARCHAR2(32);
+    v_SswsAmount NUMBER;
+    v_finPaymentAmount NUMBER;
+    v_count NUMBER;
+
+    v_PaymentDetail_ID VARCHAR2(32);
+    v_Payment_ID VARCHAR2(32);
+    v_FinFinacAcct_ID VARCHAR2(32);
+    v_FinFinacMethod_ID  VARCHAR2(32);
+    v_CheckBook_ID  VARCHAR2(32);
+    v_CheckNo VARCHAR2(32);
+    v_CountCheck NUMBER;
+
+    v_CheckBookID VARCHAR2(32);
+    v_CheckBookLineID VARCHAR2(32);
+    v_DocumentNo VARCHAR2(32);
+    
+BEGIN
+
+   
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+  IF (UPDATING) THEN
+
+ 
+	
+	 v_Payment_ID:= coalesce(:new.FIN_PAYMENT_ID,'ND');
+
+	--Si existe una cabecera
+         IF (v_Payment_ID<>'ND') THEN 
+
+         
+		--Si pasa la transaccion a pagado
+		IF(:NEW.status = 'PPM') THEN
+		
+			--Si el antiguo estado era pago reintegrado
+			IF (:OLD.status <> 'PWNC') THEN
+			
+				IF(  :OLD.status <> 'RPVOID' )THEN
+
+					IF(:OLD.status <> :NEW.status) THEN
+						--Almacenar la cuenta financiera de la cabecera
+						IF(:NEW.status = 'PWNC' or :NEW.status = 'PPM') THEN
+							SELECT 
+								COALESCE((SELECT 
+										FIN_FINANCIAL_ACCOUNT_ID
+									FROM FIN_PAYMENT 
+									WHERE FIN_PAYMENT_ID = v_Payment_ID
+										AND ISRECEIPT='N'),'ND')
+								INTO v_FinFinacAcct_ID
+							FROM DUAL;
+
+							--Almacena el metodo de pago de la cabecera
+							SELECT 
+								COALESCE((SELECT 
+										FIN_PAYMENTMETHOD_ID
+									FROM FIN_PAYMENT 
+									WHERE FIN_PAYMENT_ID = v_Payment_ID
+										AND ISRECEIPT='N'),'ND')
+								INTO v_FinFinacMethod_ID
+							FROM DUAL;
+						
+							--Almacena el numero de documento de la cabecera
+							SELECT 
+								COALESCE((SELECT 
+										documentno
+									FROM FIN_PAYMENT 
+									WHERE FIN_PAYMENT_ID = v_Payment_ID
+										AND ISRECEIPT='N'),'ND')
+								INTO v_DocumentNo
+							FROM DUAL;
+							
+							--Si la Cuenta financiera Y el metodo de pago existen
+							IF (v_FinFinacAcct_ID<>'ND' AND v_FinFinacMethod_ID<>'ND') THEN 
+
+								--Cuenta cuantos metodos de pago tipo cheque tiene es cuenta financiera
+								SELECT 
+									COALESCE((SELECT  
+											COUNT(*) AS CONTAR
+										FROM FIN_FINANCIAL_ACCOUNT FA
+										JOIN FIN_FinAcc_PaymentMethod FFP 
+													ON FA.FIN_FINANCIAL_ACCOUNT_ID = FFP.FIN_FINANCIAL_ACCOUNT_ID
+										WHERE FFP.EM_SLCB_ISGENERATECHECK = 'Y'
+											AND FA.FIN_FINANCIAL_ACCOUNT_ID= v_FinFinacAcct_ID
+											AND FFP.FIN_PAYMENTMETHOD_ID  =v_FinFinacMethod_ID),0)
+									INTO v_CountCheck
+								FROM DUAL;
+
+								--Si es igual a  UN SOLO registro
+								IF (v_CountCheck=1) THEN
+
+									
+									IF (:new.em_slcb_checkbook_id IS NULL OR :new.em_slcb_checkbook_id= '')THEN
+										--SELECCIONA LA CHERA **Necesito cambiar esto
+										SELECT 
+											COALESCE((SELECT 
+												SLCB_CHECKBOOK_ID 
+												FROM SLCB_CHECKBOOK 
+												WHERE FIN_FINANCIAL_ACCOUNT_ID = v_FinFinacAcct_ID 
+													AND ISACTIVE ='Y'),'ND')
+											INTO v_CheckBook_ID
+										
+										FROM DUAL;
+									ELSE
+										v_CheckBook_ID:=:new.em_slcb_checkbook_id;
+									END IF;
+									
+									--SI hay chequera
+									IF (v_CheckBook_ID<>'ND') THEN
+
+										--Almacena el numero checke minimo que no tenga estado
+										SELECT 
+											COALESCE((SELECT 
+													to_char(checkno) as checkno
+												FROM slcb_checkbookline 
+												WHERE slcb_checkbook_id = v_CheckBook_ID 
+													AND status is null 
+													AND line in (select min(line) 
+															from slcb_checkbookline 
+															where slcb_checkbook_id =  v_CheckBook_ID 
+																and status is null)
+												),'ND')
+											INTO v_CheckNo
+										FROM DUAL;
+										If (:NEW.EM_SLCB_CHECKBOOKLINE_ID is null or :NEW.EM_SLCB_CHECKBOOKLINE_ID  = '') Then
+											--SI Encuentra ese numero de cheque 
+											IF (v_CheckNo<>'ND')  THEN
+
+												--Almacena el id de la linea de cheques que sea igual al numero anterior y pertenesca a esa chequera
+												SELECT 
+													COALESCE((SELECT slcb_checkbookline_ID 
+														FROM slcb_checkbookline 
+													WHERE CHECKNO = v_CheckNo 
+														and slcb_checkbook_id =  v_CheckBook_ID),'ND')
+												INTO v_CheckBookLineID
+											FROM DUAL;
+
+
+
+											IF(:NEW.em_slcb_checkbook <> 'Y')THEN
+												IF(:OLD.EM_SLCB_CHECKBOOKLINE_ID is null)THEN
+
+													:NEW.REFERENCENO := v_CheckNo;
+													:NEW.EM_SLCB_CHECKBOOKLINE_ID := v_CheckBookLineID;
+													:NEW.em_slcb_old_description := SUBSTRING(:NEW.description,1,210);
+													:NEW.DESCRIPTION := SUBSTRING('CH. '||v_CheckNo||' '||:NEW.DESCRIPTION,1,210) ;
+													:NEW.em_slcb_checkbook := 'Y';
+													
+													UPDATE slcb_checkbookline SET 
+																PAYMENTNO = v_DocumentNo,
+																STATUS ='U' ,
+																FIN_Payment_ID = :NEW.FIN_Payment_ID
+													WHERE slcb_checkbookline_ID = v_CheckBookLineID;
+													END IF;
+												 END IF;
+											ELSE
+												--No se encontró numero de cheque
+												RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorSelectedCheck@');
+											END IF;
+
+										Else
+											:NEW.em_slcb_checkbook := 'Y';
+											UPDATE slcb_checkbookline SET 
+														STATUS ='U'
+											WHERE slcb_checkbookline_ID = :NEW.EM_SLCB_CHECKBOOKLINE_ID;
+										End If;
+									ELSE
+										--No encontro la chequera
+										RAISE_APPLICATION_ERROR(-20000, '@Slcb_ErrorSelectedCheckBook@');
+									END IF;
+							      END IF;
+							END IF;
+						END IF;
+					END IF;
+			      END IF;
+		      END IF;
+		END IF;
+         END IF;
+  END IF;
+  
+END SLCB_UPDREFERENCECHECK_TRG
+]]></body>
+    </trigger>
+  </database>

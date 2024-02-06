@@ -1,0 +1,215 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_LOAD_CONCEPT_LOAN2_LIQ">
+    <function name="SSPR_LOAD_CONCEPT_LOAN2_LIQ" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Period RECORD;
+  Cur_Employee RECORD;
+  Cur_Concept RECORD;
+  Cur_LINELOANS RECORD;
+  Cur_Parameter RECORD;
+  Cur_LINELOANS2 RECORD;
+  Cur_Employee2 RECORD;
+  Cur_LINELOANS3 RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);  
+  v_SSconcept_ID VARCHAR2(32);  
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+  v_sspr_line_loans_id VARCHAR(32);
+v_fechapago DATE;
+v_monto NUMBER;
+v_status VARCHAR(32);
+  v_Period_ID VARCHAR(32);  --v_monto-OBTG:VARCHAR2--
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_loan_advance NUMBER;		--OBTG:NUMBER--
+  v_total_advance NUMBER;		--OBTG:NUMBER--
+  v_employee_id VARCHAR(32);		--OBTG:VARCHAR2--
+  v_lineloans_id VARCHAR(32); 		--OBTG:VARCHAR2--
+  v_mnt NUMBER; --OBTG:NUMBER--
+  v_f VARCHAR2(1);  
+
+  v_number NUMBER;		--OBTG:NUMBER--
+BEGIN
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+
+	--VARIABLES
+	v_Period_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+	--v_SSconcept_ID := p_conceptout_id;
+	v_BPartner_ID := p_c_bpartner_id;
+
+	
+
+	SELECT startdate, enddate
+	INTO v_StartPeriod,v_EndPeriod
+	FROM C_period
+	WHERE C_period_ID = v_Period_ID;
+
+
+	DELETE FROM sspr_concept_amount 
+	WHERE C_PERIOD_ID = v_Period_ID
+	AND SSPR_CONCEPT_ID IN (
+		SELECT sspr_concept_id FROM  sspr_loans
+		group by sspr_concept_id
+	);
+
+	v_mnt:=0;
+
+			
+	FOR Cur_Employee IN
+		(					
+			select c_bpartner_id from c_bpartner where isemployee='Y' and isactive='Y'
+			AND EM_SSPR_Status='L'
+			and c_bpartner_id = v_BPartner_ID
+		)
+		LOOP
+
+		v_employee_id:= Cur_Employee.c_bpartner_id;
+
+
+					v_mnt:=0;
+					v_monto:=0;
+					v_f :='N';
+
+					FOR Cur_LINELOANS2 IN 
+					(
+						SELECT c_bpartner_id,sspr_line_loans_id, paydate, a.amount,a.status,loan_advance, total_balance,b.sspr_concept_id
+						FROM sspr_line_loans a
+						left join sspr_loans b on a.sspr_loans_id = b.sspr_loans_id
+						WHERE b.status ='ap'
+						and a.sspr_loans_id = b.sspr_loans_id
+						and a.status='Pending'
+						and c_bpartner_id = v_employee_id
+						--and to_date(to_char(a.paydate,'dd-MM-yyyy')) between to_date('01-01-2014') and to_date('31-01-2014')
+						--and ((to_char(a.paydate,'dd-MM-yyyy'))>= (to_char(v_StartPeriod,'dd-MM-yyyy')) and to_char(a.paydate,'dd-MM-yyyy')<= (to_char(v_EndPeriod,'dd-MM-yyyy')))
+						and (TO_DATE(to_char(a.paydate,'dd-MM-yyyy')) between TO_DATE(to_char(v_StartPeriod,'dd-MM-yyyy')) and TO_DATE(to_char(v_EndPeriod,'dd-MM-yyyy')))
+						
+					)
+					LOOP
+					
+						v_sspr_line_loans_id:= Cur_LINELOANS2.sspr_line_loans_id;
+						v_fechapago:= Cur_LINELOANS2.paydate;
+						v_monto:= Cur_LINELOANS2.amount;
+						v_status:= Cur_LINELOANS2.status;
+						v_loan_advance:= Cur_LINELOANS2.loan_advance;
+						v_total_advance:= Cur_LINELOANS2.total_balance;
+
+						v_SSconcept_ID := Cur_LINELOANS2.sspr_concept_id;
+
+
+						if v_loan_advance > 0 then
+
+							if v_loan_advance = v_monto then
+
+								v_monto:= v_total_advance;
+								
+							elsif v_loan_advance < v_monto then
+
+								v_monto:= v_total_advance;
+
+							end if;
+
+						end if;
+						
+
+						--v_mnt:= v_mnt + v_monto;
+
+						select coalesce(to_number((SELECT to_number(count(*))
+						from sspr_concept_amount
+						where c_bpartner_id = v_employee_id
+						and c_period_id = v_Period_ID
+						and sspr_concept_id =  v_SSconcept_ID
+						)),0) INTO v_number
+						from dual;
+
+						If(v_number = 0) Then
+
+							Insert into sspr_concept_amount(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY,
+								SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNT,ISMODIFIED) 
+								values(get_uuid(), v_Client_ID, v_Org_ID, 'Y',	now(),v_User_ID, now(), v_User_ID,
+								v_SSconcept_ID ,v_employee_id,v_Period_ID,v_monto,'N');
+
+							UPDATE sspr_line_loans
+							SET status='Cancel'
+							WHERE sspr_line_loans_id = v_sspr_line_loans_id;
+
+						else
+
+				
+							--IF v_sspr_line_loans_id='21883BD629104868A1CFC659A8805C27' THEN
+							--RAISE NO_DATA_FOUND || Cur_insertemployee.c_bpartner_id;
+							--END IF;		
+						
+							update sspr_concept_amount
+							set amount = amount + v_monto
+							where c_bpartner_id = v_employee_id
+							and c_period_id = v_Period_ID
+							and sspr_concept_id = v_SSconcept_ID;
+
+							update sspr_line_loans
+							set status='Cancel'
+							where sspr_line_loans_id = v_sspr_line_loans_id;
+
+						end if;
+							
+					END LOOP;
+
+						
+
+						/*IF  v_f ='Y' THEN
+			
+							Insert into sspr_concept_amount(SSPR_CONCEPT_AMOUNT_ID,AD_CLIENT_ID,AD_ORG_ID,ISACTIVE,CREATED,CREATEDBY,UPDATED,UPDATEDBY,
+							SSPR_CONCEPT_ID,C_BPARTNER_ID,C_PERIOD_ID,AMOUNT,ISMODIFIED) 
+							values(get_uuid(), v_Client_ID, v_Org_ID, 'Y',	now(),v_User_ID, now(), v_User_ID,
+							v_SSconcept_ID ,v_employee_id,v_Period_ID,v_mnt,'N');
+
+							v_mnt:=0;
+							v_f :='N';
+
+						END IF;*/
+						
+
+		END LOOP;
+	
+	RETURN;
+END SSPR_LOAD_CONCEPT_LOAN2_LIQ
+]]></body>
+    </function>
+  </database>

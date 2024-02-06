@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_Sspr_Vacation_Cancelation" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.7715610000000048"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="349"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_USER_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[SELECT organizationid,organizacion,tipodocumento,periodo1,periodo2,empleado,cedula,fechaingreso,periodolineas,diasnormales,valornormales,diasadicionales,valoradicionales,totalnumeros,totalenletras,aprobadopor,usuario,fechaimpresion, startdate, mes,sum(monto) as monto
+
+FROM (
+
+SELECT
+AO.AD_ORG_ID AS organizationid,
+AO.SOCIAL_NAME AS organizacion,
+CT.PRINTNAME AS tipodocumento ,
+(select MIN(X.startdate) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID) AS periodo1,
+(select MAX(X.ENDDATE) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID) AS periodo2,
+CP.NAME AS empleado,
+CP.TAXID AS cedula,
+CP.EM_SSPR_ENTRYDATE AS fechaingreso,
+TO_CHAR(CE.STARTDATE,'yyyy') AS periodolineas,
+UPPER(sescr_monthtoletters(TO_NUMBER(TO_CHAR(CE.STARTDATE,'MM')))) AS mes,
+COALESCE((TC.AMOUNT),0) AS monto,
+CASE WHEN UPPER(LE.TYPEVACATIONS)='DN' THEN
+COALESCE(LE.NODAYS,0)
+WHEN UPPER(LE.TYPEVACATIONS)='DA' THEN
+0
+END AS diasnormales,
+CASE WHEN UPPER(LE.TYPEVACATIONS)='DN' THEN
+COALESCE((select sum(x.amount) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID),0)
+WHEN UPPER(LE.TYPEVACATIONS)='DA' THEN
+0
+END
+ AS valornormales,
+ CASE WHEN UPPER(LE.TYPEVACATIONS)='DA' THEN
+COALESCE(LE.NODAYS,0)
+WHEN UPPER(LE.TYPEVACATIONS)='DN' THEN
+0
+END AS diasadicionales,
+CASE WHEN UPPER(LE.TYPEVACATIONS)='DA' THEN
+COALESCE((select sum(x.amount) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID),0)
+WHEN UPPER(LE.TYPEVACATIONS)='DN' THEN
+0
+END
+ AS valoradicionales,
+ COALESCE((select sum(x.amount) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID),0) as totalnumeros,
+ sescr_convert_numbertoletters(COALESCE((select sum(x.amount) FROM SSPR_LEAVE_EMP_VAC X WHERE X.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID),0) ) AS totalenletras,
+CP2.NAME AS aprobadopor,
+(SELECT COALESCE(CB.NAME,AU.NAME) FROM AD_USER AU LEFT JOIN C_BPARTNER CB ON CB.C_BPARTNER_ID = AU.C_BPARTNER_ID WHERE AU.AD_USER_ID=$P{AD_USER_ID}) AS usuario,
+NOW() AS fechaimpresion
+, CE.STARTDATE AS startdate
+FROM SSPR_LEAVE_EMP LE
+LEFT JOIN AD_ORG AO ON LE.AD_ORG_ID = AO.AD_ORG_ID
+LEFT JOIN C_DOCTYPE CT ON LE.C_DOCTYPE_ID = CT.C_DOCTYPE_ID
+INNER JOIN SSPR_LEAVE_EMP_VAC LV ON LE.SSPR_LEAVE_EMP_ID = LV.SSPR_LEAVE_EMP_ID
+LEFT JOIN C_BPARTNER CP ON LE.C_BPARTNER_ID = CP.C_BPARTNER_ID
+LEFT JOIN C_BPARTNER CP2 ON LE.AUTHORIZER_ID = CP2.C_BPARTNER_ID
+INNER JOIN SSPR_PAYROLL_TICKET PC ON PC.C_BPARTNER_ID =CP.C_BPARTNER_ID
+LEFT JOIN SSPR_PAYROLL PY ON PY.SSPR_PAYROLL_ID =PC.SSPR_PAYROLL_ID
+LEFT JOIN C_PERIOD CE ON PY.C_PERIOD_ID = CE.C_PERIOD_ID
+LEFT JOIN  SSPR_PAYROLL_TICKET_CONCEPT TC ON PC.SSPR_PAYROLL_TICKET_ID = TC.SSPR_PAYROLL_TICKET_ID
+LEFT JOIN  SSPR_CONCEPT SC ON TC.SSPR_CONCEPT_ID = SC.SSPR_CONCEPT_ID
+WHERE LV.CREATED= (SELECT MAX(LV2.CREATED) FROM  SSPR_LEAVE_EMP_VAC LV2 WHERE LV2.SSPR_LEAVE_EMP_ID = LE.SSPR_LEAVE_EMP_ID)
+AND PY.ISPAYROLL='Y' AND ISLIQUIDATION= 'N'
+AND SC.ISIESS='Y'
+AND PY.DATEDOC >= LV.STARTDATE  AND  PY.DATEDOC <= LV.ENDDATE
+AND LE.SSPR_LEAVE_EMP_ID=$P{DOCUMENT_ID} ORDER BY CE.STARTDATE ASC
+) qr
+GROUP BY organizationid,organizacion,tipodocumento,periodo1,periodo2,empleado,cedula,fechaingreso,periodolineas,diasnormales,valornormales,diasadicionales,valoradicionales,totalnumeros,totalenletras,aprobadopor,mes,usuario,fechaimpresion, startdate
+order by startdate asc]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="tipodocumento" class="java.lang.String"/>
+	<field name="periodo1" class="java.sql.Timestamp"/>
+	<field name="periodo2" class="java.sql.Timestamp"/>
+	<field name="empleado" class="java.lang.String"/>
+	<field name="cedula" class="java.lang.String"/>
+	<field name="fechaingreso" class="java.sql.Timestamp"/>
+	<field name="periodolineas" class="java.lang.String"/>
+	<field name="diasnormales" class="java.math.BigDecimal"/>
+	<field name="valornormales" class="java.math.BigDecimal"/>
+	<field name="diasadicionales" class="java.math.BigDecimal"/>
+	<field name="valoradicionales" class="java.math.BigDecimal"/>
+	<field name="totalnumeros" class="java.math.BigDecimal"/>
+	<field name="totalenletras" class="java.lang.String"/>
+	<field name="aprobadopor" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<field name="fechaimpresion" class="java.sql.Timestamp"/>
+	<field name="startdate" class="java.sql.Timestamp"/>
+	<field name="mes" class="java.lang.String"/>
+	<field name="monto" class="java.math.BigDecimal"/>
+	<variable name="totalmonto" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{monto}]]></variableExpression>
+	</variable>
+	<variable name="v_valornormales" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{valornormales}]]></variableExpression>
+	</variable>
+	<variable name="v_totalnumeros" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{totalnumeros}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="76" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="130" y="0" width="425" height="27"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="130" y="27" width="425" height="27"/>
+				<box leftPadding="3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tipodocumento}]]></textFieldExpression>
+			</textField>
+			<image scaleImage="RetainShape" hAlign="Center" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="130" height="62"/>
+				<imageExpression class="java.awt.Image"><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band height="72" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="79" y="0" width="92" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{periodo1}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="171" y="0" width="97" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{periodo2}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="79" y="20" width="189" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{empleado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="79" y="40" width="92" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaingreso}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="0" width="79" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Periodo:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="20" width="79" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Empleado:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="40" width="79" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de Ingreso:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="268" y="20" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Usuario:]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="268" y="0" width="84" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de Impresión:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy HH:mm:ss" isBlankWhenNull="true">
+				<reportElement x="352" y="0" width="86" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fechaimpresion}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="352" y="20" width="86" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="140" y="0" width="140" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Mes]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="140" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Periodo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="280" y="0" width="153" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Monto]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="140" y="0" width="140" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{mes}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="140" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodolineas}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="280" y="0" width="153" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{monto}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="266" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="280" y="0" width="153" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{totalmonto}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="140" y="0" width="140" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="140" height="20"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Total:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="20" width="280" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Valor a pagar "+$F{diasnormales}+" día(s):"]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="280" y="20" width="153" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valornormales}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="280" y="40" width="153" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="8" isBold="false" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{valoradicionales}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="40" width="280" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{diasadicionales}+" día(s) por antigüedad:"]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="60" width="280" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Valor total a pagar:]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement mode="Transparent" x="280" y="60" width="153" height="20" forecolor="#000000" backcolor="#FFFFFF"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle" rotation="None" lineSpacing="Single" markup="none">
+					<font fontName="SansSerif" size="8" isBold="true" isItalic="false" isUnderline="false" isStrikeThrough="false" pdfFontName="Helvetica" pdfEncoding="Cp1252" isPdfEmbedded="false"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{totalnumeros}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="80" width="433" height="20"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["SON: "+$F{totalenletras}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="133" width="202" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[RECIBÍ CONFORME]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="220" y="133" width="213" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<text><![CDATA[APROBADO]]></text>
+			</staticText>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="0" y="224" width="202" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{empleado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement x="220" y="224" width="213" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["CPA. "+($F{aprobadopor} ==null ? "" :$F{aprobadopor})]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="26" y="222" width="159" height="1"/>
+			</line>
+			<line>
+				<reportElement x="247" y="221" width="159" height="1"/>
+			</line>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="244" width="202" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{cedula}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

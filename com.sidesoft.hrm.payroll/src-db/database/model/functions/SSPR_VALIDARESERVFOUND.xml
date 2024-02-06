@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_VALIDARESERVFOUND">
+    <function name="SSPR_VALIDARESERVFOUND" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Concept_Employee RECORD;
+Cur_Employee RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_Record_ID VARCHAR2(32) ;
+  
+  --Parametros del proceso
+	v_sspr_concept_id VARCHAR(32);
+	v_anios NUMBER;
+	v_fechaingresa DATE;
+BEGIN
+
+    -- Get Parameters
+    --v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;      
+
+/*select sspr_concept_id into v_sspr_concept_id
+from sspr_concept where isreservefunds='Y';*/
+
+
+ SELECT TO_CHAR(COALESCE((select TO_CHAR(sspr_concept_id)
+from sspr_concept where isreservefunds='Y'),'ND'))  INTO v_sspr_concept_id FROM DUAL;                
+--from sspr_concept where isreservefunds='Y' limit 1;
+
+FOR Cur_Employee IN 
+	( select * from c_bpartner where isactive = 'Y' and isemployee='Y' )
+	LOOP
+		
+		FOR Cur_Concept_Employee IN
+			(	SELECT A.SSPR_PAYROLL_ID, B.SSPR_PAYROLL_TICKET_ID, C.SSPR_PAYROLL_TICKET_CONCEPT_ID, A.C_PERIOD_ID,B.C_BPARTNER_ID, C.SSPR_CONCEPT_ID  
+				FROM SSPR_PAYROLL A
+				LEFT JOIN SSPR_PAYROLL_TICKET B ON A.SSPR_PAYROLL_ID = B.SSPR_PAYROLL_ID
+				LEFT JOIN SSPR_PAYROLL_TICKET_CONCEPT C ON B.SSPR_PAYROLL_TICKET_ID = C.SSPR_PAYROLL_TICKET_ID
+				WHERE A.C_PERIOD_ID = P_PERIOD_ID
+				AND B.C_BPARTNER_ID = Cur_Employee.c_bpartner_id
+				AND C.SSPR_CONCEPT_ID = v_sspr_concept_id )
+			LOOP
+				v_anios := TO_NUMBER(now() - Cur_Employee.em_sspr_entrydate);
+				IF  v_anios < 360 THEN
+					UPDATE SSPR_PAYROLL_TICKET_CONCEPT SET AMOUNT = 0 
+          WHERE  SSPR_PAYROLL_TICKET_CONCEPT_ID = Cur_Concept_Employee.SSPR_PAYROLL_TICKET_CONCEPT_ID;
+				END IF;
+			END LOOP;
+	END LOOP;
+
+    RETURN;
+END SSPR_VALIDARESERVFOUND
+]]></body>
+    </function>
+  </database>

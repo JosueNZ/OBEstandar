@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GET_LABEL_TRL">
+    <function name="SESCR_GET_LABEL_TRL" type="VARCHAR">
+      <parameter name="p_ad_label_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_type" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_languague" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/****************************************************************************
+ * Recupera las traducciónes en español españa.
+ * CASO 1: Cuando el label del reporte es igual al  nombre del campo.
+ * CASO 2: Cuando el label del reporte es igual al parámetro del reporte en el ad_params.
+ * CASO 3: Cuando el label del reporte no es igual al campo ni al parámetro(Customizado).
+ *		Se crea un nuevo mensaje en el módulo del reporte y  se llama el ID.
+ * $p_ad_label_id: Id del ad_field o AD_Process_Para o AD_Message_trl para recuperar su traducción.
+	{ad_field_id}		-- Valor del campo ad_field_id.
+	{ad_process_para_id}	-- Valor del campo ad_process_para_id.
+	{ad_message.value}	-- Valor del identificador del ad_messaje SIN el prefijo
+					EJ:X(Sspr_)X 'Label_Rpt_FinalSettlement_ReasonOfExit'
+ * $p_type: De que típo de tabla con la que se evaluará el id del párametro anterior.
+	{F}			-- Para el AD_Field_Trl.
+	{P}			-- Para el AD_Process_Para_Trl.
+	{M}			-- Para el AD_Message_trl.
+ * $p_languague: Lenguaje de la traducción que se quiere escoger. registro de la tabla AD_Language campo AD_Language
+	{AD_Language.AD_Language}	--Identificador del lenguage  para traducir AD_Language
+						EJ: es_ES,en_EN,es_EC
+ * Contribudor(es):  Rodney Xavier Jácome Teran.
+****************************************************************************/
+v_result VARCHAR2(4000):='';
+BEGIN
+	/**************************TRADUCCIÓN INGLES(USA)*************************************
+	* Se evalua si se requiere la traducción de Ingles(USA) para recuperar del registro  *
+	* original asuminedo que todos los módulos originalmente son creados con el idioma   *
+	* Ingles(USA), ya que Openbravo no crea registros de traducción para el idioma origi-*
+	* nal del módulo, da un pequeño margen de error pero, será facilmente detectado, por *
+	* módulos mal creados.                                                               *
+	*************************************************************************************/
+	If(p_languague='en_US')Then
+		--Se crean ElseIf para que si ya evaluó un típo no tenga que evaluar los otros.
+		IF(p_type='F')Then--ad_field
+			Select name
+				Into v_result
+			From ad_field
+			Where  ad_field_id=p_ad_label_id;
+		ElsIf(p_type='P')Then--ad_process_param
+			Select name 
+				Into v_result
+			From ad_process_para
+			Where ad_process_para_id=p_ad_label_id;
+		ElsIf (p_type='M')Then --ad_message
+			Select a.msgtext 
+				Into v_result
+			From ad_message a
+			Where a.isactive='Y' and a.value like '%'||p_ad_label_id;
+		End IF;
+	Else
+		--Se crean ElseIf para que si ya evaluó un típo no tenga que evaluar los otros.
+		IF(p_type='F')Then--ad_field
+			Select name
+				Into v_result
+			From ad_field_trl  
+			Where  ad_language = p_languague and ad_field_id=p_ad_label_id;
+		ElsIf(p_type='P')Then--ad_process_param
+			Select name 
+				Into v_result
+			From ad_process_para_trl  
+			Where  ad_language = p_languague and ad_process_para_id=p_ad_label_id;
+		ElsIf (p_type='M')Then-- ad_message
+			Select b.msgtext 
+				Into v_result
+			From ad_message a
+				join ad_message_trl b on a.ad_message_id = b.ad_message_id
+			Where  ad_language = p_languague and a.isactive='Y' and a.value like '%'||p_ad_label_id;
+		End IF;
+	End If;
+RETURN v_result;
+END SESCR_GET_LABEL_TRL
+]]></body>
+    </function>
+  </database>

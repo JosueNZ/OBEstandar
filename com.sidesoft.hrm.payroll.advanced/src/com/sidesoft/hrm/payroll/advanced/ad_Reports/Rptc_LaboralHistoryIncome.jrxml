@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rptc_LaboralHistoryIncome" language="groovy" pageWidth="595" pageHeight="842" columnWidth="595" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.2100000000000006"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="concept_id" class="java.lang.String"/>
+	<parameter name="c_period_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+ cpt.conceptsubtype as "concept_type",
+ cpt.name as "concept_name",
+ptcp.amount as "concept_amount"
+
+from sspr_concept cpt
+left join sspr_payroll_ticket_concept ptcp on cpt.sspr_concept_id = ptcp.sspr_concept_id
+left join sspr_payroll_ticket pyt on ptcp.sspr_payroll_ticket_id = pyt.sspr_payroll_ticket_id
+left join sspr_payroll py on pyt.sspr_payroll_id = py.sspr_payroll_id
+left join c_bpartner cbp on cbp.c_bpartner_id = pyt.c_bpartner_id
+where cpt.conceptsubtype = 'In'
+and cpt.em_sfpr_isworkhistory = 'Y'
+and py.c_period_id = $P{c_period_id}
+and pyt.c_bpartner_id = $P{concept_id}]]>
+	</queryString>
+	<field name="concept_type" class="java.lang.String"/>
+	<field name="concept_name" class="java.lang.String"/>
+	<field name="concept_amount" class="java.math.BigDecimal"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<textField>
+				<reportElement x="5" y="0" width="178" height="21"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{concept_name}]]></textFieldExpression>
+			</textField>
+			<textField pattern="###0.00;-###0.00">
+				<reportElement x="183" y="0" width="98" height="21"/>
+				<textElement textAlignment="Right"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{concept_amount}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="285" y="0" width="1" height="21"/>
+			</line>
+			<line>
+				<reportElement x="0" y="0" width="1" height="21"/>
+			</line>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

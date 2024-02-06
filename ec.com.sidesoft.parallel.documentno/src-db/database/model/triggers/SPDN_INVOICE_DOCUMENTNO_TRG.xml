@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPDN_INVOICE_DOCUMENTNO_TRG">
+    <trigger name="SPDN_INVOICE_DOCUMENTNO_TRG" table="C_INVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+	vSequenceName	VARCHAR2(60);
+
+BEGIN
+
+	IF AD_isTriggerEnabled() = 'N' THEN RETURN;END IF;
+
+	IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    
+        IF UPDATING AND :NEW.c_doctypetarget_id = :OLD.c_doctypetarget_id THEN
+            :NEW.em_spdn_documentno := :OLD.em_spdn_documentno;
+            RETURN NEW;
+        END IF;
+
+		SELECT s.name INTO vSequenceName
+		FROM ad_sequence s
+			JOIN c_doctype dt ON dt.em_spdn_sequence_id = s.ad_sequence_id
+		WHERE dt.c_doctype_id = :NEW.c_doctypetarget_id;
+        
+        IF vSequenceName IS NULL THEN
+            :NEW.em_spdn_documentno := NULL;
+        ELSE
+            SELECT ad_sequence_doc(vSequenceName, :NEW.ad_client_id, 'Y') INTO :NEW.em_spdn_documentno;
+        END IF;
+	END IF;
+
+	END SPDN_INVOICE_DOCUMENTNO_TRG
+]]></body>
+    </trigger>
+  </database>

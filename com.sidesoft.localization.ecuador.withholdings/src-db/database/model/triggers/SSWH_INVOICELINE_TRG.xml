@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_INVOICELINE_TRG">
+    <trigger name="SSWH_INVOICELINE_TRG" table="C_INVOICELINE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ 
+  v_tax_id             VARCHAR2(32);  
+  v_taxpayer_id        VARCHAR2(32);  
+  v_producttype        VARCHAR2(60);  
+  v_issotrx            CHARACTER(1);
+  v_dateacct           C_INVOICE.DATEACCT%TYPE;
+  v_processed          C_INVOICE.PROCESSED%TYPE;
+  v_precision          C_CURRENCY.STDPRECISION%TYPE; 
+  v_invoicetax_id      VARCHAR2(32);  
+  v_withholdingincome  NUMBER;
+  v_withholdingvat     NUMBER;
+  v_isreturn      VARCHAR2(32);
+
+  TYPE RECORD IS REF CURSOR;
+  cur_limit1 RECORD;
+  cur_limit2 RECORD;
+  cur_limit3 RECORD;
+  
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+    SELECT a.processed, 4, a.dateacct, a.issotrx, c.isreturn
+    INTO   v_processed, v_precision, v_dateacct, v_issotrx, v_isreturn
+    FROM c_invoice a
+    LEFT JOIN c_currency b ON a.c_currency_id = b.c_currency_id
+    LEFT JOIN c_doctype c ON a.c_doctype_id = c.c_doctype_id
+    WHERE a.c_invoice_id = :new.c_invoice_id;
+
+    IF (v_issotrx = 'N' AND v_isreturn='N') THEN 
+    
+      IF (:new.excludeforwithholding = 'Y' OR :new.financial_invoice_line = 'Y') THEN
+
+        :new.em_sswh_invoicetax_income_id := null;
+        :new.em_sswh_invoicetax_vat_id := null;
+
+      ELSE  
+      
+        IF (v_processed = 'N') THEN
+
+          -- Income calculation.
+            
+          FOR cur_limit1 IN (
+            SELECT s.c_tax_id, mp.producttype
+            FROM M_PRODUCT mp
+            LEFT JOIN SSWH_WITHHOLDING_SOURCE ws ON mp.em_sswh_withholding_source_id = ws.sswh_withholding_source_id
+            LEFT JOIN SSWH_SOURCE s ON ws.sswh_withholding_source_id = s.sswh_withholding_source_id
+            LEFT JOIN C_TAX ct ON s.c_tax_id = ct.c_tax_id      
+            WHERE m_product_id = :new.m_product_id AND ct.validfrom <= v_dateacct
+            ORDER BY ct.validfrom DESC) 
+          LOOP
+          
+            v_tax_id      := cur_limit1.c_tax_id;
+            v_producttype := cur_limit1.producttype;
+            EXIT;
+            
+          END LOOP;  
+
+	      IF (:NEW.em_ssrimpe_tax_id IS NOT NULL) THEN
+		    v_tax_id := :NEW.em_ssrimpe_tax_id;
+	      END IF;
+
+          IF (v_tax_id IS NULL) THEN
+      
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_NoWithholdingTaxIncomeForTheDate@');
+
+          END IF;
+
+          :new.em_sswh_invoicetax_income_id := SSWH_INVOICETAX_INSERT(:new.ad_org_id, :new.c_invoice_id, :new.c_invoiceline_id, :new.updatedby, v_tax_id, v_tax_id, coalesce(:new.linenetamt, 0), coalesce(:new.taxbaseamt, 0), v_precision, :new.taxamt);
+
+          -- Vat calulation.        
+
+          SELECT em_sswh_taxpayer_id INTO v_taxpayer_id
+          FROM C_INVOICE ci
+          LEFT JOIN C_BPARTNER cbp ON ci.c_bpartner_id = cbp.c_bpartner_id
+          WHERE c_invoice_id = :new.c_invoice_id;          
+
+          IF (v_producttype = 'I') THEN
+
+            FOR cur_limit2 IN (
+              SELECT c_tax_goods_id
+              FROM AD_ORG o
+              LEFT JOIN AD_ORGINFO oi ON o.ad_org_id = oi.ad_org_id
+              LEFT JOIN SSWH_TAXPAYER tp ON oi.em_sswh_taxpayer_id = tp.sswh_taxpayer_id
+              LEFT JOIN SSWH_WITHHOLDING wh ON tp.sswh_taxpayer_id = wh.sswh_taxpayer_id
+              LEFT JOIN C_TAX ct ON wh.c_tax_goods_id = ct.c_tax_id
+              WHERE o.ad_org_id = :new.ad_org_id AND ct.validfrom <= v_dateacct AND wh.sswh_taxpayer_ref_id = v_taxpayer_id
+              ORDER BY ct.validfrom DESC)
+            LOOP
+             
+             v_tax_id := cur_limit2.c_tax_goods_id;
+             EXIT;
+            
+            END LOOP;
+
+          ELSIF (v_producttype = 'S') THEN
+
+            FOR cur_limit3 IN (
+              SELECT c_tax_services_id
+              FROM AD_ORG o
+              LEFT JOIN AD_ORGINFO oi ON o.ad_org_id = oi.ad_org_id
+              LEFT JOIN SSWH_TAXPAYER tp ON oi.em_sswh_taxpayer_id = tp.sswh_taxpayer_id
+              LEFT JOIN SSWH_WITHHOLDING wh ON tp.sswh_taxpayer_id = wh.sswh_taxpayer_id
+              LEFT JOIN C_TAX ct ON wh.c_tax_services_id = ct.c_tax_id
+              WHERE o.ad_org_id = :new.ad_org_id AND ct.validfrom <= v_dateacct AND wh.sswh_taxpayer_ref_id = v_taxpayer_id
+              ORDER BY ct.validfrom DESC)
+            LOOP
+            
+              v_tax_id := cur_limit3.c_tax_services_id;
+              EXIT;
+              
+            END LOOP;
+
+          END IF;
+
+          IF (v_tax_id IS NULL) THEN
+      
+            RAISE_APPLICATION_ERROR(-20000, '@SSWH_NoWithholdingTaxVATForTheDate@');
+
+          END IF;
+
+          :new.em_sswh_invoicetax_vat_id := SSWH_INVOICETAX_INSERT(:new.ad_org_id, :new.c_invoice_id, :new.c_invoiceline_id, :new.updatedby, v_tax_id, v_tax_id, coalesce(:new.linenetamt, 0), coalesce(:new.taxbaseamt, 0), v_precision, :new.taxamt);
+
+          -- Update Total Withholding Income Amount
+          SELECT taxamt INTO v_withholdingincome
+          FROM C_INVOICETAX
+          WHERE c_invoicetax_id = :new.em_sswh_invoicetax_income_id;        
+
+          -- Update Total Withholding VAT Amount
+          SELECT taxamt INTO v_withholdingvat
+          FROM C_INVOICETAX
+          WHERE c_invoicetax_id = :new.em_sswh_invoicetax_vat_id;
+
+	  SELECT b.stdprecision INTO v_precision FROM c_invoice a
+	  INNER JOIN c_currency b ON a.c_currency_id = b.c_currency_id
+	  WHERE c_invoice_id = :new.c_invoice_id;
+
+	  v_precision := COALESCE(v_precision,2);
+
+          UPDATE C_INVOICE
+          SET em_sswh_totalwithholdingincome = em_sswh_totalwithholdingincome + ROUND(v_withholdingincome,v_precision),
+              em_sswh_totalwithholdingvat = em_sswh_totalwithholdingvat + ROUND(v_withholdingvat,v_precision)
+          WHERE c_invoice_id = :new.c_invoice_id;
+            
+        END IF;
+
+      END IF;
+
+    END IF;
+
+  END IF;
+
+  END SSWH_INVOICELINE_TRG
+]]></body>
+    </trigger>
+  </database>

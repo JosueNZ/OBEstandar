@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  FI > (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="SswhRptcSalesCompData" package="com.sidesoft.localization.ecuador.withholdings.create_xml" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[
+      select 
+comp_type
+,round(sum(compensated_amount),2) as compensated_amount 
+from  
+(
+      SELECT  sia.afectedzone_code AS comp_type, sum(sia.monto_iva * COALESCE(sia.afectedzone_percent, 100) / 100) AS compensated_amount
+        FROM sswh_salesinvoice_nats sia
+        JOIN c_period p ON sia.dateacct BETWEEN p.startdate AND p.enddate
+        WHERE sia.afectedzone = 'Y'
+          AND p.c_period_id = ?
+          AND (sia.ad_org_id = ? or ? is null)
+          AND sia.identif_cliente = ?
+        GROUP BY sia.afectedzone_code
+        UNION ALL
+
+        select 
+        comp_type
+        ,sum(compensated_amount)
+        from
+        (
+        
+        SELECT  pm.em_sswh_code AS comp_type,sum(((sia.monto_iva *ps.paidamt)/i.grandtotal)  * COALESCE(pm.em_sswh_percentage, 100) / 100) AS compensated_amount
+        FROM sswh_salesinvoice_nats sia
+        JOIN c_period p ON sia.dateacct BETWEEN p.startdate AND p.enddate
+        JOIN c_invoice i ON sia.c_invoice_id = i.c_invoice_id
+        JOIN fin_payment_schedule ps ON ps.c_invoice_id = sia.c_invoice_id
+        LEFT JOIN ssfi_fin_payment_detail_v pdv ON ps.fin_payment_schedule_id = pdv.fin_payment_sched_inv_id
+        JOIN fin_paymentmethod pm ON pm.fin_paymentmethod_id = COALESCE(pdv.fin_paymentmethod_id, ps.fin_paymentmethod_id)
+        WHERE pm.em_sswh_electronicmoney = 'Y'
+        AND p.c_period_id = ?
+        AND (sia.ad_org_id = ? or ? is null)
+        AND sia.identif_cliente = ?
+        GROUP BY pm.em_sswh_code
+    union all
+        SELECT  pm.em_sswh_code AS comp_type,sum(((sia.monto_iva *ps.outstandingamt)/i.grandtotal)  * COALESCE(pm.em_sswh_percentage, 100) / 100) AS compensated_amount
+        FROM sswh_salesinvoice_nats sia
+        JOIN c_period p ON sia.dateacct BETWEEN p.startdate AND p.enddate
+        JOIN c_invoice i ON sia.c_invoice_id = i.c_invoice_id
+        JOIN fin_payment_schedule ps ON ps.c_invoice_id = sia.c_invoice_id
+        LEFT JOIN ssfi_fin_payment_detail_v pdv ON ps.fin_payment_schedule_id = pdv.fin_payment_sched_inv_id
+        JOIN fin_paymentmethod pm ON pm.fin_paymentmethod_id = COALESCE(pdv.fin_paymentmethod_id, ps.fin_paymentmethod_id)
+    
+        WHERE pm.em_sswh_electronicmoney = 'Y'
+        and ps.outstandingamt<>0      
+    AND p.c_period_id = ?
+    AND (sia.ad_org_id = ? or ? is null)
+        AND sia.identif_cliente = ?
+        GROUP BY pm.em_sswh_code
+        ) compen
+        group by
+        comp_type
+        ,compensated_amount
+) payform    
+group by comp_type   
+order by comp_type     
+      ]]>
+    </Sql>
+    <Parameter name="periodId"/>
+    <Parameter name="OrgId"/>
+    <Parameter name="OrgId"/>
+    <Parameter name="identCli"/>
+    <Parameter name="periodId2"/>
+    <Parameter name="OrgId2"/>
+    <Parameter name="OrgId2"/>
+    <Parameter name="identCli2"/>
+    <Parameter name="periodId3"/>
+    <Parameter name="OrgId3"/>
+    <Parameter name="OrgId3"/>
+    <Parameter name="identCli3"/>    
+  </SqlMethod>
+
+</SqlClass>
+

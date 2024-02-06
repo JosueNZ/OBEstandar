@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SLPLAG_DEL_ORDLNTAX_IRBP">
+    <trigger name="SLPLAG_DEL_ORDLNTAX_IRBP" table="C_ORDERLINE" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[  v_costcenter_co          varchar2(32); 
+  v_issotrx   varchar2(10); 
+  v_em_slplag_package   varchar2(10); 
+  v_rate NUMBER;
+  v_total NUMBER;
+  v_tax_id   varchar2(32); 
+  v_QtyOrdered  NUMBER;
+  v_line NUMBER; 
+  v_c_ordertax_irbp NUMBER;
+  v_totalImp  NUMBER;
+  v_count_oltax  NUMBER;
+  v_qtytotal  NUMBER;
+  v_IsBOM varchar2(10); 
+
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+    
+    IF (DELETING ) THEN
+      SELECT issotrx 
+      INTO v_issotrx
+      FROM c_order where c_order_id = :old.c_order_id;
+
+        IF(v_issotrx = 'Y') THEN 
+              select C_Tax_id , Rate
+              INTO v_tax_id , v_rate
+              from C_Tax
+              WHERE EM_Slplag_Irbp = 'Y';
+
+              --DETERMINAR SI LA LINEA A ELIMIANR TIENE PRODUCTO CON IMPEUSTO IRBP
+              SELECT em_slplag_package , IsBOM
+              INTO v_em_slplag_package , v_IsBOM
+              FROM m_product 
+              WHERE m_product_id = :old.m_product_id;
+
+              IF(v_em_slplag_package in ('P' , 'SFP')  OR  v_IsBOM = 'Y' ) THEN 
+                    -- ELIMINAR EL MONTO IRBP DE LOS IMPUESTOS
+                    -- ACTUALIZAR EL TOTAL DE PESTAÑA IMPUESTO
+                    SELECT count(*)
+                    INTO v_c_ordertax_irbp
+                    FROM c_ordertax WHERE c_order_id = :old.c_order_id 
+                    AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' ) ;
+                    IF(v_c_ordertax_irbp > 0) THEN 
+                        -- DETERMINAR TODAS LAS LINEAS DE IMPUESTOS CON IRBP SUMAR CANTIDADES taxamt
+                        -- SI EL TOTAL A RESTAR DEJA EN 0 EL IMPUESTO ELIMINAR LA LINEA
+
+                        v_QtyOrdered = COALESCE(:old.QtyOrdered, 0);
+                        v_total = COALESCE(v_total, 0) + ( v_QtyOrdered * COALESCE(v_rate , 0.02)  ) ;
+
+                        -- ELIMINAR LA LINEA DE LOS IMPUESTOS Y VOLVERLA A CREAR
+                          DELETE FROM c_ordertax 
+                          WHERE c_order_id = :old.c_order_id 
+                          AND c_tax_id in ( select C_Tax_id from C_Tax WHERE EM_Slplag_Irbp = 'Y' ) ;
+
+                        -- RECALCULAR 
+                          v_line  = (select COALESCE(max(line), 0) + 10 FROM C_OrderTax WHERE c_order_id = :old.c_order_id);
+
+                          SELECT COALESCE(SUM(taxamt), 0) 
+                          INTO v_total
+                          FROM c_orderlinetax
+                          WHERE c_tax_id = v_tax_id
+                          AND c_orderline_id in (
+                            SELECT ol.c_orderline_id FROM c_orderline ol WHERE ol.c_order_id = :old.c_order_id
+                          );
+
+                          IF(v_total > 0) THEN
+                            INSERT INTO c_ordertax(
+                            c_ordertax_id, c_order_id, c_tax_id, ad_client_id, ad_org_id, 
+                            isactive, created, createdby, updated, updatedby, taxbaseamt, 
+                            taxamt, line)
+                            VALUES (get_uuid(), :old.c_order_id, v_tax_id, :old.ad_client_id , :old.ad_org_id , 
+                                'Y', now(), :old.createdby , now(), :old.createdby , 0, 
+                                v_total,v_line );
+                          END IF;
+                    END IF;
+              END IF;
+
+        END IF;
+    END IF;
+ 
+END SLPLAG_DEL_ORDLNTAX_IRBP
+]]></body>
+    </trigger>
+  </database>

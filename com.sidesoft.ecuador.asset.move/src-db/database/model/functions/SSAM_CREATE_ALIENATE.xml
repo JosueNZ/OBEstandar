@@ -1,0 +1,187 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAM_CREATE_ALIENATE">
+    <function name="SSAM_CREATE_ALIENATE" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+Cur_Assets RECORD;
+Cur_Alienateline RECORD;
+  
+v_ResultStr VARCHAR2(2000) := '';
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+
+v_ssam_alienate_id VARCHAR2(32);
+v_ssam_alienateline_id VARCHAR2(32);
+v_processed CHAR(1);--OBTG:VARCHAR2--
+v_ad_client_id VARCHAR2(32);
+v_ad_org_id VARCHAR2(32);
+v_createdby VARCHAR2(32);
+v_updatedby VARCHAR2(32);
+v_documentnostart VARCHAR2(30);
+v_documentnoend VARCHAR2(30);
+v_datedoc DATE;
+v_line NUMBER;
+v_ad_user_id VARCHAR2(32);
+v_countprocessed NUMBER;
+v_countunprocessed NUMBER;
+v_status VARCHAR2(60);
+v_description VARCHAR2(500);
+v_a_assetstart_id VARCHAR2(32);
+v_a_assetend_id VARCHAR2(32);
+v_countasset NUMBER;
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+	-- Get Parameters
+	v_ResultStr := 'ReadingParameters';
+	v_n_insertions := 0;
+
+	FOR Cur_Parameter IN
+	(SELECT i.Record_ID,
+	i.AD_User_ID, 
+	i.AD_Client_ID,
+	i.AD_Org_ID                    
+	FROM AD_PInstance i      
+	WHERE i.AD_PInstance_ID = PInstance_ID      
+	)
+	LOOP
+		v_ssam_alienate_id := Cur_Parameter.Record_ID;
+		v_ad_user_id := Cur_Parameter.AD_User_ID;
+		 
+	END LOOP;
+
+	--OBTENGO DATOS DE LA ENAJENACION
+	select ad_client_id, ad_org_id, createdby, updatedby, Createline, a_assetstart_id, a_assetend_id, datedoc
+	into v_ad_client_id, v_ad_org_id, v_createdby, v_updatedby, v_processed, v_a_assetstart_id, v_a_assetend_id, v_datedoc
+	from ssam_alienate
+	where ssam_alienate_id = v_ssam_alienate_id;
+
+	/*If(v_processed = 'N')Then
+
+		--ELIMINA LINEAS DE LA ENAJENACIÓN
+		delete 
+		from ssam_alienateline
+		where ssam_alienate_id = v_ssam_alienate_id;
+		
+		--ACTUALIZA EL ESTADO DE LA ENAJEACION A DESPROCESADO
+		UPDATE ssam_alienate
+		SET Createline = 'N',
+		    Updated = now(),          
+		    UpdatedBy=TO_CHAR(v_ad_user_id)
+		WHERE ssam_alienate_id = v_ssam_alienate_id;
+
+	Else*/
+	If(v_processed = 'N')Then
+	
+		select coalesce((select max(line)
+		from ssam_alienateline
+		where ssam_alienate_id = v_ssam_alienate_id),0)
+		into v_line
+		from dual;
+
+		v_n_insertions := 0;
+		v_description := Null;
+		v_status := 'N';
+		
+		--CREA LAS LINEAS DE LA ENAJENACIÓN
+		For Cur_Assets In(
+
+			select a.a_asset_id, a.a_asset_group_id, a.amortizationenddate, a.amortizationstartdate, a.amortizationtype, a.amortizationcalctype, a.datecancelled, 
+			a.datepurchased, a.assetvalueamt, a.name, a.em_ssam_alienated,a.depreciatedpreviousamt, a.depreciatedvalue,
+			ac.a_depreciation_acct, ac.a_accumdepreciation_acct, ag.a_depreciation_acct as a_depreciation_acct_group, 
+			ag.a_accumdepreciation_acct as a_accumdepreciation_acct_group,
+			ac.em_ssam_sales_acct, ac.em_ssam_historiccost_acct, ac.em_ssam_resultalienate_acct,
+			ag.em_ssam_sales_acct as em_ssam_sales_acct_group, ag.em_ssam_historiccost_acct as em_ssam_historiccost_ag, 
+			ag.em_ssam_resultalienate_acct as em_ssam_resultalienate_ag,
+			a.value, a.em_ssam_replacement_value
+			from a_asset a
+			left join a_asset_acct ac on ac.a_asset_id = a.a_asset_id
+			left join a_asset_group_acct ag on ag.a_asset_group_id = a.a_asset_group_id
+			where a.value between (select value from a_asset where a_asset_id = v_a_assetstart_id) and (select value from a_asset where a_asset_id = v_a_assetend_id)
+			and (em_ssam_alienated = 'N' or em_ssam_alienated is null)
+			--and a.processed = 'Y'
+			order by a.value
+		)		
+		Loop
+			v_countasset := 0;
+
+			select count(*)
+			into v_countasset
+			from ssam_alienateline
+			where ssam_alienate_id = v_ssam_alienate_id --'76E75EA77F3A41AABD2BF7CF1A1D266E' --v_ssam_alienate_id;
+			and a_asset_id = Cur_Assets.a_asset_id; -- 'B6A96997B6C549FC9519780026432BA1' --Cur_Assets.a_asset_id
+
+			If(v_countasset > 0)Then
+				RAISE_APPLICATION_ERROR(-20000,'@Activo duplicado: @' || Cur_Assets.name);
+			End If;
+
+			--INSERTA CUENTAS CONTABLES EN EL ACTIVO
+			update a_asset_acct 
+			set em_ssam_sales_acct = Cur_Assets.em_ssam_sales_acct_group,
+			    em_ssam_historiccost_acct = Cur_Assets.em_ssam_historiccost_ag,
+			    em_ssam_resultalienate_acct = Cur_Assets.em_ssam_resultalienate_ag
+			where a_asset_id = Cur_Assets.a_asset_id;
+			
+			v_description := Cur_Assets.value || ' - ' ||Cur_Assets.name;
+
+			insert into ssam_alienateline(ssam_alienateline_id, ad_client_id, ad_org_id, isactive ,  created,  createdby ,  updated ,  updatedby, 
+					line, status, alienatedate, ssam_alienate_id, a_asset_id, a_asset_group_id, amortizationenddate, amortizationstartdate, 
+					amortizationtype, amortizationcalctype, datecancelled, datepurchased, assetvalueamt, amortizationvalue, netvalue, description,
+					replacement_value)
+			values(get_uuid(), v_ad_client_id, v_ad_org_id, 'Y', now(), v_createdby, now(), v_updatedby, 
+				v_line + 10, 'N', v_datedoc, v_ssam_alienate_id, Cur_Assets.a_asset_id, Cur_Assets.a_asset_group_id, Cur_Assets.amortizationenddate, Cur_Assets.amortizationstartdate,
+				Cur_Assets.amortizationtype, Cur_Assets.amortizationcalctype, Cur_Assets.datecancelled, Cur_Assets.datepurchased, 
+				coalesce(Cur_Assets.assetvalueamt,0), 
+				coalesce(Cur_Assets.depreciatedpreviousamt + Cur_Assets.depreciatedvalue,0), 
+				coalesce((Cur_Assets.assetvalueamt - Cur_Assets.depreciatedvalue - Cur_Assets.depreciatedpreviousamt),0) ,
+				v_description,
+				Cur_Assets.em_ssam_replacement_value);
+
+			v_n_insertions := v_n_insertions + 1;
+			v_line := v_line + 10;
+			
+		End Loop;
+
+		--ACTUALIZA EL ESTADO DE LA ENAJEACION A PROCESADO
+		v_ResultStr:='UpdatingRecord';
+		IF (v_n_insertions > 0) THEN
+		      UPDATE ssam_alienate
+		      SET Createline = 'N',
+		       Updated = now(),          
+		       UpdatedBy=TO_CHAR(v_ad_user_id)
+		      WHERE ssam_alienate_id = v_ssam_alienate_id;
+		END IF;
+
+	End If;
+ 
+   -- If(v_value = 0)Then
+	  --  v_Message := '@sspr_RowsInsertedwarning@: ' || v_n_insertions;
+    --Else
+	    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    --End If;
+	
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SSAM_CREATE_ALIENATE
+]]></body>
+    </function>
+  </database>

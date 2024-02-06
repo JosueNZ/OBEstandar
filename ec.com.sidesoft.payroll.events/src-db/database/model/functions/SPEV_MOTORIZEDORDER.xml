@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_MOTORIZEDORDER">
+    <function name="SPEV_MOTORIZEDORDER" type="NULL">
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  --VARIABLES QUERY
+  V_DATE DATE; 
+  V_VALUE NUMBER:=0;
+   V_VALUE_TO_PAY NUMBER:=0;
+  V_ORDERNUMBERS NUMBER:=0;  
+  V_COUNT NUMBER:=0;
+  V_EMPLOYEE_ID VARCHAR2(32);
+  V_CONFIG_NEWS_ID VARCHAR2(32);
+  V_MAINTENANCE_NEWS_ID VARCHAR2(32);
+  V_SSPR_CONCEPT_ID VARCHAR2(32);
+  V_TYPE_CONCEPT VARCHAR2(32);
+  V_AD_CLIENT_ID VARCHAR2(32);
+  V_AD_ORG_ID VARCHAR2(32);
+  V_NAME_FUNCTION VARCHAR2(60);
+  V_CEDULA VARCHAR2(60);
+  V_ORDER_ID VARCHAR2(32);
+  --
+  v_get_uuid VARCHAR2(32);
+  v_Result NUMBER:=0; -- failure
+  TYPE RECORD IS REF CURSOR;
+  Cur_Parameter RECORD;
+  Cur_Cofig RECORD;
+  Cur_Update RECORD;  
+  END_PROCESS BOOLEAN:=false;
+
+BEGIN
+
+  -- Get Parameters
+  v_ResultStr:='ReadingParameters';
+  V_NAME_FUNCTION:='spev_motorizedorder';
+
+  SELECT count(spev_config_news_id)
+  INTO V_COUNT
+  FROM spev_config_news 
+  WHERE isactive = 'Y'
+  AND TRIM(function) = V_NAME_FUNCTION; 
+  
+  IF(V_COUNT > 0) THEN 
+
+    /* ************************************************************************ */
+    /* INICIO SACO LA INFORMACION DE LA CONFIGURACION PARA EL PEDIDO MOTORIZADO */
+    /* ************************************************************************ */
+    FOR Cur_Cofig IN (  SELECT spev_config_news_id, ad_org_id, ad_client_id,spev_maintenance_news_id,sspr_concept_id, value 
+                        FROM spev_config_news
+                        WHERE isactive = 'Y'
+                        AND TRIM(function) = V_NAME_FUNCTION
+                        LIMIT 1
+    ) LOOP
+
+        V_CONFIG_NEWS_ID:=Cur_Cofig.spev_config_news_id;
+        V_MAINTENANCE_NEWS_ID:=Cur_Cofig.spev_maintenance_news_id;
+        V_SSPR_CONCEPT_ID:=Cur_Cofig.sspr_concept_id;
+        V_VALUE:=Cur_Cofig.value;
+        V_AD_CLIENT_ID:=Cur_Cofig.ad_client_id;    
+        V_AD_ORG_ID:=Cur_Cofig.ad_org_id;   
+
+        --TIPO DE CONCEPTO LABORAL
+        SELECT conceptsubtype  
+        INTO V_TYPE_CONCEPT
+        FROM sspr_concept 
+        WHERE sspr_concept_id = V_SSPR_CONCEPT_ID;
+
+    END LOOP;   
+    /* ******************************************************************************** */
+    /*   FIN SACO LA INFORMACION DE LA CONFIGURACION PARA EL PARA EL PEDIDO MOTORIZADO  */
+    /* ******************************************************************************** */  
+
+    /* ****************************************************************************************** */
+    /* INICIO SELECCIO LOS PEDIDOS DE VENTA QUE TENGAN MOTORIZADO Y QUE ESTEN ENTREGADOS A TIEMPO */
+    /* ****************************************************************************************** */    
+    FOR Cur_Parameter IN (  SELECT COUNT(cbp.c_bpartner_id) as numeropedido, cbp.c_bpartner_id as motorizado, co.dateordered as fechapedido, cbp.value as cedulamotorizado
+                            FROM c_order co
+                            INNER JOIN c_bpartner cbp ON cbp.c_bpartner_id = co.em_saqb_assigned_motorized
+                            WHERE co.em_saqb_deliverystatus in  ('DOT','LOSS' )
+                            AND co.em_spev_processed = 'N'
+                            AND TO_CHAR(co.dateordered,'yyyy-MM-dd') = TO_CHAR((current_date - interval '1 day'), 'yyyy-MM-dd')
+                            GROUP BY cbp.c_bpartner_id,co.dateordered,cbp.value
+                            ORDER BY co.dateordered,cbp.name                           
+    ) LOOP
+
+      V_ORDERNUMBERS:=Cur_Parameter.numeropedido;
+      V_EMPLOYEE_ID:=Cur_Parameter.motorizado;
+      V_DATE:=Cur_Parameter.fechapedido;
+      V_CEDULA:=Cur_Parameter.cedulamotorizado;
+      
+
+      V_VALUE_TO_PAY := ( V_ORDERNUMBERS * V_VALUE ) ;
+
+      INSERT INTO spev_detail_news (spev_detail_news_id,ad_client_id,ad_org_id,created,createdby,updated,updatedby,date_detail,c_bpartner_id,spev_config_news_id,value,sspr_concept_id,concept_type,type,process,spev_maintenance_news_id,c_period_id,order_number,c_costcenter_id)
+                      VALUES (get_uuid(),V_AD_CLIENT_ID,V_AD_ORG_ID,now(),'100',now(),'100',V_DATE,V_EMPLOYEE_ID,V_CONFIG_NEWS_ID,V_VALUE_TO_PAY,V_SSPR_CONCEPT_ID,V_TYPE_CONCEPT,'BR','AU',V_MAINTENANCE_NEWS_ID,spev_get_period(V_DATE,V_NAME_FUNCTION),V_ORDERNUMBERS, spev_get_costcenter(V_EMPLOYEE_ID));
+
+      UPDATE c_order SET em_spev_processed = 'Y' 
+      WHERE em_saqb_deliverystatus in  ('DOT','LOSS' ) 
+      AND em_spev_processed = 'N' 
+      AND dateordered = Cur_Parameter.fechapedido
+      AND em_saqb_assigned_motorized = Cur_Parameter.motorizado;     
+
+    END LOOP;
+    /* ****************************************************************************************** */
+    /*  FIN SELECCIO LOS PEDIDOS DE VENTA QUE TENGAN MOTORIZADO Y QUE ESTEN ENTREGADOS A TIEMPO   */
+    /* ****************************************************************************************** */        
+  END IF;
+END SPEV_MOTORIZEDORDER
+]]></body>
+    </function>
+  </database>

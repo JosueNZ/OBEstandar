@@ -1,0 +1,277 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_COMPLETEVACATIONS">
+    <function name="SSPR_COMPLETEVACATIONS" type="NULL">
+      <parameter name="p_c_bpartnert_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_contract_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_now" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_completevac RECORD;
+
+v_c_bpartner_id VARCHAR2(32);
+v_sspr_contract_id VARCHAR2(32);
+v_now DATE;
+V_COUNT NUMBER;
+v_AnioEmpleado NUMBER;
+v_AnioEmpleado_dias NUMBER;
+v_liquidation NUMBER;
+v_DateIngEmpleado DATE;
+v_enddate DATE;
+
+v_Client_ID VARCHAR2(32);
+v_Org_ID VARCHAR2(32);
+v_User_ID VARCHAR2(32) ;
+
+v_ResultStr VARCHAR2(2000) := '';  
+
+v_Period_ID VARCHAR2(32); 
+v_n_insertions NUMBER;
+v_Message VARCHAR2(2000):='';
+v_fecha_fin  DATE;---fecha fin añio
+V_fecha_inicio  DATE;---fecha inicio anio
+v_vacaciones_anio NUMBER;---dias de vacaciones x anio
+v_DiasPermiso NUMBER;---dias permiso descontables de vacaciones
+v_HorasPermiso NUMBER;
+v_diaspendientes NUMBER;
+v_tdiaspendientes NUMBER;
+V_DOCUMENTNO NUMBER;
+V_C_DOCTYPE_ID VARCHAR2(32); 
+v_nodays NUMBER;
+v_error VARCHAR2(255); 
+v_nodaystomados NUMBER;
+v_nodayspending NUMBER;
+v_nodaystotal NUMBER;
+v_nodays_leave NUMBER;
+v_nohours_leave NUMBER;
+v_nodaystomados_val NUMBER;
+v_flat1 NUMBER;
+v_flat2 NUMBER;
+v_flat3 NUMBER;
+v_hours NUMBER;
+v_nodays_val NUMBER;
+v_nodays_res NUMBER;
+v_count_inival NUMBER;
+v_entrydate DATE;
+v_count_concept NUMBER;
+v_sspr_concept_id VARCHAR2(32); 
+v_amount NUMBER;
+v_countregistros NUMBER;
+v_fecha_fin_validation DATE;
+v_days NUMBER;
+v_nodaysvacations NUMBER;-- := 15;
+v_nodays_leave_da NUMBER;
+v_nohours_leave_da NUMBER;
+v_nodays_leave_dn NUMBER;
+v_nohours_leave_dn NUMBER;
+v_nodaystomados_val_dn NUMBER;
+v_nodaystomados_val_da NUMBER;
+v_nodaystomados_dn NUMBER;
+v_nodaystomados_da NUMBER;
+v_vacationdays NUMBER;
+v_vacationdays_add NUMBER:=0;
+v_flat NUMBER;
+v_dayscomplete NUMBER;
+v_get_uuid VARCHAR2(32); 
+v_count_emp_vac NUMBER;
+v_sspr_vacations_id VARCHAR2(32); 
+v_updated NUMBER;
+i NUMBER:=0; 
+v_tempstartdate DATE;
+v_tempenddate DATE;
+v_countcontract NUMBER;
+v_flatwhile NUMBER;
+v_completeyear NUMBER;
+v_sspr_vacations_id_pr VARCHAR2(32) ;
+v_enddateyear DATE;
+v_entrydate_max DATE;
+v_end_date_max DATE;
+
+
+
+BEGIN
+	For Cur_completevac In(
+		SELECT 
+			entrydate
+			,end_date
+			,case when  end_date = (entrydate + INTERVAL '1' year) - 1 
+				then 
+					end_date + 1 
+				else entrydate 
+			end as DateIngEmpleado
+			,case when end_date < (entrydate + INTERVAL '1' year) - 1 and p_now > (entrydate + INTERVAL '1' year) - 1  
+				Then 
+					sspr_vacations_id  
+				else 
+					Null 
+			end as sspr_vacations_id
+			,c_bpartner_id
+			,(entrydate + INTERVAL '1' year) - 1 as end_date_vac
+			,sspr_contract_id
+		FROM sspr_vacations
+		WHERE c_bpartner_id = p_c_bpartnert_id 
+			AND sspr_contract_id = p_sspr_contract_id 
+			AND end_date = (SELECT max(end_date)
+					FROM sspr_vacations
+				WHERE c_bpartner_id = p_c_bpartnert_id 
+				AND sspr_contract_id = p_sspr_contract_id) 
+	)Loop
+
+	--OBTENGO LA FECHA DE CADUCIDAD DEL CONTRATO EN CASO DE LIQUIDACION DE EMPLEADOS
+		SELECT COALESCE(
+				(SELECT enddate
+				FROM sspr_contract
+				WHERE c_bpartner_id = Cur_completevac.c_bpartner_id 
+				AND sspr_contract_id = Cur_completevac.sspr_contract_id
+				),Null)
+			INTO v_enddate
+		FROM dual;
+		
+		If(v_enddate is not null)Then
+			If(v_enddate >= Cur_completevac.entrydate  and v_enddate <= Cur_completevac.end_date_vac)Then
+				v_enddate := v_enddate;
+			Else
+				v_enddate := Null;
+			End If;
+			
+		End If;
+		--Si la ultima vacación aun no completa el año y el contrato aún no expira.
+		If(Cur_completevac.sspr_vacations_id is not null and v_enddate is null) Then
+
+			v_DateIngEmpleado := Cur_completevac.entrydate;
+			V_COUNT := 1;
+			v_enddate := Null;
+
+			SELECT coalesce(c.vacationdays,0) as vacationdays, coalesce(c.vacationdays_add,0) as vacationdays_add
+				INTO v_vacationdays,v_vacationdays_add 
+			FROM c_bpartner a
+				LEFT JOIN sspr_contract b on b.c_bpartner_id = a.c_bpartner_id
+				LEFT JOIN sspr_labor_regime c on c.sspr_labor_regime_id = b.sspr_labor_regime_id
+			WHERE a.c_bpartner_id = cur_completevac.c_bpartner_id
+				AND b.sspr_contract_id = cur_completevac.sspr_contract_id;
+
+			v_nodaysvacations := v_vacationdays;
+		/*		
+		*	select coalesce((select sum(1)
+		*	from sspr_vacations
+		*	where c_bpartner_id = Cur_completevac.c_bpartner_id -- '0FEA403259C24311801454A9F827296E' --Cur_completevac.c_bpartner_id 
+		*	and sspr_contract_id = Cur_completevac.sspr_contract_id --'3C6899997D46408E998ECDAB7F83DB50' --
+		*	--and end_date = (entrydate + INTERVAL '1' year) - 1
+		*	),1)
+		*	into V_COUNT 
+		*	from dual;
+		*/
+
+		--FECHA INICIO DEL CONTRATO
+			SELECT coalesce((SELECT startdate
+					FROM sspr_contract
+					WHERE c_bpartner_id =  cur_completevac.c_bpartner_id
+						AND sspr_contract_id =  cur_completevac.sspr_contract_id),Null)
+				INTO v_DateIngEmpleado
+			FROM dual;
+			i:=0;
+			v_tempstartdate := (v_DateIngEmpleado);
+			v_tempenddate := (Cur_completevac.end_date_vac) + INTERVAL '1' DAY;
+
+			WHILE (v_tempstartdate < v_tempenddate) LOOP
+				i:=i+1;
+				v_tempstartdate := (v_DateIngEmpleado) + INTERVAL '1' YEAR * i;
+			END LOOP;
+
+			v_AnioEmpleado := i ;-- - 1;
+		--BUCLE PARA ASIGNAR DIAS DE VACIONES SEGUN AÑOS LABORADOS
+			v_nodays := 0;
+			v_nodaystotal := 0;
+			v_days := 0;
+			v_amount := 0;
+		
+		
+			--v_AnioEmpleado :=  V_COUNT;
+			V_COUNT:=v_AnioEmpleado;
+			WHILE  V_COUNT <= v_AnioEmpleado 
+			LOOP		
+
+				IF(V_COUNT <= 5 AND (v_DateIngEmpleado + INTERVAL '1' year) - 0 <= TO_DATE(p_now))THEN
+					--Dias regionales de vacacación
+					v_nodays := v_vacationdays;--15(algunos)
+					v_nodaystotal := v_vacationdays;
+													
+				--	v_fecha_fin := (v_DateIngEmpleado + INTERVAL '1' year) - 1;
+
+					update sspr_vacations set	
+					--resta los 15 con (No días tomados)
+						nodays = (v_nodays - nodaystomados),--(noDías)
+					--los 15
+						earneddays = v_nodays,--Días ganados.
+						noadditionaltotal = 0,--Total días addicionales
+					--	earneddays_add = 0,--Total días ganados adicionales
+					--los 15
+						earneddays_tot = v_nodays,--Total días ganados
+					--resta los 15 con (No días tomados)
+						nodaystotal = (v_nodays - nodaystomados),--No días total
+						end_date = Cur_completevac.end_date_vac
+					where sspr_vacations_id = Cur_completevac.sspr_vacations_id;
+
+				--	v_DateIngEmpleado := v_fecha_fin + 1;
+ 				END IF;
+						
+
+				IF(V_COUNT >5 and V_COUNT<20 AND (v_DateIngEmpleado + INTERVAL '1' year) - 0 <= TO_DATE(p_now)) THEN
+
+					If(v_nodays = 0 and  v_nodaystotal = 0 and v_vacationdays_add = 1)Then
+						v_nodaystotal := trunc((V_COUNT-1),0) + 11 ;
+						v_nodays := v_vacationdays;
+					Else
+						v_nodaystotal := v_nodaystotal + v_vacationdays_add;
+								
+					End If;
+
+					v_fecha_fin := (v_DateIngEmpleado + INTERVAL '1' year) - 1;
+
+					update sspr_vacations set
+						nodays = (v_nodays - nodaystomados),
+						earneddays = v_nodays,
+						noadditionaltotal = (((round(v_nodaystotal,2) - v_nodaysvacations)) - noadditionaltomados),
+						earneddays_add	= ((round(v_nodaystotal,2) - v_nodaysvacations)),
+						earneddays_tot = v_nodays + ((round(v_nodaystotal,2) - v_nodaysvacations)), --earneddays + earneddays_add
+						nodaystotal	= (v_nodays - nodaystomados) +  (((round(v_nodaystotal,2) - v_nodaysvacations)) - noadditionaltomados),      --	v_nodaystotal,    --nodays + noadditionaltotal
+						end_date = Cur_completevac.end_date_vac
+					where sspr_vacations_id = Cur_completevac.sspr_vacations_id;
+
+					v_DateIngEmpleado := v_fecha_fin + 1;
+							
+				END IF;
+
+				IF(V_COUNT >=20 AND (v_DateIngEmpleado + INTERVAL '1' year) - 0  <= TO_DATE(p_now)) THEN
+
+					v_nodays := v_vacationdays;
+					v_nodaystotal := 30 ;
+					v_fecha_fin := (v_DateIngEmpleado + INTERVAL '1' year) - 1;
+
+					update sspr_vacations set
+						nodays = v_nodays - nodaystomados,
+						earneddays = v_nodays,
+						noadditionaltotal = (((round(v_nodaystotal,2) - v_nodaysvacations)) - noadditionaltomados),
+						earneddays_add	= ((round(v_nodaystotal,2) - v_nodaysvacations)),
+						earneddays_tot = v_nodays + ((round(v_nodaystotal,2) - v_nodaysvacations)), --earneddays + earneddays_add
+						nodaystotal = (v_nodays - nodaystomados) + (((round(v_nodaystotal,2) - v_nodaysvacations)) - noadditionaltomados),      --	v_nodaystotal,    --nodays + noadditionaltotal
+						end_date = Cur_completevac.end_date_vac
+					where sspr_vacations_id = Cur_completevac.sspr_vacations_id;
+
+					v_DateIngEmpleado := v_fecha_fin + 1;
+						
+				END IF;
+
+				V_COUNT := (V_COUNT + 1);
+						
+			END LOOP;
+		End If;--FIN (Cur_completevac.sspr_vacations_id is not null and v_enddate is null)
+	End Loop;
+END SSPR_COMPLETEVACATIONS
+]]></body>
+    </function>
+  </database>

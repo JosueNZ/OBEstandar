@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="GuiaRemision1" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0245201830476058"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="240"/>
+	<parameter name="documentnofrom" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="movementdatefrom" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="movementdateto" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="SUBREP_GuiaRemisionLine" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select cabecera.m_movement_id, cabecera.movementdate,organizacion.name || ' - ' || location.address1 as organizacion, cabecera.documentno as document,
+	line.codigobarras, line.descripcion, line.unidad, line.quantityorder, line.locator , m_shipper.name || ' - ' || c_bpartner.name as transportista, C_BPartner_Location.name as direccion, c_bpartner.taxid as RUC,
+	org.name as nombrerazon, ad_orginfo.taxid as RUCFAR,c_location.address1, m_shipper.description as placa, detalle.line, detalle.m_movementline_id
+from m_movement AS cabecera
+left join m_movementline AS detalle on cabecera.m_movement_id = detalle.m_movement_id
+left join ad_org AS organizacion on organizacion.ad_org_id = cabecera.ad_org_id
+left join ad_orginfo info on info .ad_org_id = organizacion.ad_org_id
+left join c_location location on location.c_location_id = info.c_location_id
+left join m_product AS producto on producto.m_product_id = detalle.m_product_id
+left join m_product_uom AS productuom on productuom.m_product_uom_id = detalle.m_product_uom_id
+left join c_uom AS uom on uom.c_uom_id = productuom.c_uom_id
+left join m_shipper on m_shipper.m_shipper_id = cabecera.em_ssrs_m_shipper_id
+left join c_bpartner on c_bpartner.c_bpartner_id =  m_shipper.c_bpartner_id
+left join C_BPartner_Location on C_BPartner_Location.c_bpartner_id = c_bpartner.c_bpartner_id
+left join ad_org org on org.em_ssrs_m_locatortrn_id = detalle.m_locatorto_id
+left join ad_orginfo on ad_orginfo.ad_org_id = org.ad_org_id
+left join c_location on c_location.c_location_id = ad_orginfo.c_location_id
+left join (select m_movementline_id, m_product.value AS codigobarras,m_product.name as descripcion,uom.name as unidad, m_movementline.quantityorder, m_locator.value as locator
+	from m_movementline
+	left join m_product   on m_product.m_product_id = m_movementline.m_product_id
+	left join m_product_uom AS productuom on productuom.m_product_uom_id = m_movementline.m_product_uom_id
+	left join m_locator on m_locator.m_locator_id = m_movementline.m_locatorto_id
+	left join c_uom AS uom on uom.c_uom_id = productuom.c_uom_id) line on line.m_movementline_id = detalle.m_movementline_id
+where documentno = $P{documentnofrom}
+and movementdate >=  $P{movementdatefrom} and movementdate <= $P{movementdateto}
+and cabecera.em_ssrs_isresupply = 'Y' and  cabecera.em_ssrs_typeresupply = 'Y']]>
+	</queryString>
+	<field name="m_movement_id" class="java.lang.String"/>
+	<field name="movementdate" class="java.sql.Timestamp"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="document" class="java.lang.String"/>
+	<field name="codigobarras" class="java.lang.String"/>
+	<field name="descripcion" class="java.lang.String"/>
+	<field name="unidad" class="java.lang.String"/>
+	<field name="quantityorder" class="java.math.BigDecimal"/>
+	<field name="locator" class="java.lang.String"/>
+	<field name="transportista" class="java.lang.String"/>
+	<field name="direccion" class="java.lang.String"/>
+	<field name="ruc" class="java.lang.String"/>
+	<field name="nombrerazon" class="java.lang.String"/>
+	<field name="rucfar" class="java.lang.String"/>
+	<field name="address1" class="java.lang.String"/>
+	<field name="placa" class="java.lang.String"/>
+	<field name="line" class="java.math.BigDecimal"/>
+	<field name="m_movementline_id" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="323" splitType="Stretch">
+			<textField>
+				<reportElement x="154" y="44" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{movementdate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="109" y="170" width="196" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{organizacion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="368" y="56" width="85" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{movementdate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="154" y="56" width="100" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{movementdate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="109" y="156" width="100" height="14"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{movementdate}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="192" y="104" width="15" height="14"/>
+				<textElement>
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[X]]></text>
+			</staticText>
+			<textField isBlankWhenNull="true">
+				<reportElement x="109" y="254" width="357" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{transportista}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="109" y="269" width="196" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{ruc}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="366" y="269" width="100" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{placa}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="109" y="195" width="357" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nombrerazon}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="109" y="210" width="100" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{rucfar}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="109" y="225" width="357" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{address1}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="367" y="42" width="100" height="14"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[""+$F{document}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="22" splitType="Stretch">
+			<textField>
+				<reportElement x="3" y="4" width="82" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{codigobarras}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="95" y="4" width="327" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{descripcion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="432" y="4" width="63" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{unidad}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="502" y="4" width="51" height="15"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{quantityorder}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="45" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band height="54" splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="42" splitType="Stretch"/>
+	</summary>
+</jasperReport>

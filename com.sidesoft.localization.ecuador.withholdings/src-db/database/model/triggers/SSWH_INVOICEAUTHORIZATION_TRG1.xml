@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_INVOICEAUTHORIZATION_TRG1">
+    <trigger name="SSWH_INVOICEAUTHORIZATION_TRG1" table="C_INVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ 
+  v_NextNo VARCHAR2(32);   
+  v_Prefix VARCHAR2(30);   
+  v_Suffix VARCHAR2(30);   
+  v_Sequence VARCHAR2(32); 
+  v_Update BOOLEAN := true;
+  
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF ((INSERTING OR UPDATING) AND :new.issotrx = 'N') THEN
+
+    IF (UPDATING) THEN
+
+      IF (:old.em_sswh_c_doctype_id = :new.em_sswh_c_doctype_id) THEN
+
+        v_Update := false;
+
+      END IF;
+
+    END IF;
+
+    IF (v_Update AND :new.em_sswh_c_doctype_id IS NOT NULL) THEN
+
+      BEGIN
+      
+        SELECT CurrentNext, Prefix, Suffix, s.ad_sequence_id
+        INTO v_NextNo, v_Prefix, v_Suffix, v_Sequence
+        FROM C_Doctype d LEFT JOIN AD_Sequence s ON d.docnosequence_id = s.ad_sequence_id
+        WHERE d.c_doctype_id = :new.em_sswh_c_doctype_id  AND s.IsActive = 'Y'  AND IsTableID = 'N'  AND IsAutoSequence = 'Y'  AND s.AD_Client_ID = :new.ad_client_id  FOR UPDATE OF CurrentNext;
+
+      EXCEPTION WHEN NO_DATA_FOUND THEN
+
+        RAISE_APPLICATION_ERROR(-20000, '@NextSequenceNoError@') ;
+        
+      END;
+
+      UPDATE AD_Sequence
+      SET CurrentNext = CurrentNext + IncrementNo, Updated = now()
+      WHERE ad_sequence_id = v_sequence
+      AND ad_client_id = :new.ad_client_id;
+
+    END IF;
+
+    :new.em_sswh_withholdingref := COALESCE(v_Prefix, '') || COALESCE(v_NextNo, :new.em_sswh_withholdingref) || COALESCE(v_Suffix, '');
+
+  END IF;
+
+  END SSWH_INVOICEAUTHORIZATION_TRG1
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,205 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPD_COPY_DIST_COSTCENTER">
+    <function name="SSPD_COPY_DIST_COSTCENTER" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;
+Cur_Employee RECORD;
+Cur_costcenter RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';  
+  v_StartPeriod_ID VARCHAR2(32);
+  v_EndPeriod_ID VARCHAR2(32);
+  v_BPartner_ID VARCHAR2(32);  
+  v_SSconcept_ID VARCHAR2(32);  
+
+  v_StartPeriod_StartDate DATE;
+  v_StartPeriod_EndDate DATE;
+  v_EndPeriod_StartDate DATE;
+  v_EndPeriod_EndDate DATE;
+
+  v_Period_ID VARCHAR2(32); 
+  v_PRollTemplate_ID VARCHAR2(32);  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  v_sspd_pctdist_emp_id VARCHAR2(32); 
+  v_sspd_pctdist_id VARCHAR2(32); 
+
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        p.ParameterName,
+        p.P_String,
+        p.P_Number,
+        p.P_Date,
+        p.AD_Client_ID,
+        p.AD_Org_ID,
+        p.CreatedBy        
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+           ON i.AD_PInstance_ID = p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID = PInstance_ID
+      ORDER BY p.SeqNo
+      )
+    LOOP      	  
+	
+      IF (Cur_Parameter.ParameterName = 'StartPeriod') THEN
+        v_StartPeriod_ID := Cur_Parameter.P_String;      
+          
+        v_Client_ID := Cur_Parameter.AD_Client_ID;
+        v_Org_ID := Cur_Parameter.AD_Org_ID;
+        v_User_ID := Cur_Parameter.CreatedBy;
+      ELSIF (Cur_Parameter.ParameterName = 'EndPeriod') THEN
+        v_EndPeriod_ID := Cur_Parameter.P_String;
+      ELSIF (Cur_Parameter.ParameterName = 'C_BPartner_ID') THEN
+        v_BPartner_ID := Cur_Parameter.P_String;      
+	--ELSIF (Cur_Parameter.ParameterName = 'SSPR_Concept_ID') THEN
+	--v_SSconcept_ID := Cur_Parameter.P_String;    
+      ELSE  
+        DBMS_OUTPUT.PUT_LINE('*** Unknown Parameter=' || Cur_Parameter.ParameterName) ;
+      END IF;     
+      
+    END LOOP; -- Get Parameter
+
+    --Periodo desde
+    select startdate, enddate
+    into v_startperiod_startdate, v_startperiod_enddate
+    from c_period
+    where c_period_id = v_startperiod_id;
+
+    --periodo hasta
+    select startdate, enddate
+    into v_endperiod_startdate, v_endperiod_enddate
+    from c_period
+    where c_period_id = v_endperiod_id;
+
+    If (v_startperiod_startdate > v_endperiod_startdate) Then
+	raise exception '%', '@SSPR_EndStartPeriod@'; --OBTG:-20000--
+    End If;
+
+	select coalesce((select sspd_pctdist_id
+	from sspd_pctdist
+	where c_period_id = v_EndPeriod_ID
+	and processed = 'N'),'vacio')
+	into v_sspd_pctdist_id
+	from dual;
+
+	If(v_sspd_pctdist_id <> 'vacio')Then
+
+		delete from sspd_pctdist_costcenter
+		where sspd_pctdist_emp_id In(select sspd_pctdist_emp_id from sspd_pctdist_emp
+						where sspd_pctdist_id = v_sspd_pctdist_id);
+
+		delete from sspd_pctdist_emp
+		where sspd_pctdist_id = v_sspd_pctdist_id;
+		
+		If(v_BPartner_ID is null)Then
+		
+			For Cur_Employee In(
+				select b.sspd_pctdist_emp_id, b.ad_client_id, b.ad_org_id, b.isactive, b.created, b.createdby, b.updated, 
+					b.updatedby, b.sspd_pctdist_id, b.c_bpartner_id, b.description, b.percentagetotal
+				from sspd_pctdist a
+				left join sspd_pctdist_emp b on b.sspd_pctdist_id = a.sspd_pctdist_id 
+				where a.c_period_id = v_startperiod_id
+				and a.processed = 'Y'	
+			)
+			Loop
+				v_sspd_pctdist_emp_id := get_uuid();
+
+				insert into sspd_pctdist_emp(sspd_pctdist_emp_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, 
+							     updatedby, sspd_pctdist_id, c_bpartner_id, description, percentagetotal)
+						      values(v_sspd_pctdist_emp_id, Cur_Employee.ad_client_id, Cur_Employee.ad_org_id, Cur_Employee.isactive, Cur_Employee.created,Cur_Employee.createdby, Cur_Employee.updated, 
+							    Cur_Employee.updatedby, v_sspd_pctdist_id, Cur_Employee.c_bpartner_id, Cur_Employee.description, Cur_Employee.percentagetotal);
+
+				For Cur_costcenter In(
+					select pc.sspd_pctdist_costcenter_id, pc.ad_client_id, pc.ad_org_id, pc.isactive, pc.created, pc.createdby, pc.updated, 
+						pc.updatedby, pc.sspd_pctdist_emp_id, pc.c_costcenter_id, pc.user1_id, pc.percentage
+					from sspd_pctdist_costcenter pc
+					where pc.sspd_pctdist_emp_id = Cur_Employee.sspd_pctdist_emp_id
+				)
+				Loop
+
+					insert into sspd_pctdist_costcenter(sspd_pctdist_costcenter_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, 
+						updatedby, sspd_pctdist_emp_id, c_costcenter_id, user1_id, percentage)
+					values(get_uuid(), Cur_costcenter.ad_client_id, Cur_costcenter.ad_org_id, Cur_costcenter.isactive, Cur_costcenter.created, Cur_costcenter.createdby, Cur_costcenter.updated, 
+						Cur_costcenter.updatedby, v_sspd_pctdist_emp_id, Cur_costcenter.c_costcenter_id, Cur_costcenter.user1_id, Cur_costcenter.percentage);
+				End Loop;
+
+			v_n_insertions := v_n_insertions + 1;
+
+			End Loop;
+
+		Else
+			For Cur_Employee In(
+				select b.sspd_pctdist_emp_id, b.ad_client_id, b.ad_org_id, b.isactive, b.created, b.createdby, b.updated, 
+					b.updatedby, b.sspd_pctdist_id, b.c_bpartner_id, b.description, b.percentagetotal
+				from sspd_pctdist a
+				left join sspd_pctdist_emp b on b.sspd_pctdist_id = a.sspd_pctdist_id 
+				where a.c_period_id = v_startperiod_id
+				and b.c_bpartner_id = v_BPartner_ID 
+				and a.processed = 'Y'	
+			)
+			Loop
+				v_sspd_pctdist_emp_id := get_uuid();
+
+				insert into sspd_pctdist_emp(sspd_pctdist_emp_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, 
+							     updatedby, sspd_pctdist_id, c_bpartner_id, description, percentagetotal)
+						      values(v_sspd_pctdist_emp_id, Cur_Employee.ad_client_id, Cur_Employee.ad_org_id, Cur_Employee.isactive, Cur_Employee.created,Cur_Employee.createdby, Cur_Employee.updated, 
+							    Cur_Employee.updatedby, v_sspd_pctdist_id, Cur_Employee.c_bpartner_id, Cur_Employee.description, Cur_Employee.percentagetotal);
+
+				For Cur_costcenter In(
+					select pc.sspd_pctdist_costcenter_id, pc.ad_client_id, pc.ad_org_id, pc.isactive, pc.created, pc.createdby, pc.updated, 
+						pc.updatedby, pc.sspd_pctdist_emp_id, pc.c_costcenter_id, pc.user1_id, pc.percentage
+					from sspd_pctdist_costcenter pc
+					where pc.sspd_pctdist_emp_id = Cur_Employee.sspd_pctdist_emp_id
+				)
+				Loop
+
+					insert into sspd_pctdist_costcenter(sspd_pctdist_costcenter_id, ad_client_id, ad_org_id, isactive, created, createdby, updated, 
+						updatedby, sspd_pctdist_emp_id, c_costcenter_id, user1_id, percentage)
+					values(get_uuid(), Cur_costcenter.ad_client_id, Cur_costcenter.ad_org_id, Cur_costcenter.isactive, Cur_costcenter.created, Cur_costcenter.createdby, Cur_costcenter.updated, 
+						Cur_costcenter.updatedby, v_sspd_pctdist_emp_id, Cur_costcenter.c_costcenter_id, Cur_costcenter.user1_id, Cur_costcenter.percentage);
+				End Loop;
+
+			v_n_insertions := v_n_insertions + 1;
+
+			End Loop;
+		End If;
+	Else
+	 v_n_insertions := v_n_insertions + 0;
+	End If;
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+  
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSPD_COPY_DIST_COSTCENTER
+]]></body>
+    </function>
+  </database>

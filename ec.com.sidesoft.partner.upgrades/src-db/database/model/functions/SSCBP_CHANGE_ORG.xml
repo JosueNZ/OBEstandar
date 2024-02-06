@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSCBP_CHANGE_ORG">
+    <function name="SSCBP_CHANGE_ORG" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+  v_ResultStr VARCHAR2(2000):='';
+  V_c_bpartner_id VARCHAR(32);
+  -- Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+
+  BEGIN
+    --  Update AD_PInstance
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+    v_ResultStr:='PInstanceNotFound';
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+  BEGIN --BODY
+       -- Get Parameters
+    v_ResultStr:='ReadingParameters';
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID, p.ParameterName, p.P_String, p.P_Number, p.P_Date
+      FROM AD_PInstance i
+      LEFT JOIN AD_PInstance_Para p
+        ON i.AD_PInstance_ID=p.AD_PInstance_ID
+      WHERE i.AD_PInstance_ID=PInstance_ID
+      ORDER BY p.SeqNo
+      ) 
+    LOOP
+	V_c_bpartner_id:= Cur_Parameter.Record_ID;
+	UPDATE c_bpartner set ad_org_id = '0' where c_bpartner_id = V_c_bpartner_id;
+    END LOOP;	
+ RETURN;
+ 
+  END; --BODY
+EXCEPTION
+WHEN OTHERS THEN
+  DBMS_OUTPUT.PUT_LINE( 'Notice');
+  RAISE;
+  RETURN;
+END SSCBP_CHANGE_ORG
+]]></body>
+    </function>
+  </database>

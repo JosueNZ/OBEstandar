@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SIBLR_DELETE_LINES_TRG">
+    <trigger name="SIBLR_DELETE_LINES_TRG" table="SIBLR_PHYSICAL_INVTLINES" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+   V_RVE_ID VARCHAR(32); 	--OBTG:VARCHAR2--
+   V_PROCESSED VARCHAR(1);	--OBTG:VARCHAR2--
+   V_STATUS VARCHAR(60);	--OBTG:VARCHAR2--
+   V_COUNT NUMBER;		--OBTG:NUMBER--
+   
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (DELETING) THEN
+
+    /*SELECT docstatus
+    INTO V_STATUS
+    FROM siblr_physical_inventory
+    WHERE siblr_physical_inventory_id = :OLD.siblr_physical_inventory_id;
+
+    IF(V_STATUS = 'CO')THEN
+      RAISE_APPLICATION_ERROR(-20000, 'El registro ya fue procesado.') ;
+    END IF;*/
+
+    IF (:OLD.processing = 'N' or :OLD.processing is null or :OLD.processing = '') THEN
+      RAISE_APPLICATION_ERROR(-20000, 'No se permite borrar estos registros.') ;
+    END IF;
+
+  END IF;
+  
+
+  END SIBLR_DELETE_LINES_TRG
+]]></body>
+    </trigger>
+  </database>

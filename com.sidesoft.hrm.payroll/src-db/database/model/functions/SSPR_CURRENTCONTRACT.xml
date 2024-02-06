@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_CURRENTCONTRACT">
+    <function name="SSPR_CURRENTCONTRACT" type="VARCHAR">
+      <parameter name="partner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_BpartnerID VARCHAR(32); 	--OBTG:VARCHAR2--
+V_Contract VARCHAR(255); 	--OBTG:VARCHAR2--
+V_DateTemp DATE;
+V_DateAdmission VARCHAR(10); 	--OBTG:VARCHAR2--
+V_Count  NUMBER; 	--OBTG:NUMBER--
+BEGIN
+V_BpartnerID:= partner_id;
+
+SELECT max(startdate)
+into V_DateTemp
+ FROM sspr_contract sc
+ left join c_bpartner cbp on cbp.c_bpartner_id = sc.c_bpartner_id
+where sc.c_bpartner_id = V_BpartnerID;
+
+V_DateAdmission:= to_char(V_DateTemp,'dd/MM/yyyy'); 
+
+SELECT sp.name
+INTO V_Contract
+FROM sspr_contract sc
+left join sspr_contract_position scp on scp.sspr_contract_id = sc.sspr_contract_id 
+left join sspr_position sp on sp.sspr_position_id = scp.sspr_position_id 
+where sc.c_bpartner_id = V_BpartnerID 
+and to_char(sc.STARTDATE,'dd/MM/yyyy') = V_DateAdmission;
+
+
+return coalesce(V_Contract,null);
+END SSPR_CURRENTCONTRACT
+]]></body>
+    </function>
+  </database>

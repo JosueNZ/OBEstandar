@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWS_POSTINVOICE_TRG">
+    <trigger name="SSWS_POSTINVOICE_TRG" table="C_INVOICE" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_count NUMBER:=0;
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (UPDATING)THEN
+    IF (:new.posted = 'N' and :old.posted = 'Y') THEN -- Begin is UnPosting
+      -- Have a Whithholdin Sale
+      SELECT count(*)
+      INTO v_count
+      FROM ssws_withholdingsale ws
+      WHERE ws.c_invoice_id = :new.c_invoice_id
+        AND ws.processed = 'Y';
+
+      IF (v_count > 0) THEN 
+        RAISE_APPLICATION_ERROR(-20000, '@SSWS_WithholdingSalePresent@');
+      END IF;
+    END IF;  -- End  is UnPosting
+  END IF;
+
+  END SSWS_POSTINVOICE_TRG
+]]></body>
+    </trigger>
+  </database>

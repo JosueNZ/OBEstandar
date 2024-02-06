@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_EVENTS">
+    <function name="SPEV_EVENTS" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_news RECORD;
+
+v_client_id CHARACTER VARYING(32);        --OBTG:VARCHAR2--
+v_org_id CHARACTER VARYING(32);         --OBTG:VARCHAR2--
+v_user_id CHARACTER VARYING(32);        --OBTG:VARCHAR2--
+v_entry_date DATE;
+v_low_date DATE;
+v_period_id CHARACTER VARYING(32);         --OBTG:VARCHAR2--
+v_conceptin_id CHARACTER VARYING(32);         --OBTG:VARCHAR2--
+v_conceptout_id CHARACTER VARYING(32);         --OBTG:VARCHAR2--
+v_bpartner_id CHARACTER VARYING(32);        --OBTG:VARCHAR2--
+v_leave_id CHARACTER VARYING(32);        --OBTG:VARCHAR2--
+v_startdate DATE;
+v_enddate DATE;
+
+v_ResultStr CHARACTER VARYING(200);        --OBTG:VARCHAR2--
+v_n_insertions NUMBER;
+v_Message  CHARACTER VARYING(200);        --OBTG:VARCHAR2--
+
+BEGIN
+
+ --  Update AD_PInstance
+  --RAISE NOTICE '%','Updating PInstance - Processing ' || PInstance_ID ;
+  v_ResultStr := 'PInstanceNotFound';
+  --PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  --BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+
+    v_period_id:= p_period_id ;
+    v_conceptin_id:= p_conceptin_id;
+    v_conceptout_id:= p_conceptout_id;
+    v_client_id:= p_client_id;
+    v_org_id:= p_org_id;
+    v_user_id:= p_user_id;
+
+    For Cur_news in (
+        select a.c_bpartner_id, a.sspr_concept_id, round(sum(a.value),2) as amount
+        from spev_detail_news a
+        left join c_bpartner b on b.c_bpartner_id = a.c_bpartner_id
+        where a.c_period_id = v_period_id --'7A16B7DDA18D4177984EE264AC4A2AB6' --v_period_id
+        and a.type = 'BR'
+        and b.IsEmployee = 'Y'
+        and EM_SSPR_Status='A'
+        group by a.c_bpartner_id, a.sspr_concept_id
+
+    )
+    Loop
+    
+	delete from sspr_concept_amount 
+	where sspr_concept_id = Cur_news.sspr_concept_id 
+	and c_period_id = v_period_id 
+	and c_bpartner_id = Cur_news.c_bpartner_id;
+
+        --crea concepto en las lineas
+        insert into sspr_concept_amount
+            (sspr_concept_amount_id, ad_client_id, ad_org_id, isactive,
+            created, createdby, updated, updatedby,
+            sspr_concept_id, c_bpartner_id, c_period_id,amount)
+        values
+            (get_uuid(), v_client_id, v_org_id, 'Y',
+            now(), v_user_id, now(), v_user_id,
+	    Cur_news.sspr_concept_id, Cur_news.c_bpartner_id, v_period_id,Cur_news.amount);
+
+	update spev_detail_news
+	set type = 'PR'
+	where c_bpartner_id = Cur_news.c_bpartner_id
+	and sspr_concept_id = Cur_news.sspr_concept_id
+	and c_period_id = v_period_id;
+
+        v_n_insertions:= v_n_insertions +1;
+
+    End Loop;
+
+  
+
+   -- RAISE NOTICE '%',v_ResultStr ;
+  --  PERFORM AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SPEV_EVENTS
+]]></body>
+    </function>
+  </database>

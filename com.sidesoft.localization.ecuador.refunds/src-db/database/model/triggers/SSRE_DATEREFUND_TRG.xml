@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_DATEREFUND_TRG">
+    <trigger name="SSRE_DATEREFUND_TRG" table="SSRE_REFUNDINVOICE" fires="before" insert="true" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ v_contador NUMBER:= 0;
+ V_DATE	            DATE;
+ V_DATEREFUND 	    DATE;
+ V_NEWSTATUS        VARCHAR2(32);
+ V_OLDSTATUS        VARCHAR2(32);
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;END IF;
+
+  IF (INSERTING OR UPDATING) THEN
+
+    --RECUPERO FECHA FACTURA	
+    SELECT DATEACCT INTO  V_DATE 
+    FROM C_INVOICE
+    WHERE C_INVOICE_ID = :NEW.C_INVOICE_ID;
+
+
+    --RECUPERO FECHA REEMBOLSO
+    V_DATEREFUND := :NEW.DATEEMISSION;
+   
+    IF (V_DATE < V_DATEREFUND) THEN
+
+		  RAISE_APPLICATION_ERROR(-20000, '@SSRE_DateRefund@');
+    END IF; 
+
+  END IF;  /* END TG -INSERT OR UPDATE */
+ 
+  END SSRE_DATEREFUND_TRG
+]]></body>
+    </trigger>
+  </database>

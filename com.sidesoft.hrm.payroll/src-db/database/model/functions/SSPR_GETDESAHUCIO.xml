@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_GETDESAHUCIO">
+    <function name="SSPR_GETDESAHUCIO" type="NUMERIC">
+      <parameter name="partner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="bpmonth" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="bpyear" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_BpartnerID VARCHAR(32); 	--OBTG:VARCHAR2--
+V_ContractID VARCHAR(32); 	--OBTG:VARCHAR2--
+
+V_DateTemp DATE;
+V_DateAdmission VARCHAR(10); 	--OBTG:VARCHAR2--
+V_Count  NUMBER; 	--OBTG:NUMBER--
+V_Month  NUMBER; 	--OBTG:NUMBER--
+V_Year 	 NUMBER; 	--OBTG:NUMBER--
+V_TotalDesahucio NUMBER(30,4); 	--OBTG:NUMBER--
+
+BEGIN
+V_BpartnerID:= partner_id;
+V_Month:= bpmonth ;
+V_Year:= bpyear;
+select count(*) 
+into V_Count
+from sspr_benefit_dismissal where value ='DSH';
+
+IF V_Count=1 THEN
+
+	select sspr_concept_id 
+	into V_ContractID
+	from sspr_benefit_dismissal where value ='DSH';
+
+
+	SELECT
+	coalesce((select sstl.totalnet 
+	from sspr_settlement sst 
+	left join sspr_settlementline sstl on sstl.sspr_settlement_id = sst.sspr_settlement_id
+	where sst.C_BPARTNER_ID = V_BpartnerID
+	and sstl.sspr_concept_id = V_ContractID
+	AND to_number(to_char(sst.movementdate,'MM')) = V_Month
+	and to_number(to_char(sst.movementdate,'yyyy')) = V_Year
+	),0)
+	INTO V_TotalDesahucio
+	FROM DUAL;
+
+
+END IF;
+
+return V_TotalDesahucio;
+END SSPR_GETDESAHUCIO
+]]></body>
+    </function>
+  </database>

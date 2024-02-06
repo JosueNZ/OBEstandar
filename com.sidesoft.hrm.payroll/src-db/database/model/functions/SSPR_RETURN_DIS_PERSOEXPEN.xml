@@ -1,0 +1,165 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_RETURN_DIS_PERSOEXPEN">
+    <function name="SSPR_RETURN_DIS_PERSOEXPEN" type="NUMERIC">
+      <parameter name="p_c_year_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vFirstBaseMax NUMBER;
+vGrossSalaryIncomeAccumulated NUMBER;
+vGrossSalaryIncome NUMBER;
+vBasicFamilyBasket NUMBER;
+vMinPerc NUMBER;
+vMaxPerc NUMBER;
+vCalc NUMBER;
+totaldeducible NUMBER;
+v_c_year_id VARCHAR2(32);
+v_c_bpartner_id VARCHAR2(32);
+v_basetotal NUMBER;
+
+TYPE RECORD IS REF CURSOR;
+Cur_IncomeTax RECORD;
+
+Begin
+	v_c_year_id := p_c_year_id;
+	v_c_bpartner_id := p_c_bpartner_id;
+	
+	--Retorna basetotal
+	select (coalesce(
+		(SELECT 		
+		(coalesce(TO_NUMBER((SELECT(SUM(ACUMULATIVE)+ SUM(AMOUNTPROJECTED) ) 
+		FROM SSPR_CUMULATIVECONCEPT_V
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+		AND C_BPARTNER_ID=A.C_BPARTNER_ID 
+		AND CONCEPTSUBTYPE='In' 
+		AND C_YEAR_ID = A.C_YEAR_ID 
+		GROUP BY C_YEAR_ID, C_BPARTNER_ID)),0) 
+		-     
+		(COALESCE(TO_NUMBER((SELECT (SUM(ACUMULATIVE) + SUM(AMOUNTPROJECTED) ) 
+		FROM SSPR_CUMULATIVECONCEPT_V
+		WHERE (ISCUMULATIVE='Y' OR ISPROJECTED ='Y')
+	        AND ISIESS = 'Y'
+	        AND C_BPARTNER_ID=A.C_BPARTNER_ID
+		AND CONCEPTSUBTYPE='In' AND C_YEAR_ID = A.C_YEAR_ID
+		GROUP BY C_YEAR_ID,C_BPARTNER_ID)),0) *  (SELECT distinct sspr_iessrateline.value/100
+		from sspr_iessrateline
+		left join sspr_iessrate on sspr_iessrateline.sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_BPARTNER  on C_BPARTNER.em_sspr_iessrate_id = sspr_iessrate.sspr_iessrate_id
+		left join C_period  on C_period.PERIODNO =12
+		where C_period.enddate between sspr_iessrateline.validfrom and sspr_iessrateline.validto 
+		and sspr_iessrate.sspr_iessrate_id = C_BPARTNER.em_sspr_iessrate_id
+		and sspr_iessrateline.isactive = 'Y'
+		and C_BPARTNER.C_BPARTNER_id = A.C_BPARTNER_ID
+        and C_period.C_YEAR_ID= A.C_YEAR_ID)) 
+		-
+		--CASE WHEN vIT_2022='Y' THEN 0
+		 CASE WHEN 'Y'='Y' THEN 0
+		ELSE COALESCE (TO_NUMBER((SELECT  COALESCE (TO_NUMBER(B.AMOUNTCOST),0) 
+		FROM SSPR_COSTEMPLOYEE B WHERE C_BPARTNER_ID=A.C_BPARTNER_ID AND B.ISACTIVE='Y'AND B.C_YEAR_ID = A.C_YEAR_ID)),0) END
+		-
+		--Resta Valor por discapacidad
+		Case when to_number(p.em_sspr_disability) > 0 and p.em_sspr_isdisabled = 'Y' then
+			round(((coalesce((select min(sspr_incometaxline.basemax) * 2
+			from sspr_incometax
+			left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+			where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+			*
+			coalesce((select sspr_disabilityline.percentage
+			from sspr_disabilityline
+			left join sspr_disability on sspr_disability.sspr_disability_id = sspr_disabilityline.sspr_disability_id
+			where sspr_disabilityline.grade_disability_from <= to_number(p.em_sspr_disability) and sspr_disabilityline.grade_disability_to >= to_number(p.em_sspr_disability)
+			and sspr_disability.c_year_id = A.C_YEAR_ID),0))/100,2)
+		else 0
+		End
+		-
+		--Resta Valor por tercera edad
+		Case when p.em_sspr_isdisabled = 'N' then
+			case when Abs(EXTRACT(YEAR FROM em_sspr_birthday) - EXTRACT(YEAR FROM now())) >= 65 Then
+				round(((coalesce((select min(sspr_incometaxline.basemax)
+				from sspr_incometax
+				left join sspr_incometaxline on sspr_incometaxline.sspr_incometax_id = sspr_incometax.sspr_incometax_id
+				where sspr_incometax.c_year_id = A.C_YEAR_ID),0)) 
+				),2)
+			else 0
+			end  	
+		else 0
+		End	  		
+		) AS  BASETOTAL
+		FROM SSPR_CUMULATIVECONCEPT_v A
+		left join c_bpartner p on p.c_bpartner_id = A.c_bpartner_id
+		where a.c_year_id = v_c_year_id
+		and A.c_bpartner_id = p_c_bpartner_id
+		GROUP BY A.C_YEAR_ID,A.C_BPARTNER_ID,A.AD_CLIENT_ID, A.AD_ORG_ID, A.C_BPARTNER_ID,
+		P.EM_SSPR_ISDISABLED,P.EM_SSPR_DISABILITY, p.em_sspr_birthday) 
+		,0.00))/ 12 
+	into v_basetotal
+	from dual;
+
+	
+	-- Primera base minima
+	SELECT itl.basemax * 2.13 
+	INTO vFirstBaseMax
+	FROM sspr_incometaxline itl
+	JOIN sspr_incometax it ON it.sspr_incometax_id = itl.sspr_incometax_id
+	WHERE it.isactive='Y' AND it.c_year_id = v_c_year_id AND itl.isactive='Y' AND itl.basemin=0;
+
+	-- Ingresos por mes acumulado con el check "Es para cálculo salario bruto"
+	vGrossSalaryIncomeAccumulated := 0;
+	
+	SELECT COALESCE(SUM(ptc.amount),0) 
+	INTO vGrossSalaryIncomeAccumulated
+	FROM sspr_payroll_ticket_concept ptc
+	JOIN sspr_payroll_ticket pt ON pt.sspr_payroll_ticket_id = ptc.sspr_payroll_ticket_id
+	JOIN sspr_payroll p ON p.sspr_payroll_id = pt.sspr_payroll_id
+	JOIN sspr_concept c ON c.sspr_concept_id = ptc.sspr_concept_id
+	JOIN c_period pe ON pe.c_period_id = p.c_period_id
+	WHERE pe.periodno>=1 AND pe.c_year_id = v_c_year_id
+	AND pt.c_bpartner_id = v_c_bpartner_id AND c.is_calc_gross_salary = 'Y' AND c.conceptsubtype = 'In';
+		
+	vGrossSalaryIncome := vGrossSalaryIncomeAccumulated;
+
+	select coalesce((SELECT  COALESCE (B.AMOUNTCOST,0) 
+	into totaldeducible
+	FROM SSPR_COSTEMPLOYEE B 
+	WHERE C_BPARTNER_ID = v_c_bpartner_id 
+	AND B.ISACTIVE='Y' 
+	AND B.C_YEAR_ID = v_c_year_id) 
+	, 0) from dual;
+
+	vCalc := 0.00;
+	
+	if totaldeducible > 0 then
+
+		For Cur_IncomeTax in
+			(
+			  SELECT  A.basemin, A.basemax, A.taxamount, A.percentajetax,
+				b.basic_family_basket, b.min_perc_deduct_expenses, b.max_perc_deduct_expenses
+			  FROM sspr_incometaxline a
+			  LEFT JOIN sspr_incometax b on a.sspr_incometax_id=b.sspr_incometax_id
+			  WHERE B.ISACTIVE='Y' AND A.ISACTIVE='Y' AND B.C_YEAR_ID = v_c_year_id
+			  AND v_basetotal >= a.basemin  AND  v_basetotal <= a.basemax and a.basemin > 0
+			)
+		Loop   
+
+			vBasicFamilyBasket := Cur_IncomeTax.basic_family_basket * 7;
+			vMinPerc := CASE WHEN Cur_IncomeTax.min_perc_deduct_expenses > 0 THEN Cur_IncomeTax.min_perc_deduct_expenses / 100 ELSE 0 END;
+			vMaxPerc := CASE WHEN Cur_IncomeTax.max_perc_deduct_expenses > 0 THEN Cur_IncomeTax.max_perc_deduct_expenses / 100 ELSE 0 END;
+
+			vCalc := case when totaldeducible = 0 OR vBasicFamilyBasket <= totaldeducible 
+				 then vBasicFamilyBasket 
+				 else totaldeducible end;
+			vCalc := case when vGrossSalaryIncome > vFirstBaseMax 
+				 then vCalc * vMinPerc 
+				 else vCalc * vMaxPerc end;
+
+		End Loop;
+	end if ;
+
+
+	Return round(vCalc, 2);
+END SSPR_RETURN_DIS_PERSOEXPEN
+]]></body>
+    </function>
+  </database>

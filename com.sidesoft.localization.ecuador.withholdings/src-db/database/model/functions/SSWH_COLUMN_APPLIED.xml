@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_COLUMN_APPLIED">
+    <function name="SSWH_COLUMN_APPLIED" type="VARCHAR">
+      <parameter name="invoice_id" type="VARCHAR">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+C_APPLIED RECORD;
+
+
+   v_applied          VARCHAR2(5000);
+   v_display        VARCHAR2(5000);
+BEGIN
+FOR C_APPLIED IN (SELECT SQ.* FROM
+(select  V.*
+from sswh_acct_receivab_payab_v V
+LEFT JOIN C_INVOICE I ON V.INVOICE = I.DOCUMENTNO
+where doc_code IN ('AP', 'PP', 'FP') AND INVOICE= invoice_id
+ORDER BY V.BPARTNER_NAME, INVOICE ,DOCUMENTDATE)SQ where SQ.doc_code IN ('PP'))
+  LOOP
+  IF v_display IS NULL THEN
+   v_display :=  C_APPLIED.APPLIED;
+  ELSE
+  v_display  := v_display  ||' / '|| C_APPLIED.APPLIED;
+  END IF;
+  END LOOP;
+    RETURN v_display;
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN '**';
+END SSWH_COLUMN_APPLIED]]></body>
+    </function>
+  </database>

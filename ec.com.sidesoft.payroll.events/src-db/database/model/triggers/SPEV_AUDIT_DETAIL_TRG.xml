@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SPEV_AUDIT_DETAIL_TRG">
+    <trigger name="SPEV_AUDIT_DETAIL_TRG" table="SPEV_DETAIL_NEWS" fires="after" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+   V_STATE VARCHAR2(60); 
+   
+BEGIN
+    
+    
+   IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (UPDATING) THEN
+
+    V_STATE:= :OLD.TYPE;
+  
+    IF (V_STATE = 'PR' and :NEW.TYPE = 'PR') THEN
+      RAISE_APPLICATION_ERROR(-20000, '@SPEV_is_processed@'  || ' - ' || 'Inserta Novedades');
+    END IF; 
+    
+    IF(:OLD.VALUE <> :NEW.VALUE) THEN
+
+      INSERT INTO spev_audit_detail(spev_audit_detail_id, ad_client_id, ad_org_id, isactive, created, 
+                                    createdby, updated, updatedby, value_old, value_new, user_modified_id,
+                                    spev_maintenance_news_id, c_bpartner_id, spev_detail_news_id)
+                            VALUES (get_uuid(), :OLD.AD_CLIENT_ID, :OLD.AD_ORG_ID, 'Y', now(), 
+                                    :OLD.CREATEDBY, now(), :NEW.UPDATEDBY, :OLD.VALUE, :NEW.VALUE, :NEW.UPDATEDBY,
+                                    :OLD.spev_maintenance_news_id, :OLD.c_bpartner_id, :OLD.spev_detail_news_id);    
+
+    END IF;
+
+    
+  END IF;  
+  
+  END SPEV_AUDIT_DETAIL_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION STXREV_GET_DOCUMENTNO">
+    <function name="STXREV_GET_DOCUMENTNO" type="VARCHAR">
+      <parameter name="p_record_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_table_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_documentno VARCHAR(32);
+BEGIN
+	IF (p_table_id = '4D8C3B3C31D1410DA046140C9F024D17') THEN  --FIN_Finacc_Transaction
+		SELECT coalesce (ft.EM_Sfadt_Documentno ,'-') INTO v_documentno
+		FROM FIN_Finacc_Transaction ft
+		WHERE ft.FIN_Finacc_Transaction_id = p_record_id;
+	ELSEIF (p_table_id = 'B1B7075C46934F0A9FD4C4D0F1457B42') THEN --FIN_Reconciliation
+		SELECT coalesce (fr2.documentno, '-') INTO v_documentno
+		FROM fin_reconciliation fr2
+		WHERE fr2.fin_reconciliation_id  = p_record_id;
+	ELSEIF (p_table_id = '224') THEN --GL_Journal
+		SELECT coalesce(documentno, '-') INTO v_documentno
+		FROM GL_Journal
+		WHERE GL_Journal_Id = p_record_id;
+	ELSEIF (p_table_id = '211492B753264EAEBE328BA4FED1F066') THEN --SSWS_WithholdingSale
+		SELECT coalesce(documentno, '-') INTO v_documentno
+		FROM SSWS_WithholdingSale
+		WHERE SSWS_WithholdingSale_id = p_record_id;
+    ELSEIF (p_table_id = '318')  THEN --Invoice
+		SELECT coalesce(em_spdn_documentno, '-') INTO v_documentno
+		FROM C_Invoice
+		WHERE C_Invoice_id = p_record_id;
+	ELSEIF (p_table_id = 'DC962E28F8E2426DB8C0AD4BF8744B8D') THEN --sspr_settlement
+		SELECT coalesce(documentnonew, '-') INTO v_documentno
+		FROM sspr_settlement
+		WHERE sspr_settlement_id = p_record_id;
+	ELSEIF (p_table_id = 'FC1F2D243F8D4FD1B5562F9B37CECB12') THEN --ssam_alienate
+		SELECT coalesce(documentno, '-') INTO v_documentno
+		FROM ssam_alienate
+		WHERE ssam_alienate_id = p_record_id;
+	ELSEIF (p_table_id = 'D1A97202E832470285C9B1EB026D54E2') THEN --FIN_Payment
+		SELECT coalesce(documentno, '-') INTO v_documentno
+		FROM FIN_Payment
+		WHERE FIN_Payment_ID = p_record_id;
+	ELSEIF p_table_id = '800060' THEN --A_Amortization
+		SELECT coalesce(documentNo, '-') INTO v_documentNo
+		FROM A_Amortization
+		WHERE A_Amortization_ID = p_Record_ID;
+    ELSEIF (p_table_id = 'BCEEDEC4FE2B4B3FAEA32084BB88AD95') THEN --SSPR_Payroll
+		SELECT coalesce(documentNo, '-') INTO v_documentNo
+		FROM SSPR_Payroll
+		WHERE SSPR_Payroll_id = p_record_id;
+    ELSEIF p_table_id = '800019' THEN -- C_Settlement
+        SELECT coalesce(documentNo, '-') INTO v_documentNo
+		FROM C_Settlement
+		WHERE C_Settlement_ID = p_Record_ID;
+	ELSE --SSPR_Payroll
+		v_documentNo := '-';
+	END IF;
+
+	RETURN v_documentno;
+END STXREV_GET_DOCUMENTNO
+]]></body>
+    </function>
+  </database>

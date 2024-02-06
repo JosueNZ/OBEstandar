@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="report1" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="ae1d3f39-28f8-4900-93fe-2621095f8ca3">
+	<property name="ireport.zoom" value="1.2100000000000009"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.columns" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.wrap.text" value="false"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<property name="net.sf.jasperreports.print.keep.full.text" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.white.page.background" value="false"/>
+	<parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/opt/Ambientes/indumotjunio2/modules/ec.com.sidesoft.cash.flow/src/ec/com/sidesoft/cash/flow/ad_reports/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DATEfROM" class="java.util.Date"/>
+	<parameter name="DATETO" class="java.util.Date"/>
+	<parameter name="AD_USER_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["100"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="BASE_DESIGN" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["/home/openbravo/Documentos/SIDESOFT/Repositorios/HubPreprod/Balances/ec.com.sidesoft.cash.flow/src/"]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_ORG_ID" class="java.lang.String" isForPrompting="false">
+		<defaultValueExpression><![CDATA["ND"]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select
+(case when typeheader = '2' then '' else  name end )as name
+,rep_sequence
+,rep_sql
+,ad_org_id
+,fecha
+,sql_account
+,typeheader
+, 'Período: ' ||  (case when to_char(date($P{DATEfROM}),'MM')='01' then 'Enero-'
+         when to_char(date($P{DATEfROM}),'MM')='02' then 'Febrero-'
+         when to_char(date($P{DATEfROM}),'MM')='03' then 'Marzo-'
+         when to_char(date($P{DATEfROM}),'MM')='04' then 'Abril-'
+         when to_char(date($P{DATEfROM}),'MM')='05' then 'Mayo-'
+         when to_char(date($P{DATEfROM}),'MM')='06' then 'Junio-'
+         when to_char(date($P{DATEfROM}),'MM')='07' then 'Julio-'
+         when to_char(date($P{DATEfROM}),'MM')='08' then 'Agosto'
+         when to_char(date($P{DATEfROM}),'MM')='09' then 'Septiembre'
+         when to_char(date($P{DATEfROM}),'MM')='10' then 'Octubre'
+         when to_char(date($P{DATEfROM}),'MM')='11' then 'Noviembre'
+         when to_char(date($P{DATEfROM}),'MM')='12' then 'Diciembre'
+ end) || to_char(date($P{DATEfROM}),'yyyy')
+ AS periodo
+from
+(
+select
+name
+,rep_sequence
+,
+	replace(replace(
+	replace(replace(
+	replace(replace(replace(replace(rep_sql,':p_df',to_char(date($P{DATEfROM}),'dd/MM/yyyy')),':p_dt',to_char(date($P{DATETO}),'dd/MM/yyyy')),':p_account',coalesce(sql_account,'')),':p_adorg',$P{AD_ORG_ID})
+,':p_excl1',split_part(split_part(description,',**,',1),',EXCLUDE,',1))
+	,':p_excl2', split_part(split_part(description,',**,',1),',EXCLUDE,',2))
+	,':p_incl1', split_part(split_part(description,',**,',2),',INCLUDE,',1))
+	,':p_incl2', split_part(split_part(description,',**,',2),',INCLUDE,',2))
+		as  rep_sql
+, ad_org_id
+, to_char(NOW(),'dd/MM/yyyy') as fecha
+,sql_account
+, typeheader
+ from sscflw_setup_report_cash
+where  isactive= 'Y'
+and rep_group not in ('SUMA1','SUMA2','SUMA3','SUMA4','SUMA5','SUMA6','SUMA7','SUMA8','SUMA9','SUMA10')
+
+union all
+
+select
+
+name
+,rep_sequence
+,
+	replace(replace(
+	replace(replace(
+	replace(replace(rep_sql
+,':p_group1',(replace(replace(replace(sscflw_get_sqlgroup(sql_account),':p_df',to_char(date($P{DATEfROM}),'dd/MM/yyyy')),':p_dt',to_char(date($P{DATETO}),'dd/MM/yyyy')),':p_account',coalesce(sql_account,'')) )
+),':p_adorg',$P{AD_ORG_ID})
+,':p_excl1',split_part(split_part(description,',**,',1),',EXCLUDE,',1))
+	,':p_excl2', split_part(split_part(description,',**,',1),',EXCLUDE,',2))
+	,':p_incl1', split_part(split_part(description,',**,',2),',INCLUDE,',1))
+	,':p_incl2', split_part(split_part(description,',**,',2),',INCLUDE,',2))
+
+	as  rep_sql
+, ad_org_id
+, to_char(NOW(),'dd/MM/yyyy') as fecha
+,sql_account
+,typeheader
+from sscflw_setup_report_cash
+where  isactive= 'Y'
+and rep_group in ('SUMA1','SUMA2','SUMA3','SUMA4','SUMA5','SUMA6','SUMA7','SUMA8','SUMA9','SUMA10')
+) rep
+--where rep_sequence =20
+ORDER BY rep_sequence ASC]]>
+	</queryString>
+	<field name="name" class="java.lang.String"/>
+	<field name="rep_sequence" class="java.math.BigDecimal"/>
+	<field name="rep_sql" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="fecha" class="java.lang.String"/>
+	<field name="sql_account" class="java.lang.String"/>
+	<field name="typeheader" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="101" splitType="Stretch">
+			<image>
+				<reportElement x="0" y="0" width="104" height="79" uuid="a01997d1-709c-4852-b895-73c284ce924c"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{ad_org_id})]]></imageExpression>
+			</image>
+			<staticText>
+				<reportElement mode="Opaque" x="104" y="36" width="304" height="43" forecolor="#010101" uuid="44a58165-193e-42e2-b406-e6626d895d63"/>
+				<textElement textAlignment="Center">
+					<font size="18" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE FLUJO DE EFECTIVO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement mode="Opaque" x="104" y="0" width="304" height="36" forecolor="#010101" uuid="366b413d-3070-467c-80f7-726619827cbd"/>
+				<textElement textAlignment="Right">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<text><![CDATA[FECHA:]]></text>
+			</staticText>
+			<textField>
+				<reportElement mode="Transparent" x="408" y="0" width="80" height="20" forecolor="#010101" uuid="a69c04ae-a4ed-4d88-811c-77ce3fb7d6cc"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="0" y="79" width="555" height="22" uuid="32707a55-b192-4e83-8b87-ca591b6b854a"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<textField>
+				<reportElement isPrintRepeatedValues="false" x="0" y="0" width="408" height="14" isRemoveLineWhenBlank="true" forecolor="#010101" uuid="98f12d54-0790-4908-975f-964b8473f564"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+		</band>
+		<band height="14">
+			<subreport>
+				<reportElement x="0" y="0" width="555" height="14" isRemoveLineWhenBlank="true" uuid="0648fd99-21e6-4f06-afa7-7e7c0b8a9003"/>
+				<subreportParameter name="p_sql">
+					<subreportParameterExpression><![CDATA[$F{rep_sql}]]></subreportParameterExpression>
+				</subreportParameter>
+				<connectionExpression><![CDATA[$P{REPORT_CONNECTION}]]></connectionExpression>
+				<subreportExpression><![CDATA[$P{BASE_DESIGN}+ "/ec/com/sidesoft/cash/flow/ad_reports/Rpt_SscflwCashFlowLines.jasper"]]></subreportExpression>
+			</subreport>
+		</band>
+	</detail>
+	<columnFooter>
+		<band height="21" splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

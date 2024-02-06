@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSspr_AccumulatedThirteenthByCostCenter" pageWidth="1800" pageHeight="555" orientation="Landscape" columnWidth="801" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0" uuid="eb6bc437-24fa-442d-90cf-c8d41df61861">
+	<property name="ireport.zoom" value="1.5"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<style name="Crosstab Data Text" hAlign="Center"/>
+	<parameter name="YEAR_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="REGIMEN_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select to_char(ordenar,'yyyy') || '-' ||  to_char(ordenar,'MM') || '-' || substr(period_empleado.nombre_periodo,1,3)  as nombre_periodo,period_empleado.ci,period_empleado.nombre_empleado,period_empleado.org
+,coalesce(valor.linenetamt,0) as linenetamt,centro_costo as costcenter
+,((select to_char(max(slrd.startdate),'MM/yyyy')  as fecha_inicio
+from sspr_labor_regime slr
+left join sspr_labor_regime_detail slrd on slr.sspr_labor_regime_id = slrd.sspr_labor_regime_id
+where slrd.isactive ='Y' and (slrd.sspr_labor_regime_id = $P{REGIMEN_ID} or $P{REGIMEN_ID} is null)
+and typeconcept =  '13TH'
+and ((select count(*)
+from sspr_labor_regime slr
+left join sspr_labor_regime_detail slrd on slr.sspr_labor_regime_id = slrd.sspr_labor_regime_id
+where slrd.isactive ='Y'  and (slrd.sspr_labor_regime_id = $P{REGIMEN_ID}  or $P{REGIMEN_ID} is null)
+and typeconcept =  '13TH'
+)) >= 1) ) as "periodo_inicio"
+,((select to_char(max(slrd.enddate),'MM/yyyy')  as fecha_fin
+from sspr_labor_regime slr
+left join sspr_labor_regime_detail slrd on slr.sspr_labor_regime_id = slrd.sspr_labor_regime_id
+where slrd.isactive ='Y' and (slrd.sspr_labor_regime_id = $P{REGIMEN_ID}  or $P{REGIMEN_ID} is null)
+and typeconcept =  '13TH'
+and ((select count(*)
+from sspr_labor_regime slr
+left join sspr_labor_regime_detail slrd on slr.sspr_labor_regime_id = slrd.sspr_labor_regime_id
+where slrd.isactive ='Y' and (slrd.sspr_labor_regime_id = $P{REGIMEN_ID}  or $P{REGIMEN_ID} is null)
+and typeconcept = '13TH'
+)) >= 1) ) as "periodo_fin"
+,to_char(now(),'dd/MM/yyyy') AS "fecha_actual"
+,'RÉGIMEN ' || coalesce((select name
+from sspr_labor_regime slr where sspr_labor_regime_id =  $P{REGIMEN_ID}
+),'') as "regimen" ,
+(select ad_org_id from ad_org where isperiodcontrolallowed = 'Y') as  organizationid , fecha_fin_nomina
+from
+(  select *
+from (
+
+select cp.enddate as fecha_fin_nomina,
+cp.name as nombre_periodo,periodno,cp.startdate as ordenar,o.name as org,ci,nombre_empleado,centro_costo , y.c_year_id
+from sspr_labor_regime slr
+join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id
+left join c_period cp on
+(cp.startdate>= slrd.startdate and cp.startdate<= slrd.enddate)
+join c_year y on y.c_year_id = cp.c_year_id
+join ad_org o on slrd.ad_org_id=o.ad_org_id,
+(select bp.value as ci,bp.name as nombre_empleado,cc.name as centro_costo,sspr_labor_regime_id from
+ c_bpartner bp
+ left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, Now()::date)
+ left join c_costcenter cc on cc.c_costcenter_id = bp.em_sspr_costcenter_id
+ where
+ bp.em_sspr_status = 'A') empleados
+where
+empleados.sspr_labor_regime_id = slr.sspr_labor_regime_id
+and typeconcept = '13TH'
+ and cp.periodtype='S'
+and slrd.isactive='Y'
+and case when $P{REGIMEN_ID} is not null THEN slr.sspr_labor_regime_id = $P{REGIMEN_ID} ELSE 1=1 END
+) period
+order by periodno
+
+ )period_empleado
+
+left join (
+
+select description,ci,nombre_empleado,sspr_labor_regime_id,sum(linenetamt) as linenetamt,name_per,periodno,org,costcenter, c_year_id
+from
+(
+select  '13TH'
+|| ' - ' || lr.description as description, bp.value as ci,bp.name as nombre_empleado, lr.sspr_labor_regime_id,
+(prtc.amount) as linenetamt
+ ,per.name as name_per,per.periodno,o.name as org,cc.name as costcenter, y.c_year_id
+      from sspr_payroll pr
+      left join ad_org o on pr.ad_org_id=o.ad_org_id
+      left join sspr_payroll_ticket prt on pr.sspr_payroll_id = prt.sspr_payroll_id
+      left join sspr_payroll_ticket_concept prtc on prt.sspr_payroll_ticket_id = prtc.sspr_payroll_ticket_id and coalesce(prtc.em_ssph_earned, 'N') = 'N'
+      join sspr_concept cp on cp.sspr_concept_id = prtc.sspr_concept_id and cp.concepttypepayroll = (case '13TH'
+  when '14TH' then 'DC' when '13TH' then 'DT' else '' end)
+      left join c_bpartner bp on prt.c_bpartner_id = bp.c_bpartner_id
+      left join c_costcenter cc on cc.c_costcenter_id = bp.em_sspr_costcenter_id
+      left join sspr_contract con on bp.c_bpartner_id = con.c_bpartner_id and con.sspr_contract_id = SSPH_ACTIVE_CONTRACT_IDENT(con.c_bpartner_id, now()::date) and con.isactive='Y'
+
+      left join sspr_labor_regime lr on con.sspr_labor_regime_id = lr.sspr_labor_regime_id
+      left join sspr_labor_regime_detail lrd on lr.sspr_labor_regime_id = lrd.sspr_labor_regime_id
+      join c_period per on pr.c_period_id = per.c_period_id
+      join c_year y on y.c_year_id = per.c_year_id
+      where bp.em_sspr_status = 'A'
+      and lrd.typeconcept ='13TH'
+      and pr.Ispayroll = 'N'
+	  and pr.Isliquidation = 'N'
+	and case when $P{REGIMEN_ID} is not null THEN lr.sspr_labor_regime_id = $P{REGIMEN_ID} ELSE 1=1 END
+group by lr.description, bp.value,bp.name, lr.sspr_labor_regime_id,prtc.amount,per.name,per.startdate,per.periodno,o.name
+,cc.name , y.c_year_id
+) sub
+group by description,ci,nombre_empleado,sspr_labor_regime_id,name_per,periodno,org,costcenter , c_year_id
+
+) valor
+
+on period_empleado.periodno=valor.periodno and period_empleado.ci=valor.ci and period_empleado.nombre_periodo = valor.name_per
+where nombre_periodo is not null
+and extract (year from fecha_fin_nomina) <= to_number((SELECT YEAR FROM C_YEAR WHERE C_YEAR_ID = $P{YEAR_ID} ))
+order by costcenter,period_empleado.nombre_empleado,period_empleado.ordenar]]>
+	</queryString>
+	<field name="nombre_periodo" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="nombre_empleado" class="java.lang.String"/>
+	<field name="org" class="java.lang.String"/>
+	<field name="linenetamt" class="java.math.BigDecimal"/>
+	<field name="costcenter" class="java.lang.String"/>
+	<field name="periodo_inicio" class="java.lang.String"/>
+	<field name="periodo_fin" class="java.lang.String"/>
+	<field name="fecha_actual" class="java.lang.String"/>
+	<field name="regimen" class="java.lang.String"/>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="fecha_fin_nomina" class="java.sql.Timestamp"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="147" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="98" width="631" height="20" uuid="78ebafb3-f51f-4dab-a2f3-19c356e01cb4"/>
+				<textElement textAlignment="Left">
+					<font isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["PERIODO: " +($F{periodo_inicio}==null?"":$F{periodo_inicio}) + " - "+ ($F{periodo_fin}==null?"":$F{periodo_fin})]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="118" width="631" height="19" uuid="46074e31-11ea-499f-b57e-7ef37c4d8f9d"/>
+				<textElement textAlignment="Left">
+					<font isBold="true" isStrikeThrough="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA["Fecha de impresión: " +($F{fecha_actual}==null?"":$F{fecha_actual})]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="69" width="631" height="29" uuid="0e8a26ff-c546-44fc-9b57-b78977109ebf"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="15" isBold="true"/>
+				</textElement>
+				<text><![CDATA[REPORTE ACUMULADO DÉCIMO TERCERO]]></text>
+			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top" isUsingCache="true">
+				<reportElement key="image-1" x="0" y="0" width="180" height="69" uuid="a35bcccf-7b19-414c-b91e-36952fee43bb"/>
+				<imageExpression><![CDATA[org.openbravo.erpCommon.utility.Utility.showImageLogo("yourcompanylegal", $F{organizationid})]]></imageExpression>
+			</image>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band splitType="Stretch"/>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band height="268" splitType="Stretch">
+			<crosstab>
+				<reportElement x="0" y="0" width="1800" height="260" uuid="de27adda-a588-4f05-8443-ac32b8202666"/>
+				<crosstabHeaderCell>
+					<cellContents>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="144" height="30" uuid="a5c8cccd-10a6-438e-8214-b87a17bd972d"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Centro de Costo]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="144" y="0" width="106" height="30" uuid="fa327544-59d8-436d-b894-131ac5c035fb"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Cod.]]></text>
+						</staticText>
+						<staticText>
+							<reportElement style="Crosstab Data Text" x="250" y="0" width="194" height="30" uuid="31f91899-f732-4252-a4a9-0ab222446d8d"/>
+							<box>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<textElement verticalAlignment="Middle">
+								<font size="10" isBold="true"/>
+							</textElement>
+							<text><![CDATA[Nombre]]></text>
+						</staticText>
+					</cellContents>
+				</crosstabHeaderCell>
+				<rowGroup name="costcenter" width="144" totalPosition="End">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{costcenter}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="144" height="25" uuid="93e83ea1-dd87-46e9-a2b6-4ddf37df3104"/>
+								<textFieldExpression><![CDATA[$V{costcenter}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#005FB3" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="ci" width="106" totalPosition="End">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{ci}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="106" height="25" uuid="c5651a29-7673-42db-bdd9-a42358784ba5"/>
+								<textFieldExpression><![CDATA[$V{ci}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents backcolor="#C0C0C0" mode="Opaque">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="300" height="25" uuid="9b880434-6d6b-455f-8710-74b91b397f50"/>
+								<textFieldExpression><![CDATA["TOTAL " + ($V{costcenter}==null?"":$V{costcenter})]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<rowGroup name="tercero" width="194">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{nombre_empleado}]]></bucketExpression>
+					</bucket>
+					<crosstabRowHeader>
+						<cellContents>
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField isBlankWhenNull="true">
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="194" height="25" uuid="ea2e85e1-6f19-4c9c-9ccd-7e172b580d32"/>
+								<textFieldExpression><![CDATA[$V{tercero}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabRowHeader>
+					<crosstabTotalRowHeader>
+						<cellContents/>
+					</crosstabTotalRowHeader>
+				</rowGroup>
+				<columnGroup name="nombre_periodo" height="30" totalPosition="End">
+					<bucket class="java.lang.String">
+						<bucketExpression><![CDATA[$F{nombre_periodo}]]></bucketExpression>
+					</bucket>
+					<crosstabColumnHeader>
+						<cellContents backcolor="#F0F8FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+							</box>
+							<textField>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="93" height="30" uuid="80f48107-a94c-4aef-a624-d058c47de8e2"/>
+								<textElement verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<textFieldExpression><![CDATA[$V{nombre_periodo}]]></textFieldExpression>
+							</textField>
+						</cellContents>
+					</crosstabColumnHeader>
+					<crosstabTotalColumnHeader>
+						<cellContents backcolor="#BFE1FF" mode="Transparent">
+							<box>
+								<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+								<topPen lineWidth="0.75"/>
+								<leftPen lineWidth="0.75"/>
+								<bottomPen lineWidth="0.75"/>
+								<rightPen lineWidth="0.75"/>
+							</box>
+							<staticText>
+								<reportElement style="Crosstab Data Text" x="0" y="0" width="94" height="30" uuid="11820a9f-8a4d-4bd7-8a51-d3c4c521735e"/>
+								<box>
+									<topPen lineWidth="0.75"/>
+									<leftPen lineWidth="0.75"/>
+									<bottomPen lineWidth="0.75"/>
+									<rightPen lineWidth="0.75"/>
+								</box>
+								<textElement verticalAlignment="Middle">
+									<font isBold="true"/>
+								</textElement>
+								<text><![CDATA[TOTAL]]></text>
+							</staticText>
+						</cellContents>
+					</crosstabTotalColumnHeader>
+				</columnGroup>
+				<measure name="linenetamtMeasure" class="java.math.BigDecimal" calculation="Sum">
+					<measureExpression><![CDATA[$F{linenetamt}]]></measureExpression>
+				</measure>
+				<crosstabCell width="93" height="25">
+					<cellContents>
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="93" height="25" uuid="12cb8126-4cb8-4f6c-8f9f-597cee9ed88e"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="93" height="25" rowTotalGroup="costcenter">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="93" height="25" forecolor="#010101" uuid="62592db0-496d-486a-b924-3709dc584b4a"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="94" height="25" columnTotalGroup="nombre_periodo">
+					<cellContents backcolor="#BFE1FF" mode="Transparent">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.75"/>
+							<leftPen lineWidth="0.75"/>
+							<bottomPen lineWidth="0.75"/>
+							<rightPen lineWidth="0.75"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="94" height="25" uuid="37d7a41c-7589-4e55-b8a8-85c655eb1118"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="94" height="25" rowTotalGroup="costcenter" columnTotalGroup="nombre_periodo">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.75"/>
+							<leftPen lineWidth="0.75"/>
+							<bottomPen lineWidth="0.75"/>
+							<rightPen lineWidth="0.75"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="94" height="25" forecolor="#010101" uuid="e645ead2-396f-49b9-8c02-4fbb881e7cad"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="93" height="25" rowTotalGroup="ci">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.5" lineStyle="Solid" lineColor="#000000"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="93" height="25" uuid="9606437a-5c07-4b2c-85f7-cee01dc91fcb"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell width="94" height="25" rowTotalGroup="ci" columnTotalGroup="nombre_periodo">
+					<cellContents backcolor="#C0C0C0" mode="Opaque">
+						<box>
+							<pen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+							<topPen lineWidth="0.75"/>
+							<leftPen lineWidth="0.75"/>
+							<bottomPen lineWidth="0.75"/>
+							<rightPen lineWidth="0.75"/>
+						</box>
+						<textField pattern="#,##0.00" isBlankWhenNull="true">
+							<reportElement style="Crosstab Data Text" x="0" y="0" width="94" height="25" uuid="309c760e-b961-4a56-b6d7-573f349a0eaa"/>
+							<textFieldExpression><![CDATA[$V{linenetamtMeasure}]]></textFieldExpression>
+						</textField>
+					</cellContents>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="tercero">
+					<cellContents/>
+				</crosstabCell>
+				<crosstabCell rowTotalGroup="tercero" columnTotalGroup="nombre_periodo">
+					<cellContents/>
+				</crosstabCell>
+			</crosstab>
+		</band>
+	</summary>
+</jasperReport>

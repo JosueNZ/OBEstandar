@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptC_SalesCompensations" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.0"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="Datefrom" class="java.util.Date"/>
+	<parameter name="Dateto" class="java.util.Date"/>
+	<parameter name="Docstatus" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="AD_ORG_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+documentno
+,comp_type
+,round(sum(compensated_amount),2) as compensated_amount
+from
+(SELECT  sia.documentno, sia.afectedzone_code AS comp_type, sia.monto_iva * COALESCE(sia.afectedzone_percent, 100) / 100 AS compensated_amount
+FROM sswh_salesinvoice_nats sia
+WHERE sia.afectedzone = 'Y'
+  AND sia.dateacct BETWEEN $P{Datefrom} AND $P{Dateto}
+  AND (sia.ad_org_id = $P{AD_ORG_ID} or $P{AD_ORG_ID} is null)
+  AND ('Y' = (case when $P{Docstatus} = 'Y' THEN case when sia.posted = 'Y' then 'Y' else 'N'  end ELSE case when sia.posted <> 'Y' then 'Y' else 'N' end END) or $P{Docstatus} is null)
+UNION ALL
+ select
+documentno,
+        comp_type
+        ,sum(compensated_amount)
+        from
+        (
+
+        SELECT   sia.documentno,pm.em_sswh_code AS comp_type,sum(((sia.monto_iva *ps.paidamt)/i.grandtotal)  * COALESCE(pm.em_sswh_percentage, 100) / 100) AS compensated_amount
+        FROM sswh_salesinvoice_nats sia
+        JOIN c_period p ON sia.dateacct BETWEEN p.startdate AND p.enddate
+        JOIN c_invoice i ON sia.c_invoice_id = i.c_invoice_id
+        JOIN fin_payment_schedule ps ON ps.c_invoice_id = sia.c_invoice_id
+        LEFT JOIN ssfi_fin_payment_detail_v pdv ON ps.fin_payment_schedule_id = pdv.fin_payment_sched_inv_id
+        JOIN fin_paymentmethod pm ON pm.fin_paymentmethod_id = COALESCE(pdv.fin_paymentmethod_id, ps.fin_paymentmethod_id)
+        WHERE pm.em_sswh_electronicmoney = 'Y'
+  AND sia.dateacct BETWEEN $P{Datefrom} AND $P{Dateto}
+  AND (sia.ad_org_id = $P{AD_ORG_ID} or $P{AD_ORG_ID} is null)
+  AND ('Y' = (case when $P{Docstatus} = 'Y' THEN case when sia.posted = 'Y' then 'Y' else 'N'  end ELSE case when sia.posted <> 'Y' then 'Y' else 'N' end END) or $P{Docstatus} is null)
+       GROUP BY sia.documentno,pm.em_sswh_code
+	union all
+        SELECT   sia.documentno,pm.em_sswh_code AS comp_type,sum(((sia.monto_iva *ps.outstandingamt)/i.grandtotal)  * COALESCE(pm.em_sswh_percentage, 100) / 100) AS compensated_amount
+        FROM sswh_salesinvoice_nats sia
+        JOIN c_period p ON sia.dateacct BETWEEN p.startdate AND p.enddate
+        JOIN c_invoice i ON sia.c_invoice_id = i.c_invoice_id
+        JOIN fin_payment_schedule ps ON ps.c_invoice_id = sia.c_invoice_id
+        LEFT JOIN ssfi_fin_payment_detail_v pdv ON ps.fin_payment_schedule_id = pdv.fin_payment_sched_inv_id
+        JOIN fin_paymentmethod pm ON pm.fin_paymentmethod_id = COALESCE(pdv.fin_paymentmethod_id, ps.fin_paymentmethod_id)
+
+        WHERE pm.em_sswh_electronicmoney = 'Y'
+        and ps.outstandingamt<>0
+  AND sia.dateacct BETWEEN $P{Datefrom} AND $P{Dateto}
+  AND (sia.ad_org_id = $P{AD_ORG_ID} or $P{AD_ORG_ID} is null)
+  AND ('Y' = (case when $P{Docstatus} = 'Y' THEN case when sia.posted = 'Y' then 'Y' else 'N'  end ELSE case when sia.posted <> 'Y' then 'Y' else 'N' end END) or $P{Docstatus} is null)
+      GROUP BY sia.documentno,pm.em_sswh_code
+        ) compen_a
+        group by
+documentno,
+        comp_type
+        ,compensated_amount
+order by documentno, comp_type
+) compen_b
+        group by
+documentno,
+        comp_type]]>
+	</queryString>
+	<field name="documentno" class="java.lang.String"/>
+	<field name="comp_type" class="java.lang.String"/>
+	<field name="compensated_amount" class="java.math.BigDecimal"/>
+	<title>
+		<band height="29">
+			<staticText>
+				<reportElement key="staticText-11" x="0" y="0" width="555" height="29"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement>
+					<font isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[COMPENSACIÓN DE VENTAS]]></text>
+			</staticText>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="20" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[CÓDIGO MOD]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="185" y="0" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[TIPO DE COMP]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="370" y="0" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<text><![CDATA[MONTO COMP]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documentno}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="185" y="0" width="185" height="20"/>
+				<textElement verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{comp_type}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="370" y="0" width="185" height="20"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{compensated_amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+</jasperReport>

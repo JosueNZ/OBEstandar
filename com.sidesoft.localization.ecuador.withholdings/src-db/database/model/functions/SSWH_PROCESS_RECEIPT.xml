@@ -1,0 +1,275 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSWH_PROCESS_RECEIPT">
+    <function name="SSWH_PROCESS_RECEIPT" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter                 RECORD;
+  Cur_InvoiceLine               RECORD;
+  CUR_RECEIPT               RECORD;
+  
+  v_Client_ID                   VARCHAR2(32);
+  v_Org_ID                      VARCHAR2(32);
+  v_User_ID                     VARCHAR2(32);
+  
+  v_ResultStr                   VARCHAR2(2000) := '';
+  v_Receipt_ID                  VARCHAR2(32);
+  v_Processed                   VARCHAR2(60);  
+  v_Posted                      VARCHAR2(60);  
+
+  v_c_invoice_id                VARCHAR2(32);
+  v_documentno                  VARCHAR2(30);  
+  v_inv_posted                  VARCHAR2(30);  
+  v_inv_processed               CHARACTER(1);
+  v_taxdate                     DATE;
+  v_stdprecision                NUMBER(10,0);
+  v_inv_totalwithholdingincome  NUMBER;
+  v_inv_totalwithholdingvat     NUMBER;
+
+  v_tax_id                      VARCHAR2(32);
+  v_producttype                 VARCHAR2(60);
+  v_taxpayer_id                 VARCHAR2(32);
+  v_withholdingincome           NUMBER;
+  v_withholdingvat              NUMBER;
+  v_withholdingtotal            NUMBER;
+  v_calculatedwithholdingincome NUMBER;
+  v_calculatedwithholdingvat    NUMBER;
+  v_LineNo                      NUMBER;
+  v_invoicetax_id               VARCHAR2(32);  
+  
+  v_n_insertions                NUMBER;
+  v_Message                     VARCHAR2(2000):='';
+  v_bpartner_id			VARCHAR2(32);  
+  v_datedoc		 DATE;
+  v_invoice_id			VARCHAR2(32);  
+  v_taxamt		 NUMBER;
+  v_currency_id			VARCHAR2(32);  
+  v_fin_paymentmethod_id	VARCHAR2(32);  
+  v_issotrx			CHARACTER(1);
+  v_fin_payment_id		VARCHAR2(32);  
+  V_DOCTYPE_ID			VARCHAR2(32);  
+  v_fin_payment_schedule_id	VARCHAR2(32);  
+  v_fin_payment_detail_id	VARCHAR2(32);  
+  v_Documentno_sec		VARCHAR2(30);  
+  V_withholdingtype		VARCHAR2(60);  
+
+BEGIN
+  -- Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN -- BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+    
+      v_Receipt_ID := Cur_Parameter.Record_ID;	  
+      -- v_Client_ID := Cur_Parameter.AD_Client_ID;
+--       v_Org_ID := Cur_Parameter.AD_Org_ID;
+       v_User_ID := Cur_Parameter.AD_User_ID;     
+      
+    END LOOP; -- Get Parameter
+
+    SELECT processed, posted INTO v_Processed, v_Posted
+    FROM SSWH_RECEIPT
+    WHERE sswh_receipt_id = v_Receipt_ID;  
+
+      IF (v_Posted = 'Y') THEN
+    
+      RAISE_APPLICATION_ERROR(-20000, '@DocumentPosted@');
+      
+    END IF;  
+
+    -- Start Processing
+--raise exception '%','start de func';
+    --CURSOR RETENCIONES
+    FOR CUR_RECEIPT IN 
+    (
+	    SELECT r.ad_client_id,r.ad_org_id,r.c_invoice_id, r.c_bpartner_id,r.datedoc,ci.documentno,l.taxamt ,l.taxbaseamt,l.c_tax_id,
+	    l.fin_financial_account_id,l.fin_paymentmethod_id,
+	    ci.issotrx,ci.c_currency_id,ci.posted, ci.processed,
+	     ci.taxdate, cc.stdprecision, ci.em_sswh_totalwithholdingincome, ci.em_sswh_totalwithholdingvat
+	    FROM SSWH_RECEIPT r
+	    LEFT JOIN SSWH_RECEIPT_tax l ON r.SSWH_RECEIPT_id = l.SSWH_RECEIPT_id
+	    LEFT JOIN C_INVOICE ci ON r.c_invoice_id = ci.c_invoice_id
+	    LEFT JOIN C_CURRENCY cc ON ci.c_currency_id = cc.c_currency_id
+	    WHERE r.sswh_receipt_id = v_Receipt_ID
+    )
+    LOOP
+	v_Client_ID := CUR_RECEIPT.ad_client_id;
+	v_Org_ID := CUR_RECEIPT.ad_org_id;
+    --TIPO DE DOCUMENTO
+    SELECT C_DOCTYPE_ID INTO V_DOCTYPE_ID FROM C_DOCTYPE WHERE EM_SSWH_ISWITHHOLDINGSALE='Y' AND ISSOTRX='Y';
+    --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO
+    IF (V_DOCTYPE_ID IS NULL)THEN
+ RAISE NO_DATA_FOUND ;
+	ELSE 
+	Ad_Sequence_Doctype(V_DOCTYPE_ID, v_Client_ID, 'Y', v_Documentno_sec)  ;--"002-001-23" TIPODOC,CLIENTE
+	END IF;
+	
+    --INSERTO CABECERA DE LOS COBROS 
+    v_fin_payment_id:=get_uuid();
+         INSERT INTO fin_payment(
+            fin_payment_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby, isactive, 
+            isreceipt, c_bpartner_id, paymentdate,c_currency_id, amount, writeoffamt, 
+            fin_paymentmethod_id, documentno, 
+            referenceno, status, processed, processing, posted,  
+            fin_financial_account_id, c_doctype_id, 
+            createdbyalgorithm, finacc_txn_convert_rate, 
+            finacc_txn_amount,/*em_sfb_process, 
+            em_sfb_isbudgeted, em_sfb_isnotbudgetable,
+            em_aprm_process_payment,em_aprm_reconcile_payment, em_aprm_add_scheduledpayments,em_aprm_executepayment,
+            em_aprm_reversepayment,*/description)
+    VALUES (v_fin_payment_id,v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            'Y', cur_receipt.c_bpartner_id, cur_receipt.datedoc,cur_receipt.c_currency_id, cur_receipt.taxamt, 0.00, 
+            cur_receipt.fin_paymentmethod_id,v_Documentno_sec, 
+	    --NULL, 'RDNC', 'Y', 'N', 'N', --triger no permite insertar un registro procesado (processed)
+            NULL, 'RDNC', 'N', 'N', 'N', 
+	    cur_receipt.fin_financial_account_id, V_DOCTYPE_ID, 
+	    'N', 1, 
+            cur_receipt.taxamt,/*'N',
+            'N', 'Y',
+            'RE','N','N','N',
+            'N',*/'Factura Nº : '||cur_receipt.documentno);
+
+
+	v_fin_payment_detail_id:=get_uuid();
+
+     --INSERTO LINEAS DE LOS COBROS
+     INSERT INTO fin_payment_detail(
+            fin_payment_detail_id, ad_client_id, ad_org_id, created, createdby,updated, updatedby, isactive, 
+            fin_payment_id, amount, 
+            isprepayment,refund)
+    VALUES (v_fin_payment_detail_id,v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            v_fin_payment_id, cur_receipt.taxamt, 
+            'N','N');
+
+-- raise exception '%','before insert payment schedule '||' v_Client_ID '||v_Client_ID || ' v_Org_ID '||v_Org_ID|| ' v_User_ID '|| v_User_ID
+-- 		||' v_invoice_id '||v_invoice_id|| ' v_datedoc '||v_datedoc||' v_fin_paymentmethod_id '|| v_fin_paymentmethod_id
+-- 		||' v_currency_id '|| v_currency_id ||' v_taxamt '|| v_taxamt ||' v_documentno '|| v_documentno;
+
+	/*
+	--INSERTO CABECERA DEL PLAN DE PAGOS
+	v_fin_payment_schedule_id:=get_uuid();
+        INSERT INTO fin_payment_schedule(
+            fin_payment_schedule_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby,isactive,
+            c_invoice_id, duedate, fin_paymentmethod_id, 
+            c_currency_id, amount, paidamt, outstandingamt,  
+            update_payment_plan, description, expecteddate, 
+            em_aprm_modif_paym_sched, em_aprm_modif_paym_out_sched)
+	VALUES (v_fin_payment_schedule_id,v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            cur_receipt.c_invoice_id,cur_receipt.datedoc,cur_receipt.fin_paymentmethod_id,
+            cur_receipt.c_currency_id, (select grandtotal from c_invoice where c_invoice_id = cur_receipt.c_invoice_id), 
+            cur_receipt.taxamt, 
+            ((select grandtotal from c_invoice where c_invoice_id = cur_receipt.c_invoice_id)-cur_receipt.taxamt-(select sum(paidamt) from fin_payment_schedule where c_invoice_id =cur_receipt.c_invoice_id )), 
+            --((select grandtotal from c_invoice where c_invoice_id = cur_receipt.c_invoice_id)-cur_receipt.taxamt), 
+           'Y', 'Factura Nº : '||cur_receipt.documentno, cur_receipt.datedoc,
+           'N','N');
+*/
+	--INSERTO LINEAS DEL PLAN DE PAGOS
+	INSERT INTO fin_payment_scheduledetail(
+            fin_payment_scheduledetail_id, ad_client_id, ad_org_id, created, createdby, updated, updatedby, isactive,
+            fin_payment_detail_id, fin_payment_schedule_invoice, 
+            amount,  writeoffamt, 
+            iscanceled, c_bpartner_id,  
+            doubtfuldebt_amount)
+	VALUES (get_uuid(),v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+             v_fin_payment_detail_id, (select fin_payment_schedule_id from fin_payment_schedule where c_invoice_id = cur_receipt.c_invoice_id),
+            cur_receipt.taxamt, 0.00, 
+            'N', cur_receipt.c_bpartner_id, 
+            0.00);
+
+        --ACTUALIZA VALOR IMPORTE PENDIENTE DE LA CABECERA DE PLAN DE PAGOS 
+        UPDATE fin_payment_schedule SET PAIDAMT=PAIDAMT+cur_receipt.taxamt WHERE fin_payment_schedule_id=(select fin_payment_schedule_id from fin_payment_schedule where c_invoice_id = cur_receipt.c_invoice_id);
+  
+	-- INSERTO DETALLE DE LA CUENTA FINANCIERA
+	INSERT INTO fin_finacc_transaction(
+            fin_finacc_transaction_id, ad_client_id, ad_org_id, created,createdby, updated, updatedby, isactive, 
+            c_currency_id, fin_financial_account_id, 
+            line, fin_payment_id, dateacct,status, paymentamt, 
+            depositamt, processed, processing, posted, 
+            statementdate, description, c_bpartner_id,
+            createdbyalgorithm/*,em_aprm_delete,em_aprm_modify*/)
+	VALUES (get_uuid(),v_Client_ID , v_Org_ID,now(), v_User_ID,now(), v_User_ID, 'Y', 
+            cur_receipt.c_currency_id, cur_receipt.fin_financial_account_id, 
+            ((select max(line) from fin_finacc_transaction where fin_financial_account_id = cur_receipt.fin_financial_account_id) + 10), v_fin_payment_id, cur_receipt.datedoc,'RDNC', 0.00,  
+            cur_receipt.taxamt, 'Y', 'N', 'N',
+            cur_receipt.datedoc, 'Factura Nº : '||cur_receipt.documentno, cur_receipt.c_bpartner_id,
+            'N'/*,'N','N'*/);
+
+	--raise exception '%','inicio insert facturas';
+        --INSERT LINEAS DE IMPUESTO DE LAS FACTURAS
+        INSERT INTO c_invoicetax(
+            c_invoicetax_id, c_tax_id, c_invoice_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, 
+            taxbaseamt, taxamt, line, 
+            recalculate,em_sswh_iswithholding,em_sswh_isprocesswithholding)
+	VALUES (get_uuid(),cur_receipt.c_tax_id, cur_receipt.c_invoice_id, v_Client_ID , v_Org_ID,'Y', now(), 
+            v_User_ID, now(), v_User_ID, 
+            cur_receipt.taxbaseamt, cur_receipt.taxamt, ((select max(line) from c_invoicetax where c_invoice_id = cur_receipt.c_invoice_id)+ 10), 
+            'Y','N','Y');
+--raise exception '%','fin insert facturas';
+           --ACTUALIZA CABECERA DE LA FACTURA CON LOS VALORES DE LA RETENCION 
+            select em_sswh_withholdingtype INTO V_withholdingtype from c_taxcategory 
+            where c_taxcategory_id =(select c_taxcategory_id from C_tax where c_tax_id=cur_receipt.c_tax_id);
+
+	    UPDATE C_INVOICE SET EM_Sswh_Receipt_ID=v_Receipt_ID
+            WHERE C_INVOICE_ID=cur_receipt.c_invoice_id ;
+	    --raise exception '%','fin UPDATE facturas';
+
+	    IF V_withholdingtype = 'IN' THEN 
+              UPDATE C_INVOICE SET EM_Sswh_Totalwithholdingincome = cur_receipt.taxamt
+              WHERE C_INVOICE_ID=cur_receipt.c_invoice_id ;
+            ELSE 
+              UPDATE C_INVOICE SET EM_Sswh_Totalwithholdingvat=cur_receipt.taxamt
+              WHERE C_INVOICE_ID=cur_receipt.c_invoice_id ;
+            END IF ;
+            
+             --raise exception '%','fin UPDATE VALORES facturas';
+     --ACTUALIZA ESTADO DEL COBRO A PROCESADO PARA PODER CONTABILIZAR
+     UPDATE fin_payment SET processed ='Y' WHERE fin_payment_id = v_fin_payment_id;
+    
+     --ACTUALIZA ESTADO DE COMPROBANTE DE RETENCION A PROCESADO 
+     UPDATE  SSWH_RECEIPT SET processed= 'Y' ,posted='Y' WHERE sswh_receipt_id = v_Receipt_ID; 
+     END LOOP; 
+     
+  -- End Processing
+    
+  v_ResultStr:='UpdatingRecord';
+  UPDATE SSWH_RECEIPT
+  SET processed = v_Processed,
+      processing = 'N',
+      updated = now(),          
+      updatedby= v_User_ID
+  WHERE sswh_receipt_id = v_Receipt_ID;    
+
+  v_Message := '@RowsUpdated@: ' || v_n_insertions || '.';
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+  RETURN;
+    
+END; -- BODY
+EXCEPTION
+WHEN OTHERS THEN
+  
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+  RETURN;
+END SSWH_PROCESS_RECEIPT
+]]></body>
+    </function>
+  </database>

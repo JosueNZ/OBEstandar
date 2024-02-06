@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_MOBILIZATION">
+    <function name="SSPR_MOBILIZATION" type="NULL">
+      <parameter name="p_period_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptin_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_conceptout_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+  Cur_Employee RECORD; 
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  v_ResultStr VARCHAR2(2000) := '';
+  v_StartPeriod DATE; --OBTG:VARCHAR2--
+  v_EndPeriod DATE; --OBTG:VARCHAR2--
+  v_BPartner_ID VARCHAR2(32);
+  v_Period_ID VARCHAR2(32);
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+  v_salary NUMBER;
+  v_conceptout_id VARCHAR2(32);
+  v_conceptin_id VARCHAR2(32);
+
+  BEGIN --BODY
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;    
+ 
+	--VARIABLES
+	v_Period_ID := p_period_id;      
+	v_Client_ID := p_client_id;
+	v_Org_ID := p_org_id;
+	v_User_ID := p_user_id; 
+	v_conceptin_id := p_conceptin_id;
+	v_conceptout_id := p_conceptout_id;
+	v_BPartner_ID := p_c_bpartner_id;
+
+	        	
+	For Cur_employee In(
+		Select cbp.c_bpartner_id, coalesce(cbp.em_sspr_mobilization,0) as mobilization
+		From c_bpartner cbp 
+		Where isemployee = 'Y' 
+		and cbp.ad_client_id = v_client_id 
+		and cbp.ad_org_id = v_org_id
+                and cbp.em_sspr_status = case when v_BPartner_ID is null then 'A' else 'L' end
+                and cbp.em_sspr_create_payroll = 'Y'
+                and (cbp.c_bpartner_id = v_BPartner_ID or v_BPartner_ID is null)
+        )
+	loop
+		If(Cur_employee.mobilization > 0)Then
+		
+			Delete 
+			From sspr_concept_amount 
+			Where sspr_concept_id = v_conceptout_id 
+			and c_period_id = v_period_id
+			and c_bpartner_id = Cur_employee.c_bpartner_id;
+			
+			INSERT INTO SSPR_Concept_Amount
+			    (SSPR_Concept_Amount_ID, AD_Client_ID, AD_Org_ID, IsActive,
+			    Created, CreatedBy, Updated, UpdatedBy,
+			    SSPR_Concept_ID, C_BPartner_ID, C_Period_ID,Amount)
+			VALUES
+			    (get_uuid(), v_Client_ID, v_Org_ID, 'Y',
+			    now(), v_User_ID, now(), v_User_ID,
+			    v_conceptout_id,Cur_employee.c_bpartner_id,v_Period_ID,Cur_employee.mobilization
+			    );
+			v_n_insertions:= v_n_insertions + 1;
+		End If;
+		
+	END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+  				
+RETURN;
+END SSPR_MOBILIZATION
+]]></body>
+    </function>
+  </database>

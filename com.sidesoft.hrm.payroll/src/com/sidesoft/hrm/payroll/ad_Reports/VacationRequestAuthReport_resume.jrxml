@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="VacationRequestAuthReport_resume" pageWidth="555" pageHeight="504" columnWidth="555" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="2.143588810000005"/>
+	<property name="ireport.x" value="23"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="DOCUMENT_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+	to_char(vac.Entrydate,'dd')||' de '|| substring(to_char(vac.Entrydate,'TMMONTH') from 1 for 3)||' del '||to_char(vac.Entrydate,'yyyy') as periodbegin,
+	to_char(vac.END_Date,'dd')||' de '|| substring(to_char(vac.END_Date,'TMMONTH') from 1 for 3)||' del '||to_char(vac.END_Date,'yyyy') as periodend,
+	vac.Earneddays as earndays,
+	lev.nodays as getdays,
+	to_char(le.Stardateabsent,'dd/mm/yyyy') as vacationdate
+from SSPR_Leave_Emp le
+inner join ad_org org on org.ad_org_id = le.ad_org_id
+inner join c_bpartner bp on le.c_bpartner_id = bp.c_bpartner_id
+left join sspr_vacations vac on vac.c_bpartner_id = bp.c_bpartner_id
+left join sspr_leave_emp_vac lev on lev.SSPR_Leave_Emp_id = le.SSPR_Leave_Emp_id
+	and lev.Startdate >= vac.Entrydate and lev.Startdate <= vac.END_Date
+where bp.c_bpartner_id = $P{DOCUMENT_ID} and lev.nodays != 0
+order by vac.Entrydate;]]>
+	</queryString>
+	<field name="periodbegin" class="java.lang.String"/>
+	<field name="periodend" class="java.lang.String"/>
+	<field name="earndays" class="java.math.BigDecimal"/>
+	<field name="getdays" class="java.math.BigDecimal"/>
+	<field name="vacationdate" class="java.lang.String"/>
+	<variable name="saldoDias" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{getdays}]]></variableExpression>
+	</variable>
+	<variable name="earnDays" class="java.math.BigDecimal" incrementType="Group" incrementGroup="period" calculation="Sum">
+		<variableExpression><![CDATA[$F{earndays}]]></variableExpression>
+	</variable>
+	<group name="period">
+		<groupExpression><![CDATA[$F{periodbegin}]]></groupExpression>
+		<groupHeader>
+			<band height="2">
+				<line>
+					<reportElement x="0" y="1" width="555" height="1"/>
+				</line>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band/>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="94" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="74" width="294" height="20"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Períodos de trabajo]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="472" y="58" width="64" height="36"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Fecha Vacación]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="406" y="58" width="42" height="36"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Saldo días]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="356" y="58" width="50" height="36"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Días Tomados]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="294" y="58" width="62" height="36"/>
+				<textElement textAlignment="Center"/>
+				<text><![CDATA[Dias de Vacaciones]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="555" height="58"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="20"/>
+				</textElement>
+				<text><![CDATA[Resumen]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="294" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodbegin} +" hasta " + $F{periodend}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="294" y="0" width="62" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.2f", $F{earndays})]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="448" y="0" width="107" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{vacationdate}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="406" y="0" width="42" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.2f", $V{earnDays}.subtract($V{saldoDias}))]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="356" y="0" width="50" height="20"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression class="java.lang.String"><![CDATA[String.format("%.2f", $F{getdays})]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+</jasperReport>

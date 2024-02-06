@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_DELETEPOSITION_TRG">
+    <trigger name="SSPR_DELETEPOSITION_TRG" table="SSPR_POSITION" fires="before" insert="false" update="false" delete="true" foreach="row">
+      <body><![CDATA[
+  V_NewPositionID VARCHAR2(32);
+  V_Count NUMBER(12,0);
+    
+BEGIN
+    
+    IF AD_isTriggerEnabled()='N' THEN RETURN;
+    END IF;
+
+  IF DELETING THEN
+
+	V_NewPositionID:=:old.sspr_position_id;
+	
+	SELECT (SELECT count(*) FROM sshr_employee_position WHERE sspr_position_id = V_NewPositionID)
+	INTO V_Count
+	FROM dual;
+
+	IF (V_Count>=1) THEN
+
+		DELETE FROM SSHR_EMPLOYEE_POSITION WHERE sspr_position_id =V_NewPositionID;
+		
+	END IF;
+ 
+  END IF;
+
+END SSPR_DELETEPOSITION_TRG
+]]></body>
+    </trigger>
+  </database>

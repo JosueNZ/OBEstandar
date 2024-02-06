@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPI_PERCENTAGELOAN">
+    <function name="SSPI_PERCENTAGELOAN" type="NUMERIC">
+      <parameter name="p_loan_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_LoanID VARCHAR(32); 	--OBTG:VARCHAR2--
+V_Count  NUMBER; 	--OBTG:NUMBER--
+V_TotalLines  NUMBER; --OBTG:NUMBER--
+V_TotalLoan   NUMBER; --OBTG:NUMBER--
+V_TotalPercentage NUMBER; --OBTG:NUMBER--
+
+BEGIN
+
+V_LoanID:=p_loan_id;
+
+IF V_LoanID IS NOT NULL THEN
+
+	SELECT 
+	COALESCE((SELECT AMOUNT
+		FROM SSPR_LOANS 
+		WHERE SSPR_LOANS_ID  = V_LoanID),0)
+	INTO V_TotalLoan
+	FROM DUAL;
+
+
+	SELECT
+	COALESCE((SELECT SUM(to_number(AMOUNT))
+		FROM SSPR_LINE_LOANS 
+		WHERE SSPR_LOANS_ID  = V_LoanID
+		AND STATUS = 'Pending'),0)
+	INTO V_TotalLines
+	FROM DUAL;
+
+	IF V_TotalLines>0 THEN
+	
+		V_TotalPercentage:= (V_TotalLines*100)/V_TotalLoan;
+		
+	END IF;
+
+END IF;
+
+
+return coalesce(V_TotalPercentage,0);
+END SSPI_PERCENTAGELOAN
+]]></body>
+    </function>
+  </database>

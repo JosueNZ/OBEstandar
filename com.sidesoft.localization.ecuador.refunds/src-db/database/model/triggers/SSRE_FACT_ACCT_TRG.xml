@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSRE_FACT_ACCT_TRG">
+    <trigger name="SSRE_FACT_ACCT_TRG" table="FACT_ACCT" fires="before" insert="true" update="false" delete="false" foreach="row">
+      <body><![CDATA[
+
+ 
+  v_ssre_c_bpartner_id VARCHAR2(32);
+  v_customer_account CHAR(1):='N';
+  v_ssre_old_c_bp_name VARCHAR2(300);
+  v_ssre_new_c_bp_name VARCHAR2(300);
+  TYPE RECORD IS REF CURSOR;
+  Cur_ProductExpenseAcct  RECORD;
+  
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (INSERTING) THEN
+    IF (:NEW.ad_table_id = '318') THEN
+        
+      SELECT bp.name
+      INTO v_ssre_old_c_bp_name
+      FROM c_bpartner bp
+      WHERE bp.c_bpartner_id = :NEW.c_bpartner_id;
+      
+      v_ssre_c_bpartner_id := NULL;
+
+      FOR Cur_ProductExpenseAcct IN (
+        SELECT COALESCE(il.em_ssre_c_bpartner_id, i.em_ssre_c_bpartner_id) as em_ssre_c_bpartner_id, re.customer_account, bp.name, ilt.c_invoicelinetax_id, vc.c_validcombination_id 
+        FROM c_invoice i
+        JOIN c_invoiceline il ON i.c_invoice_id = il.c_invoice_id
+        JOIN m_product_acct pa ON pa.m_product_id = il.m_product_id
+        JOIN c_validcombination vc ON vc.c_validcombination_id = pa.p_expense_acct AND vc.account_id = :NEW.account_id
+        LEFT JOIN c_invoicelinetax ilt on ilt.c_invoiceline_id = il.c_invoiceline_id AND ilt.em_ssre_iscustomeraccounted = 'N' AND ilt.taxamt <> 0 AND (ilt.taxamt = :NEW.amtacctdr OR ilt.taxamt = :NEW.amtacctcr)
+        LEFT JOIN ssre_refund re ON re.ssre_refund_id = coalesce(il.em_ssre_refunded_id, i.em_ssre_refunded_id)
+        LEFT JOIN c_bpartner bp ON bp.c_bpartner_id = COALESCE(il.em_ssre_c_bpartner_id, i.em_ssre_c_bpartner_id)
+        WHERE i.c_invoice_id = :NEW.record_id
+          AND (:NEW.c_tax_id IS NULL AND ilt.c_invoicelinetax_id IS NULL AND il.c_invoiceline_id = :NEW.line_id OR :NEW.c_tax_id IS NOT NULL AND ilt.c_invoicelinetax_id IS NOT NULL)
+      )
+      LOOP
+        v_ssre_c_bpartner_id := Cur_ProductExpenseAcct.em_ssre_c_bpartner_id;
+        v_customer_account := Cur_ProductExpenseAcct.customer_account;
+        v_ssre_new_c_bp_name := Cur_ProductExpenseAcct.name;
+        IF Cur_ProductExpenseAcct.c_invoicelinetax_id IS NOT NULL THEN
+          IF (Cur_ProductExpenseAcct.c_validcombination_id is not null) THEN 
+                RAISE_APPLICATION_ERROR(-20000, '@La Cuenta del Producto y del Impuesto es la misma@');
+          END IF;
+          EXECUTE IMMEDIATE 'ALTER TRIGGER c_invoicelinetax_trg DISABLE';
+          UPDATE c_invoicelinetax ilt SET em_ssre_iscustomeraccounted = 'Y' WHERE ilt.c_invoicelinetax_id = Cur_ProductExpenseAcct.c_invoicelinetax_id;
+          EXECUTE IMMEDIATE 'ALTER TRIGGER c_invoicelinetax_trg ENABLE';
+        END IF;
+        EXIT;
+      END LOOP;
+
+      IF (v_ssre_c_bpartner_id IS NOT NULL AND v_customer_account = 'Y') THEN
+        :NEW.c_bpartner_id := v_ssre_c_bpartner_id;
+        :NEW.description := substr(replace(:NEW.description, v_ssre_old_c_bp_name, v_ssre_new_c_bp_name), 1, 255);
+      END IF;
+
+    END IF;
+  END IF;
+
+  END SSRE_FACT_ACCT_TRG
+]]></body>
+    </trigger>
+  </database>

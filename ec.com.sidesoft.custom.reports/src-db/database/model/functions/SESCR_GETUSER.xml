@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SESCR_GETUSER">
+    <function name="SESCR_GETUSER" type="VARCHAR">
+      <parameter name="p_user" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="user_type" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/**********
+Esta Función permite obtener el usuario, para obtener el usuario tenemos 2 parametros:
+	* p_user
+	* user_type
+
+	Donde: 
+		p_user .- ID de la tabla ad_user_id, created o updated
+		user_type.- Este campo tiene 2 opciones:
+			* UP.- Obtiene el nombre del Tercero que esta configurado en el Usuario
+			* U .- Obtiene el nombre de la tabla usuario
+*********/
+
+   v_User VARCHAR2(100);
+   v_UserPartner VARCHAR2(100);
+   v_UserResult VARCHAR2(100);
+BEGIN
+	select
+	coalesce(to_char((SELECT CBP.NAME FROM AD_USER AU LEFT JOIN C_BPARTNER CBP ON CBP.C_BPARTNER_ID = AU.C_BPARTNER_ID WHERE AU.AD_USER_ID = p_user
+  	)),to_char(''))
+	into v_UserPartner
+	from dual;
+
+	select
+	coalesce(to_char((SELECT AU.NAME FROM AD_USER AU  WHERE AU.AD_USER_ID = p_user
+  	)),to_char(''))
+	into v_User
+	from dual;
+
+	IF (user_type='UP') THEN
+	
+	v_UserResult:= v_UserPartner;
+
+	END IF;
+
+	IF (user_type='U') THEN
+	
+	v_UserResult:= v_User;
+
+	END IF;
+
+    RETURN v_UserResult;
+  EXCEPTION
+WHEN OTHERS THEN
+  RETURN null;
+END SESCR_GETUSER
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SINVMIN_SQUAREBILL_INVOICE">
+    <function name="SINVMIN_SQUAREBILL_INVOICE" type="VARCHAR">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[-- Logistice
+	v_ResultStr		VARCHAR2(2000) := '';
+	v_Message		TEXT := ''; --OBTG:VARCHAR2--
+	-- Variables
+	Cur				RECORD;
+	vInvoiceID		VARCHAR2(32);
+	vInvoice			RECORD;
+	vInvoiceLine		RECORD;
+	vDocAction		VARCHAR2(60);
+BEGIN
+	-- Begin Get Parameters
+	FOR Cur IN (
+		SELECT *
+		FROM ad_ep_instance_para
+		WHERE ad_ep_instance_id = PInstance_ID
+	) LOOP
+		IF Cur.ParameterName = 'Record_ID' THEN
+			vInvoiceID := Cur.P_String;
+		ELSEIF Cur.ParameterName = 'DocAction' THEN
+			vDocAction := Cur.P_String;
+		END IF;	
+	END LOOP;
+	-- Finish Get Parameter
+	
+	--<<BEGIN_PROCESS>>
+
+	SELECT * INTO vInvoice FROM c_invoice WHERE c_invoice_id = vInvoiceID;
+
+	IF vInvoice.issotrx = 'Y' THEN
+	
+		IF vDocAction = 'CO' THEN
+
+			FOR vInvoiceLine IN (
+				SELECT il.line, ol.c_orderline_id, im.m_inoutline_id, il.c_invoiceline_id, il.m_product_id, il.qtyinvoiced, im.qty
+				FROM c_invoiceline il
+					LEFT JOIN c_orderline ol ON ol.c_orderline_id = il.c_orderline_id
+					LEFT JOIN sinvmin_square_bill sb ON sb.c_invoiceline_id = il.c_invoiceline_id AND ad_table_id = '318'
+					LEFT JOIN (
+						SELECT iol.m_inoutline_id, iol.movementqty - COALESCE(ABS(il.qtyinvoiced),0) qty
+						FROM m_inoutline iol
+							JOIN sinvmin_square_bill sb ON sb.m_inoutline_id = iol.m_inoutline_id
+							LEFT JOIN (
+								SELECT m_inoutline_id, SUM(qty) qtyinvoiced
+								FROM sinvmin_square_bill
+								WHERE (ad_table_id = '318' AND m_inoutline_id IS NOT NULL)
+									OR (ad_table_id = '319' AND c_invoiceline_id IS NOT NULL)
+								GROUP BY m_inoutline_id
+							) il ON il.m_inoutline_id = iol.m_inoutline_id
+						WHERE sb.ad_table_id = '319'
+					) im ON im.m_inoutline_id = il.m_inoutline_id
+				WHERE il.c_invoice_id = vInvoiceID AND sb.c_invoiceline_id IS NULL
+			) LOOP
+			
+				IF vInvoiceLine.m_inoutline_id IS NOT NULL AND vInvoiceLine.qtyinvoiced > vInvoiceLine.qty THEN
+					RAISE EXCEPTION '%', 'La cantidad facturada ('||vInvoiceLine.qtyinvoiced||') de la línea '||vInvoiceLine.line
+						||' supera la candidad pendiente por despachar ('||vInvoiceLine.qty||')'; --OBTG:-20000--
+				END IF;
+
+				INSERT INTO sinvmin_square_bill (
+					sinvmin_square_bill_id,
+					ad_client_id,
+					ad_org_id,
+					createdby,
+					updatedby,
+					c_orderline_id,
+					m_inoutline_id,
+					c_invoiceline_id,
+					m_product_id,
+					qty,
+					datetrx,
+					ad_table_id
+				) VALUES (
+					get_uuid(),
+					vInvoice.ad_client_id,
+					vInvoice.ad_org_id,
+					vInvoice.updatedby,
+					vInvoice.updatedby,
+					vInvoiceLine.c_orderline_id,
+					vInvoiceLine.m_inoutline_id,
+					vInvoiceLine.c_invoiceline_id,
+					vInvoiceLine.m_product_id,
+					vInvoiceLine.qtyinvoiced,
+					now(),
+					'318' -- C_Invoice
+				);
+
+			END LOOP;
+		
+		END IF;
+		
+	END IF; 
+
+	--<<FINISH_PROCESS>>
+		
+	RETURN v_ResultStr;
+END SINVMIN_SQUAREBILL_INVOICE
+]]></body>
+    </function>
+  </database>

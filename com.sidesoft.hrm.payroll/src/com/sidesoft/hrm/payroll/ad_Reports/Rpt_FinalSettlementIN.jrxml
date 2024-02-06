@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_FinalSettlementIN" pageWidth="802" pageHeight="555" orientation="Landscape" columnWidth="802" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="1.2100000000000009"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<import value="net.sf.jasperreports.engine.*"/>
+	<import value="java.util.*"/>
+	<import value="net.sf.jasperreports.engine.data.*"/>
+	<parameter name="sspr_settlement_id" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select sspr_settlement.ad_org_id as "organizationid",
+	ad_org.name as "organizacion",
+	c_bpartner.value as "codigo",
+	c_bpartner.name as "nombreempleado",
+	c_bpartner.taxid as "ci",
+	c_costcenter.name as "gerencia",
+	sspr_position.name as "cargo",
+	to_char(sspr_contract.startdate) as "fechaentrada",
+	to_char(sspr_contract.enddate) as "fechasalida",
+	upper(c_location.city || ', ' || to_char(sspr_settlement.movementdate,'dd MONTH yyyy')) as "fecha",
+	case when Reasonendperiod = '01' then 'Renuncia Voluntaria'
+	     when Reasonendperiod = '02' then 'Fin de Contrato'
+	     when Reasonendperiod = '03' then 'Despido Intempestivo'
+	     when Reasonendperiod = '04' then 'Visto Bueno'
+	end as "motivorenuncia",
+	sspr_labor_regime.name as "regimenlaboral",
+	case when sspr_concept.conceptsubtype = 'In' then 'INGRESOS'
+	     when sspr_concept.conceptsubtype = 'Out' then 'DESCUENTOS'
+	end as "tipoconcepto",
+	sspr_concept.name as "nombreconcepto",
+	round(sspr_settlementline.totalnet,2) as "amount",
+	c_bpartner.em_sspr_currentsalary as "rmu",
+ --round((to_number(sspr_contract.enddate - sspr_contract.startdate )/365),2) as "tiemposervicio",
+	(select sum(nodays)
+	from sspr_vacations
+	where sspr_vacations.c_bpartner_id = c_bpartner.c_bpartner_id) as "saldovacaciones"
+from sspr_settlement
+left join sspr_settlementline on sspr_settlementline.sspr_settlement_id = sspr_settlement.sspr_settlement_id
+left join c_bpartner on c_bpartner.c_bpartner_id = sspr_settlement.c_bpartner_id
+left join c_costcenter on c_costcenter.c_costcenter_id = c_bpartner.em_sspr_costcenter_id
+left join sspr_contract on sspr_contract.c_bpartner_id = c_bpartner.c_bpartner_id and sspr_settlement.sspr_contract_id = sspr_contract.sspr_contract_id
+left join sspr_contract_position on sspr_contract_position.sspr_contract_id = sspr_contract.sspr_contract_id
+left join sspr_position on sspr_position.sspr_position_id = sspr_contract_position.sspr_position_id
+left join sspr_labor_regime on sspr_labor_regime.sspr_labor_regime_id = sspr_contract.sspr_labor_regime_id
+left join sspr_concept on sspr_concept.sspr_concept_id = sspr_settlementline.sspr_concept_id
+left join ad_org on ad_org.ad_org_id = sspr_settlement.ad_org_id
+left join ad_orginfo  on ad_orginfo.ad_org_id = ad_org.ad_org_id
+left join c_location on c_location.c_location_id = ad_orginfo.c_location_id
+where sspr_settlement.sspr_settlement_id = $P{sspr_settlement_id}
+and sspr_concept.conceptsubtype = 'In'
+and sspr_settlementline.display = 'Y'
+and sspr_settlementline.totalnet <> 0
+and sspr_contract_position.created = (SELECT MAX(cp.created) FROM sspr_contract_position cp WHERE cp.sspr_contract_id = sspr_contract.sspr_contract_id  AND cp.isactive = 'Y' )
+order by  sspr_concept.orderprint,sspr_concept.conceptsubtype, c_bpartner.name, sspr_concept.name]]>
+	</queryString>
+	<field name="organizationid" class="java.lang.String"/>
+	<field name="organizacion" class="java.lang.String"/>
+	<field name="codigo" class="java.lang.String"/>
+	<field name="nombreempleado" class="java.lang.String"/>
+	<field name="ci" class="java.lang.String"/>
+	<field name="gerencia" class="java.lang.String"/>
+	<field name="cargo" class="java.lang.String"/>
+	<field name="fechaentrada" class="java.lang.String"/>
+	<field name="fechasalida" class="java.lang.String"/>
+	<field name="fecha" class="java.lang.String"/>
+	<field name="motivorenuncia" class="java.lang.String"/>
+	<field name="regimenlaboral" class="java.lang.String"/>
+	<field name="tipoconcepto" class="java.lang.String"/>
+	<field name="nombreconcepto" class="java.lang.String"/>
+	<field name="amount" class="java.math.BigDecimal"/>
+	<field name="rmu" class="java.math.BigDecimal"/>
+	<field name="saldovacaciones" class="java.math.BigDecimal"/>
+	<variable name="SumAmount" class="java.math.BigDecimal" resetType="Group" resetGroup="TypeConcept" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount}]]></variableExpression>
+	</variable>
+	<variable name="SumSubtotal" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount}]]></variableExpression>
+	</variable>
+	<group name="TypeConcept">
+		<groupExpression><![CDATA[$F{tipoconcepto}]]></groupExpression>
+		<groupHeader>
+			<band height="31">
+				<textField>
+					<reportElement x="6" y="7" width="100" height="12"/>
+					<textElement>
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{tipoconcepto}]]></textFieldExpression>
+				</textField>
+				<line>
+					<reportElement x="6" y="20" width="80" height="1"/>
+				</line>
+				<line>
+					<reportElement x="6" y="22" width="80" height="1"/>
+				</line>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="25">
+				<line>
+					<reportElement x="209" y="10" width="62" height="1"/>
+				</line>
+				<staticText>
+					<reportElement x="83" y="13" width="30" height="12"/>
+					<textElement textAlignment="Left">
+						<font size="8" isBold="true"/>
+					</textElement>
+					<text><![CDATA[TOTAL ]]></text>
+				</staticText>
+				<textField pattern="#,##0.00;-#,##0.00">
+					<reportElement x="190" y="13" width="80" height="12"/>
+					<textElement textAlignment="Right">
+						<font size="8"/>
+					</textElement>
+					<textFieldExpression class="java.math.BigDecimal"><![CDATA[$V{SumAmount}]]></textFieldExpression>
+				</textField>
+				<textField>
+					<reportElement x="118" y="13" width="57" height="12"/>
+					<textElement>
+						<font size="8" isBold="true"/>
+					</textElement>
+					<textFieldExpression class="java.lang.String"><![CDATA[$F{tipoconcepto}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupFooter>
+	</group>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band splitType="Stretch"/>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="12" splitType="Stretch">
+			<textField>
+				<reportElement x="6" y="0" width="180" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nombreconcepto}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00">
+				<reportElement x="190" y="0" width="82" height="12"/>
+				<textElement textAlignment="Right">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+	<lastPageFooter>
+		<band/>
+	</lastPageFooter>
+	<summary>
+		<band splitType="Stretch"/>
+	</summary>
+	<noData>
+		<band height="23">
+			<line>
+				<reportElement x="6" y="22" width="80" height="1"/>
+			</line>
+			<staticText>
+				<reportElement x="6" y="7" width="100" height="12"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[INGRESOS]]></text>
+			</staticText>
+			<line>
+				<reportElement x="6" y="20" width="80" height="1"/>
+			</line>
+		</band>
+	</noData>
+</jasperReport>

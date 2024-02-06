@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="Rpt_Account_Statement_Receivable" pageWidth="1550" pageHeight="595" orientation="Landscape" whenNoDataType="BlankPage" columnWidth="1510" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="1c0f7fb0-b50b-4501-9144-93a132860e5f">
+	<property name="ireport.zoom" value="1.607691607500001"/>
+	<property name="ireport.x" value="1001"/>
+	<property name="ireport.y" value="0"/>
+	<property name="net.sf.jasperreports.export.xls.detect.cell.type" value="true"/>
+	<parameter name="NUMBERFORMAT" class="java.text.DecimalFormat" isForPrompting="false">
+		<defaultValueExpression><![CDATA[new DecimalFormat("###,##0.00;-###,##0.00", new DecimalFormatSymbols())]]></defaultValueExpression>
+	</parameter>
+	<parameter name="NUMBERDECIMAL" class="java.lang.Integer" isForPrompting="false">
+		<defaultValueExpression><![CDATA[2]]></defaultValueExpression>
+	</parameter>
+	<parameter name="DateTo" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_BPartner_ID" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="Posted" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<queryString>
+		<![CDATA[select to_char($P{DateTo}::date,'dd/MM/yyyy') as fhasta
+,to_char(v.documentdate::date,'dd/MM/yyyy') as fecha_documento
+,v.*
+, TO_CHAR(now(),'dd/MM/yyyy HH24:MI:SS') "fecha_impresion"
+, COALESCE(s.recibido, 0) recibido
+, (v.grandtotal - COALESCE(s.recibido, 0)) pendiente
+, CASE
+	WHEN ROUND(v.grandtotal - s.recibido, 2) = 0 THEN 'PAGADO'
+	ELSE 'PENDIENTE'
+END estado
+
+from ssfi_acct_receivab_payab_v v
+
+LEFT JOIN
+(SELECT
+    i.c_invoice_id
+    , SUM(psd.amount) recibido
+FROM c_invoice i
+    JOIN fin_payment_schedule ps ON ps.c_invoice_id=i.c_invoice_id
+    JOIN fin_payment_scheduledetail psd ON psd.fin_payment_schedule_invoice=ps.fin_payment_schedule_id
+    JOIN fin_payment_detail pd ON pd.fin_payment_detail_id=psd.fin_payment_detail_id
+    JOIN fin_payment p ON p.fin_payment_id=pd.fin_payment_id
+WHERE issotrx='N' AND docstatus='CO'
+    AND p.paymentdate<=$P{DateTo}
+GROUP BY i.c_invoice_id) s
+ON s.c_invoice_id=v.c_invoice_id
+
+where --outstanding <> 0 and
+(posted = $P{Posted} or $P{Posted} is null) and
+doc_type = 'Anticipo Proveedor' and
+dateacct <= $P{DateTo} and
+(c_bpartner_id = $P{C_BPartner_ID} or $P{C_BPartner_ID} is null)
+order by bpartner_name,invoice]]>
+	</queryString>
+	<field name="fhasta" class="java.lang.String"/>
+	<field name="fecha_documento" class="java.lang.String"/>
+	<field name="doc_code" class="java.lang.String"/>
+	<field name="doc_type" class="java.lang.String"/>
+	<field name="bpartner_name" class="java.lang.String"/>
+	<field name="invoice" class="java.lang.String"/>
+	<field name="applied" class="java.lang.String"/>
+	<field name="documentdate" class="java.sql.Timestamp"/>
+	<field name="dateacct" class="java.sql.Timestamp"/>
+	<field name="poreference" class="java.lang.String"/>
+	<field name="description" class="java.lang.String"/>
+	<field name="duedate" class="java.sql.Timestamp"/>
+	<field name="grandtotal" class="java.math.BigDecimal"/>
+	<field name="grandtotalconverted" class="java.math.BigDecimal"/>
+	<field name="doctype" class="java.lang.String"/>
+	<field name="costcenter" class="java.lang.String"/>
+	<field name="isclient" class="java.lang.String"/>
+	<field name="posted" class="java.lang.String"/>
+	<field name="c_bpartner_id" class="java.lang.String"/>
+	<field name="fin_payment_id" class="java.lang.String"/>
+	<field name="c_currency_id" class="java.lang.String"/>
+	<field name="ad_client_id" class="java.lang.String"/>
+	<field name="ad_org_id" class="java.lang.String"/>
+	<field name="c_invoice_id" class="java.lang.String"/>
+	<field name="em_sswh_withholdingref" class="java.lang.String"/>
+	<field name="em_sswh_totalwithholdingincome" class="java.math.BigDecimal"/>
+	<field name="em_sswh_totalwithholdingvat" class="java.math.BigDecimal"/>
+	<field name="u1_name" class="java.lang.String"/>
+	<field name="user1_id" class="java.lang.String"/>
+	<field name="received" class="java.math.BigDecimal"/>
+	<field name="outstanding" class="java.math.BigDecimal"/>
+	<field name="cif_nif" class="java.lang.String"/>
+	<field name="status_doc" class="java.lang.String"/>
+	<field name="concept" class="java.lang.String"/>
+	<field name="value_advanced" class="java.math.BigDecimal"/>
+	<field name="no_duedate" class="java.math.BigDecimal"/>
+	<field name="nota_credito" class="java.lang.String"/>
+	<field name="fecha_impresion" class="java.lang.String"/>
+	<field name="recibido" class="java.math.BigDecimal"/>
+	<field name="pendiente" class="java.math.BigDecimal"/>
+	<field name="estado" class="java.lang.String"/>
+	<variable name="V_Total_Valor" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{grandtotal}]]></variableExpression>
+	</variable>
+	<variable name="V_Total_Pagado" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{recibido}]]></variableExpression>
+	</variable>
+	<variable name="V_Total_Saldo" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{pendiente}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="47" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-10" x="181" y="0" width="1148" height="32" uuid="fdaa5a02-b8c5-49b4-a202-e85f129b31e0"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="12" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Estado de Anticipo Proveedores]]></text>
+			</staticText>
+			<textField pattern="yyyy/MM/dd">
+				<reportElement x="181" y="32" width="1148" height="15" uuid="1449cf17-24c3-4c6a-9617-87bbcec0e0a4"/>
+				<textElement textAlignment="Center"/>
+				<textFieldExpression><![CDATA["AL "+$F{fhasta}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1329" y="0" width="181" height="47" uuid="667b8fe7-3c8e-4bb5-9cd5-ec6188b37910"/>
+				<textElement markup="html">
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression><![CDATA["<b>Fecha de Impresión: </b><br>"+$F{fecha_impresion}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="22" splitType="Stretch">
+			<staticText>
+				<reportElement key="staticText-12" x="0" y="0" width="71" height="22" uuid="07d6a570-9228-423b-92d1-a32697b159df"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[FECHA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-2" x="271" y="0" width="302" height="22" uuid="822f8524-4224-4ba0-9a6c-38e479e8021c"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[PROVEEDOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-3" x="71" y="0" width="110" height="22" uuid="cad73fec-39f7-4851-84ed-6992cb9459dc"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[# DOCUMENTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-4" x="181" y="0" width="90" height="22" uuid="645e6509-4678-4ee6-b9d7-65123d7ae9d0"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[RUC./CÉDULA]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-5" x="573" y="0" width="180" height="22" uuid="04efb69d-b44f-403b-a054-42ea159a992e"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[PROYECTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-7" x="1079" y="0" width="73" height="22" uuid="7544a6dd-9f47-4d45-a7ee-0daa1fea3c38"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[SALDO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-8" x="933" y="0" width="73" height="22" uuid="495f31ce-ec65-494b-889c-a589cf2c8362"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-11" x="753" y="0" width="180" height="22" uuid="66a834d3-0d02-40f5-9b64-c03969e1a918"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[SUB-PROYECTO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1152" y="0" width="106" height="22" uuid="82fb4bd2-99da-4585-8595-22db293754fa"/>
+				<box leftPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[ ESTADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-8" x="1006" y="0" width="73" height="22" uuid="e4507190-eeb5-4f76-8ca5-a0d17a291b2a"/>
+				<box>
+					<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+					<bottomPen lineWidth="0.0" lineColor="#000000"/>
+					<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
+				</box>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[PAGADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement key="staticText-13" x="1258" y="0" width="252" height="22" uuid="3abb8d99-6865-420f-8150-243338fb1044"/>
+				<box leftPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10" isBold="true" pdfFontName="Helvetica-Bold"/>
+				</textElement>
+				<text><![CDATA[CONCEPTO]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField isStretchWithOverflow="true" pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="0" y="0" width="71" height="20" isPrintWhenDetailOverflows="true" uuid="1bdc0555-42f6-45a9-b51b-4954428240a5"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{fecha_documento}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="71" y="0" width="110" height="20" isPrintWhenDetailOverflows="true" uuid="8a9aacc1-b2d9-4cb4-bf77-82c44e62f5e8"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{invoice}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="181" y="0" width="90" height="20" isPrintWhenDetailOverflows="true" uuid="aadbb0a0-695a-4014-ae2b-826caa69d027"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{cif_nif}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="271" y="0" width="302" height="20" isPrintWhenDetailOverflows="true" uuid="0b208a1c-516e-432a-8724-4a78617e64d0"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{bpartner_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="573" y="0" width="180" height="20" isPrintWhenDetailOverflows="true" uuid="5b4f19e0-778d-43dd-8334-bc232f99b8d3"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{costcenter}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="753" y="0" width="180" height="20" isPrintWhenDetailOverflows="true" uuid="854f9a3e-6d9a-4fff-a19a-bd1e29d59732"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{u1_name}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1006" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="8367f0cf-fcbf-4219-aa85-7de664b97230"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{recibido}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1079" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="d3213c99-2319-4e5a-9560-aa6fd5f09a6f"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{pendiente}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" pattern="" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="933" y="0" width="73" height="20" isPrintWhenDetailOverflows="true" uuid="77fc26ce-68c2-4578-a388-9552031a89f8"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{grandtotal}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1152" y="0" width="106" height="20" isPrintWhenDetailOverflows="true" uuid="e25fc575-4374-4e69-abe5-c7dcc3017ab2"/>
+				<box leftPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{estado}]]></textFieldExpression>
+			</textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true">
+				<reportElement stretchType="RelativeToBandHeight" x="1258" y="0" width="252" height="20" isPrintWhenDetailOverflows="true" uuid="f2b502fe-f22d-4d16-a9cf-3b5f338dbcb9"/>
+				<box leftPadding="2"/>
+				<textElement verticalAlignment="Middle">
+					<font size="10"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{concept}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<summary>
+		<band height="20" splitType="Stretch">
+			<textField pattern="">
+				<reportElement x="933" y="0" width="73" height="20" uuid="b1de79a9-176f-4751-8158-bbb60ab3c2e1"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Valor}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="1006" y="0" width="73" height="20" uuid="f76d6fc7-d6c8-4b77-8478-6ce090936331"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Pagado}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+			<textField pattern="">
+				<reportElement x="1079" y="0" width="73" height="20" uuid="4298f80a-8b46-4395-8247-1ae5c28c12fb"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$V{V_Total_Saldo}]]></textFieldExpression>
+				<patternExpression><![CDATA[$P{NUMBERFORMAT}.toPattern()]]></patternExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

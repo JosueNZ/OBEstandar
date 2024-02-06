@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_RECEIPT_TAX_TRG">
+    <trigger name="SSWH_RECEIPT_TAX_TRG" table="SSWH_RECEIPT_TAX" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[
+  v_processed  VARCHAR2(32); 
+  v_processing CHARACTER(1);
+ 
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF; 
+
+  IF (INSERTING) THEN
+
+    SELECT processed, processing INTO v_processed, v_processing
+    FROM SSWH_RECEIPT
+    WHERE sswh_receipt_id = :new.sswh_receipt_id;
+
+  ELSIF (UPDATING OR DELETING) THEN
+
+    SELECT processed, processing INTO v_processed, v_processing
+    FROM SSWH_RECEIPT
+    WHERE sswh_receipt_id = :old.sswh_receipt_id;    
+
+  END IF;    
+
+  IF (v_processed = 'Y' AND v_processing = 'N') THEN
+
+    RAISE_APPLICATION_ERROR(-20000, '@20501@');
+
+  END IF;  
+
+  END SSWH_RECEIPT_TAX_TRG
+]]></body>
+    </trigger>
+  </database>

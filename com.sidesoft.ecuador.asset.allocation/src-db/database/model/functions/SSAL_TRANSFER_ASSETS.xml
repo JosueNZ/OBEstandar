@@ -1,0 +1,167 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAL_TRANSFER_ASSETS">
+    <function name="SSAL_TRANSFER_ASSETS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+  CUR_ACTIVE RECORD;
+  Cur_Concept RECORD;
+  Cur_Validar0 RECORD;
+  CUR_PROCESSPAYROOLL RECORD;
+
+  v_Client_ID VARCHAR2(32);
+  v_Org_ID VARCHAR2(32);
+  v_User_ID VARCHAR2(32) ;
+  
+  v_ResultStr VARCHAR2(2000) := '';
+  V_ASSET_RETURN_ID VARCHAR2(32);
+  v_Processed VARCHAR2(60);
+  v_Ticket_ID VARCHAR2(32); 
+  v_Period_ID VARCHAR2(32);   
+  v_Concept_ID VARCHAR2(32);
+  V_BPARTNER_ID VARCHAR2(60);
+  v_payroll_type VARCHAR2(32);   
+  
+  v_n_insertions NUMBER;
+  v_Message VARCHAR2(2000):='';
+
+  --
+  V_ENDDATE DATE;
+  V_CUSTODIAN_ID VARCHAR2(32);   
+  V_DOCTYPE_RET_ID VARCHAR2(32);   
+  V_DOCUMENTNO_RET VARCHAR2(60);   
+  v_sequence_id VARCHAR2(32);   
+  v_documento_jb NUMBER;
+  v_doctype_id VARCHAR2(32);   
+
+  
+BEGIN
+  --  Update AD_PInstance
+  DBMS_OUTPUT.PUT_LINE('Updating PInstance - Processing ' || PInstance_ID) ;
+  v_ResultStr := 'PInstanceNotFound';
+  AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'Y', NULL, NULL) ;
+
+  BEGIN --BODY
+
+    -- Get Parameters
+    v_ResultStr := 'ReadingParameters';
+    v_n_insertions := 0;
+    
+    FOR Cur_Parameter IN
+      (SELECT i.Record_ID,
+        i.AD_User_ID, 
+        i.AD_Client_ID,
+        i.AD_Org_ID                    
+      FROM AD_PInstance i      
+      WHERE i.AD_PInstance_ID = PInstance_ID      
+      )
+    LOOP
+
+      V_ASSET_RETURN_ID := Cur_Parameter.Record_ID;	  
+     /* v_Client_ID := Cur_Parameter.AD_Client_ID;
+      v_Org_ID := Cur_Parameter.AD_Org_ID;
+      v_User_ID := Cur_Parameter.AD_User_ID;  */   
+      
+    END LOOP; -- Get Parameter
+
+    --OBTENGO DATOS GENERALES 
+    SELECT AD_CLIENT_ID INTO v_Client_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT AD_ORG_ID INTO v_Org_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT CREATEDBY INTO v_User_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT C_BPARTNER_ID INTO V_BPARTNER_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT ENDDATE INTO V_ENDDATE FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT C_CUSTODIAN_ID INTO V_CUSTODIAN_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT C_DOCTYPE_ID INTO V_DOCTYPE_RET_ID FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+    SELECT DOCUMENTNO INTO V_DOCUMENTNO_RET FROM SSAL_ASSET_RETURN WHERE SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID;
+
+
+
+    
+    --OBTENGO DATOS DEL ACTIVO
+    FOR CUR_ACTIVE IN 
+    (
+	SELECT A.SSAL_APPL_ACTIVE_ID, A.ssal_building_id, A.ssal_unit_id, A.ssal_department_id, A.c_costcenter_id, A.user1_id, A.user2_id
+	,B.A_ASSET_ID,B.A_ASSET_GROUP_ID
+	FROM ssal_asset_returnline A
+	LEFT JOIN SSAL_APPL_ACTIVE B ON A.SSAL_APPL_ACTIVE_ID = B.SSAL_APPL_ACTIVE_ID
+	JOIN SSAL_ACTIVE_MAIN SAM ON SAM.SSAL_ACTIVE_MAIN_id = b.SSAL_ACTIVE_MAIN_ID
+	WHERE A.ISACTIVE = 'Y' AND TRANFER='Y' AND A.SSAL_ASSET_RETURN_ID = V_ASSET_RETURN_ID
+    )
+    
+    LOOP
+
+      --CADUCO LOS ACTIVO PARA LA TRANFERENCIA
+      UPDATE SSAL_APPL_ACTIVE SET ENDDATE = V_ENDDATE , DATE_RETURN = V_ENDDATE , IS_RETURN ='Y',
+      c_doctype_id_return = V_DOCTYPE_RET_ID, documentno_return = V_DOCUMENTNO_RET 
+      WHERE SSAL_APPL_ACTIVE_ID = CUR_ACTIVE.SSAL_APPL_ACTIVE_ID;
+      --OBTENGO SECUENCIA DEL TIPO DE DOCUMENTO PARA REGISTRO ACTIVO
+    SELECT COALESCE(TO_NUMBER((select currentnext from c_doctype a 
+      left join ad_sequence b on a.docnosequence_id = b.ad_sequence_id where ad_table_id  ='E9FC518A39C64655BADA0C0F4830D834' and docbasetype ='SSAL_FIXED')),0)
+      INTO v_documento_jb
+      FROM DUAL;
+
+
+      SELECT COALESCE(TO_CHAR((select b.ad_sequence_id from c_doctype a 
+      left join ad_sequence b on a.docnosequence_id = b.ad_sequence_id where ad_table_id  ='E9FC518A39C64655BADA0C0F4830D834' and docbasetype ='SSAL_FIXED')),null)
+      INTO v_sequence_id
+      FROM DUAL;
+            	
+      SELECT COALESCE(TO_CHAR((select c_doctype_id from c_doctype a 
+      left join ad_sequence b on a.docnosequence_id = b.ad_sequence_id where ad_table_id  ='E9FC518A39C64655BADA0C0F4830D834' and docbasetype ='SSAL_FIXED')),null)
+      INTO v_doctype_id
+      FROM DUAL;
+
+      IF (v_doctype_id is null or v_documento_jb=0 or v_sequence_id is null or v_doctype_id = '' or v_sequence_id = '') THEN
+
+      		RAISE_APPLICATION_ERROR(-20000, '@ERROR=No existe Tipo de Documento configurado para la tabla Ssal_Appl_Active');
+
+      END IF;
+
+
+      --ACTUALIZPO SECUENCIAL
+      update ad_sequence set currentnext = to_number(v_documento_jb)+1 where ad_sequence_id =v_sequence_id;
+
+      --select *from ssal_appl_active
+      INSERT INTO ssal_appl_active(
+            ssal_appl_active_id,ad_client_id, ad_org_id, created, createdby, updated, updatedby, isactive, 
+            c_doctype_id, c_costcenter_id, 
+            user1_id, user2_id, c_bpartner_id, date_application, 
+            documentno, approved, 
+            processed, ssal_building_id, ssal_unit_id, 
+            ssal_department_id, state, a_asset_id, a_asset_group_id, 
+            date_transaction, a_asset_cod_id, 
+            is_return, 
+            startdate, c_custodian_id)
+      VALUES (GET_UUID(), v_Client_ID, v_Org_ID, now(), v_User_ID, now(), v_User_ID, 'Y',
+            v_doctype_id, CUR_ACTIVE.c_costcenter_id,
+            CUR_ACTIVE.user1_id, CUR_ACTIVE.user1_id, V_CUSTODIAN_ID, V_ENDDATE, 
+            v_documento_jb, 'Y', 
+            'Y', CUR_ACTIVE.ssal_building_id, CUR_ACTIVE.ssal_unit_id, 
+            CUR_ACTIVE.ssal_department_id, '3', CUR_ACTIVE.A_ASSET_ID, CUR_ACTIVE.A_ASSET_GROUP_ID, 
+            V_ENDDATE, CUR_ACTIVE.A_ASSET_ID, 
+            'N', 
+            V_ENDDATE, V_CUSTODIAN_ID);  
+
+       v_n_insertions := v_n_insertions +1;
+    END LOOP;
+
+    
+    v_Message := '@RowsInserted@: ' || v_n_insertions || '.';
+    DBMS_OUTPUT.PUT_LINE('Updating PInstance - Finished ' || v_Message) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message) ;
+    RETURN;
+    
+  END; --BODY
+  EXCEPTION
+  WHEN OTHERS THEN
+    v_ResultStr:= '@ERROR=' || SQLERRM;
+
+    DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+    AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 0, v_ResultStr) ;
+    RETURN;
+END SSAL_TRANSFER_ASSETS
+]]></body>
+    </function>
+  </database>

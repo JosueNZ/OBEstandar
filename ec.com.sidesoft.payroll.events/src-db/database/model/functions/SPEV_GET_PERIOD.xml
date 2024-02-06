@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPEV_GET_PERIOD">
+    <function name="SPEV_GET_PERIOD" type="VARCHAR">
+      <parameter name="p_date_invoice" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_spev_function" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[V_LANGUAGE VARCHAR2(5);		--OBTG:VARCHAR2--
+V_DATE DATE;			
+V_NUMMOTH NUMBER;			--OBTG:NUMBER--
+V_MOTNHL VARCHAR2(15);		--OBTG:VARCHAR2--
+V_Start_DAY NUMBER;			--OBTG:NUMBER--
+V_YEAR VARCHAR2(5);		--OBTG:VARCHAR2--
+V_RESULT VARCHAR2(32);		--OBTG:VARCHAR2--
+
+BEGIN
+
+--Recupero SOLO la fecha inicio y le resto 1 para encontrar la fecha fin.
+SELECT start_day-1
+INTO V_Start_DAY
+from spev_config_news  where  TRIM(function)  = TRIM(p_spev_function);
+
+SELECT  
+	c_period_id
+INTO	V_RESULT
+FROM c_period cp
+	JOIN  
+		(
+		SELECT 
+			startdate + V_Start_DAY as fechainicio
+			,TO_DATE(CASE 
+					WHEN to_number(to_char(startdate,'MM'))=12 THEN 
+						(to_char(V_Start_DAY)||'-01-' || to_char(to_number(to_char(startdate,'yyyy'))+1) )
+					ELSE 
+						( to_char(V_Start_DAY)||'-' || (CASE 
+
+								WHEN to_number(to_char(startdate,'MM'))<12 THEN 
+									'0' || to_char(to_number(to_char(startdate,'MM'))+1) 	
+								ELSE to_char(startdate,'MM') 
+							END)|| '-' || to_char(to_number(to_char(startdate,'yyyy'))) 
+						)
+				END)
+			AS fechafinnomina
+		FROM c_period 
+		) rep ON rep.fechafinnomina BETWEEN cp.startdate AND cp.enddate
+WHERE p_date_invoice between  fechainicio  and fechafinnomina;
+
+  RETURN V_RESULT;
+END SPEV_GET_PERIOD
+]]></body>
+    </function>
+  </database>

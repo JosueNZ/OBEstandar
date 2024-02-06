@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION CSLRNP_EXECUTE_SQL">
+    <function name="CSLRNP_EXECUTE_SQL" type="VARCHAR">
+      <parameter name="p_language" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_startdate" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_enddate" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_process" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[v_strStartDate VARCHAR(10);
+  v_strendDate  VARCHAR(10);
+  v_SqlText VARCHAR2(4000);
+
+    --  Parameter
+  TYPE RECORD IS REF CURSOR;
+    Cur_Parametersql RECORD;
+  v_processID VARCHAR(32);
+
+    V_ORG  VARCHAR(100);
+    v_Language VARCHAR(32);
+    v_Client VARCHAR(32);
+    
+BEGIN
+
+
+
+v_processID:=p_process;
+
+v_strStartDate:= p_startdate;
+v_strendDate:= p_enddate;
+
+v_Language:= p_language;
+
+v_Client:= p_client;
+
+FOR Cur_Parametersql in(
+	select replace(replace(replace(replace(replace(script,':process',v_processID),'AND 1=1',( case when v_strStartDate is not null then TO_CHAR('AND DATEACCT >= TO_DATE(''' || v_strStartDate  || ''')') ELSE TO_CHAR('AND 1=1') END)
+	), 'AND 1=1', ( case when v_strendDate is not null then TO_CHAR('AND DATEACCT  <= TO_DATE(''' || v_strendDate  || ''')') ELSE TO_CHAR('AND 1=1') END)
+	),':plang' , v_Language),
+	':pclient',v_Client ) AS sqlscript
+    from cslrnp_sql_trx_notposted where isactive ='Y'
+)LOOP
+
+	v_SqlText:= (Cur_Parametersql.sqlscript);
+
+	EXECUTE IMMEDIATE v_SqlText;
+END LOOP;
+
+RETURN TO_CHAR('ok');
+END CSLRNP_EXECUTE_SQL
+]]></body>
+    </function>
+  </database>

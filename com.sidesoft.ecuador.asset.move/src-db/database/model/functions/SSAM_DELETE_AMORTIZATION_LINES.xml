@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSAM_DELETE_AMORTIZATION_LINES">
+    <function name="SSAM_DELETE_AMORTIZATION_LINES" type="NULL">
+      <parameter name="p_startdateson" type="TIMESTAMP" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_parent_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+Cur_Parameter RECORD;  
+
+BEGIN
+
+
+	FOR Cur_Parameter IN
+	(SELECT  
+AL.A_AMORTIZATIONLINE_ID
+ FROM A_AMORTIZATIONLINE AL
+INNER JOIN A_AMORTIZATION AM ON AL.A_AMORTIZATION_ID = AM.A_AMORTIZATION_ID
+WHERE (AM.STARTDATE >= p_startdateson OR (AM.STARTDATE <= p_startdateson AND AM.dateacct>= p_startdateson )) AND AL.A_ASSET_ID=  p_parent_id
+	)
+	LOOP
+		DELETE FROM A_AMORTIZATIONLINE AL2 WHERE AL2.A_AMORTIZATIONLINE_ID= Cur_Parameter.A_AMORTIZATIONLINE_ID; 
+		 
+	END LOOP;
+
+EXCEPTION
+WHEN OTHERS THEN
+  RAISE;
+END SSAM_DELETE_AMORTIZATION_LINES
+]]></body>
+    </function>
+  </database>

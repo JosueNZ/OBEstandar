@@ -1,0 +1,157 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPR_SETTL_ADD_PAYROLL">
+    <function name="SSPR_SETTL_ADD_PAYROLL" type="NUMERIC">
+      <parameter name="p_sspr_settlement_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_user_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_client_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_org_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_sspr_payroll_id_normal" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_c_bpartner_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <parameter name="p_status_payroll" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*************************************************************************
+* The contents of this file are subject to the Openbravo  Public  License
+* Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+* Version 1.1  with a permitted attribution clause; you may not  use this
+* file except in compliance with the License. You  may  obtain  a copy of
+* the License at http://www.openbravo.com/legal/license.html
+* Software distributed under the License  is  distributed  on  an "AS IS"
+* basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+* License for the specific  language  governing  rights  and  limitations
+* under the License.
+* The Original Code is Openbravo ERP.
+* The Initial Developer of the Original Code is Openbravo SLU
+* All portions are Copyright (C) 2010-2012 Openbravo SLU
+* All Rights Reserved.
+* Contributor(s):  ______________________________________.
+************************************************************************/
+  TYPE RECORD IS REF CURSOR;
+    Cur_payroll RECORD;
+  -- Logistice
+  v_conceptsubtype VARCHAR2(60);
+  v_amount_conceptsubtype NUMBER:=0 ;
+  v_line NUMBER:=0 ;
+  v_n_insertions NUMBER:=0 ;
+  v_ResultStr VARCHAR2(2000):='';
+
+/*
+  FINISH_PROCESS BOOLEAN:=false;
+  
+  v_ResultStr VARCHAR2(2000):='';
+  v_Message VARCHAR2(2000):='';
+  v_Result NUMBER:=1; -- 0=failure
+  v_IsSummary C_TAX.ISSUMMARY%TYPE;
+  v_Cascade C_TAX.CASCADE%TYPE;
+  v_TaxBaseAmount NUMBER;
+  v_BaseAmount C_TAX.BASEAMOUNT%TYPE;
+  v_AlreadyExists NUMBER;
+  v_C_TaxBase_ID C_TAX.C_TAXBASE_ID%TYPE;
+  v_LineNet NUMBER;
+  v_AlternateTaxBaseAmt NUMBER;
+  v_LineNo C_INVOICETAX.LINE%TYPE;
+  v_Rate C_TAX.RATE%TYPE;
+  v_Client_ID VARCHAR2(32) ;
+  v_istaxincluded CHAR(1);
+*/
+BEGIN --BODY
+
+  --INSERTO LINEAS CONCEPTOS ROL DE LIQUIDACIONES NORMAL
+  IF(p_sspr_payroll_id_normal IS NOT NULL) THEN
+    
+    IF (p_sspr_settlement_id IS NOT NULL) THEN
+      SELECT max(sl.line)
+      INTO v_line
+      FROM sspr_settlementline sl
+      WHERE sl.sspr_settlement_id = p_sspr_settlement_id;
+    ELSE
+      RAISE_APPLICATION_ERROR(-20000,'@SSPR_NoSettlement@');
+    END IF;
+      
+    v_line := coalesce(v_line, 0) + 10;
+    v_n_insertions := 0;
+          
+    FOR Cur_payroll IN(
+      select sspr_payroll_ticket_concept.amount,sspr_payroll_ticket_concept.sspr_concept_id, sspr_payroll.sspr_payroll_id,sspr_concept.conceptsubtype,
+      sspr_concept.isincomecalculated,sspr_concept.iscumulative,sspr_concept.isprojected,sspr_concept.isiess
+      from sspr_payroll
+      left join sspr_payroll_ticket on sspr_payroll_ticket.sspr_payroll_id = sspr_payroll.sspr_payroll_id
+      left join sspr_payroll_ticket_concept on sspr_payroll_ticket_concept.sspr_payroll_ticket_id = sspr_payroll_ticket.sspr_payroll_ticket_id
+      left join sspr_concept on sspr_concept.sspr_concept_id = sspr_payroll_ticket_concept.sspr_concept_id
+      where sspr_payroll.sspr_payroll_id = p_sspr_payroll_id_normal 
+            and sspr_payroll_ticket.c_bpartner_id = p_c_bpartner_id
+    )
+    LOOP
+    
+      v_conceptsubtype := Cur_payroll.conceptsubtype;
+            
+      IF (v_conceptsubtype = 'In') THEN
+        v_amount_conceptsubtype:=Cur_payroll.amount;
+      ELSE
+        v_amount_conceptsubtype:=Cur_payroll.amount * -1;
+      END IF;
+
+      If(p_status_payroll = 'PA')Then
+
+        INSERT INTO sspr_settlementdata
+            (sspr_settlementdata_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, CreatedBy, 
+            Updated, UpdatedBy, line, sspr_concept_id, amount, qty, totalnet, sspr_payroll_id,
+            isincomecalculated, iscumulative, isprojected, isiess, display)
+        VALUES (get_uuid(), p_sspr_settlement_id, p_client_id, p_Org_ID,'Y', now(), p_user_id, now(), 
+          p_user_id, v_line, Cur_payroll.sspr_concept_id, v_amount_conceptsubtype, 1, v_amount_conceptsubtype,
+          Cur_payroll.sspr_payroll_id,
+          Cur_payroll.isincomecalculated, Cur_payroll.iscumulative, Cur_payroll.isprojected, Cur_payroll.isiess,
+         case when Cur_payroll.amount > 0 or Cur_payroll.amount < 0 Then 'Y' 
+		when Cur_payroll.amount = 0 Then 'N' end);
+    						
+        v_n_insertions := v_n_insertions + 1;
+        v_line := v_line + 10;
+
+      End If;
+
+      If(p_status_payroll = 'PE')Then
+    					
+        INSERT INTO sspr_settlementline
+            (sspr_settlementline_id, sspr_settlement_id, AD_Client_ID, AD_Org_ID, IsActive, Created, CreatedBy, 
+            Updated, UpdatedBy, line, sspr_concept_id, amount, qty, totalnet, sspr_payroll_id,
+            isincomecalculated, iscumulative, isprojected, isiess, display)
+        VALUES (get_uuid(), p_sspr_settlement_id, p_client_id, p_org_id,'Y', now(), p_user_id, now(), 
+          p_user_id, v_line, Cur_payroll.sspr_concept_id, v_amount_conceptsubtype, 1, v_amount_conceptsubtype,
+          Cur_payroll.sspr_payroll_id,
+          Cur_payroll.isincomecalculated, Cur_payroll.iscumulative, Cur_payroll.isprojected, Cur_payroll.isiess,
+         case when Cur_payroll.amount > 0 or Cur_payroll.amount < 0 Then 'Y' 
+		when Cur_payroll.amount = 0 Then 'N' end);
+                
+        v_n_insertions := v_n_insertions + 1;
+        v_line := v_line + 10;
+
+      End If;
+  			
+    END LOOP;
+    
+  END IF; 
+
+  RETURN v_n_insertions;
+  
+EXCEPTION
+WHEN OTHERS THEN
+  v_ResultStr:= '@ERROR=' || SQLERRM;
+  DBMS_OUTPUT.PUT_LINE(v_ResultStr) ;
+  --ROLLBACK;
+  RAISE;
+END SSPR_SETTL_ADD_PAYROLL
+]]></body>
+    </function>
+  </database>

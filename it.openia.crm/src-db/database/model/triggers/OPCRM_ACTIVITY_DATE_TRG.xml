@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_ACTIVITY_DATE_TRG">
+    <trigger name="OPCRM_ACTIVITY_DATE_TRG" table="OPCRM_ACTIVITY" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF INSERTING THEN
+
+      -- In futuro dovrà essere tolto il seguente IF.
+      -- E' un modo poco ortodosso per ricostruire l'identifier di ad_user in caso esistano già dei leads da versioni precedenti alla 1.0.32
+      IF (SELECT count(*) <= 0 FROM ad_user WHERE ad_client_id = :NEW.ad_client_id AND em_opcrm_computednames IS NOT NULL) THEN  
+        UPDATE ad_user
+      SET em_opcrm_computednames = CASE WHEN em_opcrm_commercialname IS NULL 
+                                           THEN ((COALESCE(firstname, ''::character varying)::text || ' '::text) || COALESCE(lastname, ''::character varying)::text)::character varying
+                                           ELSE ((((COALESCE(firstname, ''::character varying)::text || ' '::text) || (COALESCE(lastname, ''::character varying)::text || ' '::text)) || '- '::text) || em_opcrm_commercialname::text)::character varying
+                                  END;
+      END IF;
+  
+      IF (:NEW.start_hour >= 0 AND :NEW.start_hour <= 24 AND :NEW.start_minute >= 0 AND :NEW.start_minute <= 60) THEN
+          
+          :NEW.activity_startdate := TO_TIMESTAMP( TO_CHAR(:NEW.activity_startdate,'YYYY-MM-DD')||' '|| 
+                                             TO_CHAR(:NEW.start_hour)||':'||
+                                             TO_CHAR(:NEW.start_minute),'YYYY-MM-DD HH24:MI');  
+     END IF;
+     :NEW.activity_due_date := :NEW.activity_startdate + :NEW.duration_hours * interval '1 hour' + :NEW.duration_minutes * interval '1 min';       
+  ELSIF UPDATING THEN
+
+      -- In futuro dovrà essere tolto il seguente IF.
+      -- E' un modo poco ortodosso per ricostruire l'identifier di ad_user in caso esistano già dei leads da versioni precedenti alla 1.0.32
+      IF (SELECT count(*) <= 0 FROM ad_user WHERE ad_client_id = :NEW.ad_client_id AND em_opcrm_computednames IS NOT NULL) THEN  
+        UPDATE ad_user
+      SET em_opcrm_computednames = CASE WHEN em_opcrm_commercialname IS NULL 
+                                           THEN ((COALESCE(firstname, ''::character varying)::text || ' '::text) || COALESCE(lastname, ''::character varying)::text)::character varying
+                                           ELSE ((((COALESCE(firstname, ''::character varying)::text || ' '::text) || (COALESCE(lastname, ''::character varying)::text || ' '::text)) || '- '::text) || em_opcrm_commercialname::text)::character varying
+                                  END;
+      END IF;
+  
+      IF (:NEW.start_hour >= 0 AND :NEW.start_hour <= 24 AND :NEW.start_minute >= 0 AND :NEW.start_minute <= 60) THEN
+         
+         :NEW.activity_startdate := TO_TIMESTAMP( TO_CHAR(:NEW.activity_startdate,'YYYY-MM-DD')||' '|| 
+                                             TO_CHAR(:NEW.start_hour)||':'||
+                                             TO_CHAR(:NEW.start_minute),'YYYY-MM-DD HH24:MI'); 
+          
+      END IF;
+      :NEW.activity_due_date := :NEW.activity_startdate + :NEW.duration_hours * interval '1 hour' + :NEW.duration_minutes * interval '1 min'; 
+  ELSIF DELETING THEN
+  END IF;
+ 
+ 
+  END OPCRM_ACTIVITY_DATE_TRG
+]]></body>
+    </trigger>
+  </database>

@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSPR_LIQUIDATION_CONTRACT_TRG">
+    <trigger name="SSPR_LIQUIDATION_CONTRACT_TRG" table="C_BPARTNER" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+ TYPE RECORD IS REF CURSOR;
+   Cur_employee RECORD;
+
+  v_spr_contract_id_old VARCHAR2(32);
+  v_startdate_new DATE;
+  v_count NUMBER:=0;
+  v_statusliquidation VARCHAR2(32);
+  v_flat NUMBER;
+  
+
+
+  BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+	
+  IF (UPDATING) THEN
+
+	If (:new.em_sspr_status = 'A' and :new.isemployee = 'Y' AND :old.em_sspr_entrydate = :new.em_sspr_entrydate) Then
+
+			select count(sspr_contract_id)
+			into v_count
+			from sspr_contract
+			where c_bpartner_id = :old.c_bpartner_id;
+
+			If(v_count > 1)Then
+	
+				select statusliquidation
+				into v_statusliquidation
+				from (
+					select statusliquidation, startdate
+					from sspr_contract
+					where c_bpartner_id = :old.c_bpartner_id
+					and startdate < (select max(startdate) from sspr_contract where c_bpartner_id = :old.c_bpartner_id)
+					) sspr_contract
+				where startdate = (select max(startdate)
+							from (
+								select statusliquidation, startdate
+								from sspr_contract
+								where c_bpartner_id = :old.c_bpartner_id
+								and startdate < (select max(startdate) from sspr_contract where c_bpartner_id = :old.c_bpartner_id)
+								) sspr_contract);
+
+			Else
+
+				v_statusliquidation := 'Y';
+
+			End If;
+
+			If(v_statusliquidation = 'N')Then
+
+				RAISE_APPLICATION_ERROR(-20000,'@sspr_contract_liquidation@');
+				
+			End If;
+					
+	End If;
+	
+END IF;
+      
+  END SSPR_LIQUIDATION_CONTRACT_TRG
+]]></body>
+    </trigger>
+  </database>

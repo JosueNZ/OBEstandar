@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptSspr_LiquidationDT" pageWidth="153" pageHeight="198" columnWidth="153" leftMargin="0" rightMargin="0" topMargin="0" bottomMargin="0">
+	<property name="ireport.zoom" value="2.8531167061100033"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="PARTNER_ID" class="java.lang.String"/>
+	<parameter name="REGIMEN_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select * from
+(select
+tercero
+,cp.name as periodo
+,coalesce(to_number(round(acumulado,2)),0 ) as acumulado
+,coalesce(to_number(trunc(amount_dt,4)),0 ) as amount_dt
+,slrd.sspr_labor_regime_id
+from sspr_labor_regime slr
+join sspr_labor_regime_detail slrd on slrd.sspr_labor_regime_id = slr.sspr_labor_regime_id
+left join c_period cp on
+(cp.startdate>= slrd.startdate and cp.startdate<= slrd.enddate) and (cp.enddate >= slrd.startdate and cp.enddate <=slrd.enddate)
+
+left JOIN (
+SELECT
+sct.sspr_labor_regime_id,
+cbp.name as tercero
+,sp.c_period_id
+,sum((case when sc.concepttypepayroll <> 'DT' and sc.isiess='Y' then sptc.amount else 0 end)) as acumulado
+,sum((case when sc.concepttypepayroll = 'DT' then sptc.amount else 0 end)) as amount_dt
+from sspr_payroll sp
+left join sspr_payroll_ticket  spt on sp.sspr_payroll_id = spt.sspr_payroll_id
+left join sspr_payroll_ticket_concept sptc on sptc.sspr_payroll_ticket_id = spt.sspr_payroll_ticket_id
+left join sspr_concept sc on sc.sspr_concept_id = sptc.sspr_concept_id
+left join c_bpartner cbp on cbp.c_bpartner_id = spt.c_bpartner_id
+left join sspr_contract sct on sct.c_bpartner_id = cbp.c_bpartner_id
+left join c_period cp on cp.c_period_id = sp.c_period_id
+where
+cbp.C_BPARTNER_ID =  $P{PARTNER_ID}
+and EM_Ssph_Earned='N'
+group by
+--documentno,
+sct.sspr_labor_regime_id,
+cbp.name
+,sp.c_period_id
+--,sc.name
+order by sspr_labor_regime_id,cbp.name
+,sp.c_period_id
+) sp on cp.c_period_id = sp.c_period_id
+where
+slrd.typeconcept = '13TH'
+and slrd.isactive='Y'
+and cp.startdate <=now()
+group by
+tercero
+,cp.name
+,acumulado
+,amount_dt
+,slrd.sspr_labor_regime_id
+,cp.periodno
+order by cp.periodno
+) dt where sspr_labor_regime_id = $P{REGIMEN_ID}]]>
+	</queryString>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="periodo" class="java.lang.String"/>
+	<field name="acumulado" class="java.math.BigDecimal"/>
+	<field name="amount_dt" class="java.math.BigDecimal"/>
+	<field name="sspr_labor_regime_id" class="java.lang.String"/>
+	<variable name="V_DIAS" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{acumulado}]]></variableExpression>
+	</variable>
+	<variable name="V_VALOR" class="java.math.BigDecimal" calculation="Sum">
+		<variableExpression><![CDATA[$F{amount_dt}]]></variableExpression>
+	</variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="39" splitType="Stretch">
+			<staticText>
+				<reportElement x="80" y="14" width="40" height="25"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[VALOR]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="14" width="40" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[MES]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="40" y="14" width="40" height="25"/>
+				<box>
+					<pen lineWidth="1.0"/>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[ACUMULADO]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="0" y="0" width="120" height="14"/>
+				<box>
+					<topPen lineWidth="1.0"/>
+					<leftPen lineWidth="1.0"/>
+					<bottomPen lineWidth="1.0"/>
+					<rightPen lineWidth="1.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5" isBold="true"/>
+				</textElement>
+				<text><![CDATA[DECIMO TERCERO]]></text>
+			</staticText>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band splitType="Stretch"/>
+	</columnHeader>
+	<detail>
+		<band height="14" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="40" height="14"/>
+				<box>
+					<leftPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{periodo}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="40" y="0" width="40" height="14"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{acumulado}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;-#,##0.00" isBlankWhenNull="true">
+				<reportElement x="80" y="0" width="40" height="14"/>
+				<box>
+					<rightPen lineWidth="0.0"/>
+				</box>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="5"/>
+				</textElement>
+				<textFieldExpression class="java.math.BigDecimal"><![CDATA[$F{amount_dt}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+</jasperReport>

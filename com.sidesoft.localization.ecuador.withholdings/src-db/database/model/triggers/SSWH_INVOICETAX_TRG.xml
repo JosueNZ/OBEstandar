@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER SSWH_INVOICETAX_TRG">
+    <trigger name="SSWH_INVOICETAX_TRG" table="C_INVOICETAX" fires="before" insert="false" update="true" delete="false" foreach="row">
+      <body><![CDATA[
+  v_receipt_id VARCHAR2(32);
+  
+BEGIN
+    
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+
+  IF (UPDATING) THEN
+
+    IF (:new.em_sswh_iswithholding = 'Y') THEN
+
+      SELECT em_sswh_receipt_id INTO v_receipt_id
+      FROM C_INVOICE
+      WHERE c_invoice_id = :new.c_invoice_id;
+
+      UPDATE SSWH_RECEIPT
+      SET totalwithholdingincome = totalwithholdingincome + (:new.taxamt - :old.taxamt)
+      WHERE sswh_receipt_id = v_receipt_id;
+
+    ELSE  
+
+      IF (:new.em_sswh_iswithholding = 'Y') THEN
+
+        SELECT em_sswh_receipt_id INTO v_receipt_id
+        FROM C_INVOICE
+        WHERE c_invoice_id = :new.c_invoice_id;
+
+        UPDATE SSWH_RECEIPT
+        SET totalwithholdingvat = totalwithholdingvat + (:new.taxamt - :old.taxamt)
+        WHERE sswh_receipt_id = v_receipt_id;
+
+      END IF;
+
+    END IF;  
+
+  END IF;
+
+  END SSWH_INVOICETAX_TRG
+]]></body>
+    </trigger>
+  </database>

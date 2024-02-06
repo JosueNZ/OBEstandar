@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+  <database name="TRIGGER OPCRM_UPDATE_LEAD_STATUS_TRG">
+    <trigger name="OPCRM_UPDATE_LEAD_STATUS_TRG" table="OPCRM_ACTIVITY" fires="before" insert="true" update="true" delete="true" foreach="row">
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+BEGIN
+
+  IF AD_isTriggerEnabled()='N' THEN RETURN;
+  END IF;
+ 
+  IF UPDATING THEN
+      IF :NEW.related_lead IS NOT NULL THEN
+          IF(:OLD.leadstatus != :NEW.leadstatus) THEN
+              UPDATE ad_user
+              SET em_opcrm_leadstatus = :NEW.leadstatus
+              WHERE ad_user_id = :NEW.related_lead;
+          END IF; 
+      END IF;
+   END IF;
+   
+   END OPCRM_UPDATE_LEAD_STATUS_TRG
+]]></body>
+    </trigger>
+  </database>

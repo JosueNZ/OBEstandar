@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html 
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License. 
+ * The Original Code is Openbravo ERP. 
+ * The Initial Developer of the Original Code is Openbravo SLU 
+ * All portions are Copyright (C) 2001-2010 Openbravo SLU 
+ * All Rights Reserved. 
+ * Contributor(s):  ______________________________________.
+ ************************************************************************
+-->
+<SqlClass name="RptRequestVacactionsData" package="com.sidesoft.hrm.payroll.ad_Reports">
+   <SqlClassComment></SqlClassComment>
+     <SqlMethod name="select" type="preparedStatement" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql>
+      <![CDATA[   
+     	select a.ad_org_id as organizationid,
+        a.documentno, upper(b.printname) as doctype,
+        d.name || ', ' || to_number(to_char(a.stardateabsent,'dd')) || ' de '  ||
+        case when to_char(a.stardateabsent,'mm') = '01' then 'Enero'
+        when to_char(a.stardateabsent,'mm') = '02' then 'Febrero'
+        when to_char(a.stardateabsent,'mm') = '03' then 'Marzo'
+        when to_char(a.stardateabsent,'mm') = '04' then 'Abril'
+        when to_char(a.stardateabsent,'mm') = '05' then 'Mayo'
+        when to_char(a.stardateabsent,'mm') = '06' then 'Junio'
+        when to_char(a.stardateabsent,'mm') = '07' then 'Julio'
+        when to_char(a.stardateabsent,'mm') = '08' then 'Agosto'
+        when to_char(a.stardateabsent,'mm') = '09' then 'Septiembre'
+        when to_char(a.stardateabsent,'mm') = '10' then 'Octubre'
+        when to_char(a.stardateabsent,'mm') = '11' then 'Noviembre'
+        when to_char(a.stardateabsent,'mm') = '12' then 'Diciembre' end
+        || ' del ' || to_char(a.stardateabsent,'yyyy')  as fechacity
+        , 'CPA' as cpa,
+        coalesce(to_char(e.name),'No definido') as jefe, coalesce(to_char(h.name),'No definido') as cargo, i.social_name as organizacion,
+        'Ciudad' as citydefault,
+        'De mis consideraciones' as consideraciones,
+        'Yo, ' || c.name
+               || ' solicito a Usted, se sirva autorizar el uso de mis vacaciones correspondiente al periodo del    '
+               || (select to_char(min(aa.startdate),'yyyy') from sspr_leave_emp_vac aa where aa.sspr_leave_emp_id = a.sspr_leave_emp_id)
+               || '    al    '
+               || (select to_char(max(aa.enddate),'yyyy') from sspr_leave_emp_vac aa where aa.sspr_leave_emp_id = a.sspr_leave_emp_id) as body,
+        to_char(a.stardate,'dd-mm-yyyy') as startdateout,
+        to_char(a.enddate,'dd-mm-yyyy') as  enddateout,
+        'Atentamente' as atentamente,
+        'CI: ' ||c.taxid as ci,
+        'USO EXCLUSIVO DE RECURSOS HUMANOS' as exclusives,
+        'AUTORIZADO GERENCIA  Y/O PRESIDENCIA______________________' as autorizado1,
+        'AUTORIZADO RR.HH_____________________________________________' as autorizado2,
+        'NO AUTORIZADO GERENCIA Y/O PRESIDENCIA____________________' as autorizado3,
+        'NO AUTORIZADO RR.HH__________________________________________' as autorizado4,
+        '*Copia carpeta personal' as copia,
+    to_char(now(),'dd/MM/yyyy HH24:MI:SS') as fecha_impresion,
+    (select COALESCE(CB.NAME,AU.NAME) from AD_USER AU LEFT JOIN C_BPARTNER CB on CB.C_BPARTNER_ID   = AU.C_BPARTNER_ID where AU.AD_USER_ID= ?) as usuario
+        from sspr_leave_emp a
+        left join c_doctype b on b.c_doctype_id = a.c_doctype_id
+        left join c_bpartner c on c.c_bpartner_id = a.c_bpartner_id
+        left join c_city d on d.c_city_id = c.em_sspr_city
+        left join c_bpartner e on e.c_bpartner_id = a.Authorizer_ID
+        left join sspr_contract f on f.c_bpartner_id = e.c_bpartner_id and f.isactive = 'Y'
+        left join sspr_contract_position g on g.sspr_contract_id = f.sspr_contract_id and g.isactive = 'Y'
+        left join sspr_position h on h.sspr_position_id = g.sspr_position_id
+        left join ad_org i on i.ad_org_id = a.ad_org_id
+	where a.sspr_leave_emp_id = ?
+	and g.startdate = (select max(startdate) from sspr_contract_position where  sspr_contract_id = f.sspr_contract_id and isactive = 'Y' )
+        ]]>
+        </Sql>
+        <Parameter name="ad_user"/>
+        <Parameter name="leave"/>
+   </SqlMethod>
+   <SqlMethod name="set" type="constant" return="multiple">
+      <SqlMethodComment></SqlMethodComment>
+      <Sql></Sql>
+  </SqlMethod>
+</SqlClass>
+

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+ *************************************************************************
+ * The contents of this file are subject to the Openbravo  Public  License
+ * Version  1.1  (the  "License"),  being   the  Mozilla   Public  License
+ * Version 1.1  with a permitted attribution clause; you may not  use this
+ * file except in compliance with the License. You  may  obtain  a copy of
+ * the License at http://www.openbravo.com/legal/license.html
+ * Software distributed under the License  is  distributed  on  an "AS IS"
+ * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ * License for the specific  language  governing  rights  and  limitations
+ * under the License.
+ * The Original Code is Openbravo ERP.
+ * The Initial Developer of the Original Code is Openbravo SLU
+ * All portions are Copyright (C) 2001-2006 Openbravo SLU
+ * All Rights Reserved.
+ * Contributor(s):  Cheli Pineda Ferrer <cheli@aradaen.com> (Oracle fixes)
+ ************************************************************************
+-->
+
+
+
+
+
+<SqlClass name="ArchivePaymentProdubancoBankData" package="com.sidesoft.hrm.payroll.create_txt" accessModifier="public">
+   <SqlClassComment></SqlClassComment>
+
+  <SqlMethod name="select" type="preparedStatement" return="multiple">
+    <SqlMethodComment></SqlMethodComment>
+    <Sql>
+      <![CDATA[SELECT 'PA' AS CODIGOEMPRESA,
+	LPAD(BA.ACCOUNTNO,11,'0') AS CUENTAEMPRESA ,
+	ROW_NUMBER() OVER (ORDER BY PY.DATEDOC NULLS LAST ) AS SECUENCIALPAGO,
+	' 'AS COMPROBANTEPAGO, CA.ACCOUNTNO AS CONTRAPARTIDA, UPPER(CC.ISO_CODE) AS MONEDA,
+	ROUND(PT.TOTALNET,2) AS VALOR,
+	'CTA' AS FORMAPAGO, 
+	BT.CODE AS CODIGOINSTFIN,CASE WHEN UPPER(TRIM(CA.BankAccountType))= 'S' THEN 'AHO' ELSE 'CTE' END AS TIPOCUENTA, 
+	LPAD(CA.ACCOUNTNO,11,'0') AS NUMEROCUENTA,
+	CASE WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) ='NI' THEN 'C'  
+	WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) ='SRT' THEN 'R'  
+	WHEN UPPER(TRIM(CB.EM_SSPR_Documenttype)) = 'P'THEN 'P' END AS TIPOIDBENEFICIARIO,
+	CB.TAXID AS IDBENEFICIARIO,
+	CB.EM_SSPR_DocumentNo AS DOCUMENTNO,  
+	UPPER(CB.NAME) AS NOMBREBENEF, 
+	' ' AS DIRECCIONBENEF ,
+	' ' AS CIUDADBENEF , 
+	' ' AS TELEFONOBENEF, 
+	' ' AS LOCALIDADPAGO, 
+	UPPER(PY.DESCRIPTION) AS REFERENCIA, 
+	' ' AS REFADICIONAL 
+	FROM SSPR_Payroll PY  
+	LEFT JOIN SSPR_Payroll_Ticket PT ON PY.SSPR_Payroll_id = PT.SSPR_Payroll_id 
+	LEFT JOIN C_BPARTNER CB ON PT.C_BPARTNER_id = CB.C_BPARTNER_id    
+	LEFT JOIN AD_ORG AO ON PY.AD_ORG_ID = AO.AD_ORG_ID  
+	LEFT JOIN AD_ORGINFO AR ON AO.AD_ORG_ID = AR.AD_ORG_ID  
+	LEFT JOIN C_BPARTNER CP ON AR.C_BPARTNER_ID = CP.C_BPARTNER_ID  
+	LEFT JOIN C_BP_BANKACCOUNT BA ON CP.C_BPARTNER_ID = BA.C_BPARTNER_ID  
+	LEFT JOIN C_BP_BANKACCOUNT CA ON CB.C_BPARTNER_ID = CA.C_BPARTNER_ID  
+	LEFT JOIN ssfi_banktransfer BT ON CA.em_ssfi_banktransfer_id = BT.ssfi_banktransfer_id   
+	LEFT JOIN AD_CLIENT AC ON PY.AD_CLIENT_ID = AC.AD_CLIENT_ID   
+	LEFT JOIN C_CURRENCY CC ON AC.C_CURRENCY_ID = CC.C_CURRENCY_ID   
+	WHERE CB.isemployee ='Y' AND CB.EM_SSPR_TYPEOFINCOME ='D' AND PY.DOCUMENTNO = ?]]>
+    </Sql>
+    <Parameter name="documentno"/>
+  </SqlMethod>
+
+</SqlClass>

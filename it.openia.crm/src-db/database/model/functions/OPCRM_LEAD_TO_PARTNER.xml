@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION OPCRM_LEAD_TO_PARTNER">
+    <function name="OPCRM_LEAD_TO_PARTNER" type="NULL">
+      <parameter name="p_pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[/*
+ * Copyright (C) 2008-2013 Openia S.r.l.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ */
+
+v_lead_ID VARCHAR(32);
+v_user_ID VARCHAR(32);
+v_lead_record RECORD;
+v_partner_id VARCHAR(32);
+v_partnercheck RECORD;
+v_nomecount NUMBER;
+v_idpartner VARCHAR(32);
+v_partnercode VARCHAR(60);
+v_location RECORD;
+
+BEGIN
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'Y', NULL, NULL);
+
+  -- Get record ID
+  SELECT i.Record_ID, i.Ad_User_ID
+  INTO v_lead_ID, v_user_ID
+  FROM AD_PInstance i
+  WHERE i.AD_PInstance_ID = p_pinstance_id;
+  
+  SELECT * INTO v_lead_record FROM ad_user u WHERE u.ad_user_id = v_lead_ID;
+
+  v_idpartner = get_uuid();
+
+  -- selezione bpgroup : prima il sistema estrae il BPGroup dalla configurazione che coincide con lo user che sta eseguendo la funzione
+  SELECT conf.c_bp_group_id INTO v_partner_id FROM opcrm_config conf WHERE conf.ad_client_id = v_lead_record.ad_client_id LIMIT 1;
+
+  -- se non trova nessun bpgroup lo segnala 
+  IF (v_partner_id IS NULL) THEN 
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, '@OPCRM_SETPARTNERGROUP@');
+     RETURN;
+  END IF;
+
+  IF (v_lead_record.em_opcrm_commercialname IS NULL) THEN
+    AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, '@OPCRM_SETCOMMERCIALNAME@');
+     RETURN;
+  END IF;
+  
+  -- counting how many CRM business partner search codes we already have
+  SELECT COUNT(*) INTO v_nomecount FROM c_bpartner bp WHERE bp.value ilike 'CRM/%';
+  v_nomecount := v_nomecount +1;
+
+   
+  -- PARTNER CODE NEW = "CRM/" + "<NUMBER OF BUSINESS PARTNERS CREATED FROM LEAD>"
+  v_partnercode :='';
+  v_partnercode := 'CRM-'|| (random()*10)::integer || (random()*10)::integer ||'/' || v_nomecount;
+
+  SELECT bp.* INTO v_partnercheck 
+  FROM c_bpartner bp 
+  INNER JOIN ad_user u ON u.c_bpartner_id = bp.c_bpartner_id 
+  WHERE  bp.name ilike v_lead_record.em_opcrm_commercialname AND bp.ad_client_id = v_lead_record.ad_client_id AND u.ad_user_id = v_lead_record.ad_user_id;  
+  
+  IF (v_partnercheck.c_bpartner_id IS NOT NULL) THEN 
+     AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 0, '@OPCRM_EXISTINGPARTNER@');
+     RETURN;
+  END IF;
+  
+  INSERT INTO c_bpartner(
+                         c_bpartner_id, ad_client_id, ad_org_id, isactive, created, createdby, 
+                         updated, updatedby, value, name, c_bp_group_id, em_opcrm_bp_email, 
+                         url, taxid 
+                        )
+         VALUES         (  
+                         v_idpartner, v_lead_record.ad_client_id, v_lead_record.ad_org_id, v_lead_record.isactive, current_timestamp, v_lead_record.createdby,
+                         current_timestamp, v_lead_record.updatedby, v_partnercode, v_lead_record.em_opcrm_commercialname, v_partner_id, v_lead_record.email, 
+                         v_lead_record.em_opcrm_leadurl, v_lead_record.em_opcrm_taxid 
+                        );
+  FOR v_location IN (SELECT * FROM c_location WHERE em_opcrm_ad_user_id = v_lead_ID) LOOP
+
+    INSERT INTO c_bpartner_location(
+            c_bpartner_location_id, ad_client_id, ad_org_id, isactive, created, 
+            createdby, updated, updatedby, name,  c_bpartner_id, 
+            c_location_id)
+    VALUES (get_uuid(), v_location.ad_client_id, v_location.ad_org_id, 'Y', current_timestamp, 
+            v_location.createdby, current_timestamp, v_location.updatedby, v_location.city || ' '||v_location.Address1, v_idpartner, 
+            v_location.c_location_id);
+  END LOOP;	
+  
+  UPDATE ad_user
+   SET c_bpartner_id = v_idpartner, 
+       em_opcrm_reports_to = v_idpartner, 
+       em_opcrm_leadstatus = 'opcrmConverted'
+  WHERE ad_user_id = v_lead_ID;  
+
+ AD_UPDATE_PINSTANCE(p_PInstance_ID, NULL, 'N', 1, '@OPCRM_PARTNEROK@');
+END OPCRM_LEAD_TO_PARTNER
+]]></body>
+    </function>
+  </database>

@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SPROV_BIOMETRIC_NEWS">
+    <function name="SPROV_BIOMETRIC_NEWS" type="NULL">
+      <parameter name="pinstance_id" type="VARCHAR" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[TYPE RECORD IS REF CURSOR;
+    Cur_Parameter RECORD;
+    v_ResultStr VARCHAR2(2000) := '';
+    v_Client_ID VARCHAR2(32);
+    v_Org_ID VARCHAR2(32);
+    v_User_ID VARCHAR2(32);
+    v_Record_ID VARCHAR2(32);
+    v_Message VARCHAR2(2000) := '';
+    cur_mark RECORD;
+    -- Parametros
+    v_bpartner VARCHAR2(32);
+    v_startdate DATE;
+    v_enddate DATE;
+    v_count NUMBER;
+    v_period VARCHAR2(32);
+    v_value VARCHAR2(32);
+    v_concept VARCHAR2(32);
+    v_new VARCHAR2(32);
+    v_type VARCHAR2(32);
+BEGIN
+    --BODY
+        FOR Cur_Parameter IN (
+            SELECT
+                i.Record_ID,
+                p.ParameterName,
+                p.P_String,
+                p.P_Number,
+                p.P_Date,
+                p.AD_Client_ID,
+                p.AD_Org_ID,
+                p.CreatedBy
+            FROM
+                AD_PInstance i
+            LEFT JOIN AD_PInstance_Para p ON i.AD_PInstance_ID = p.AD_PInstance_ID
+        WHERE
+            i.AD_PInstance_ID = PInstance_ID
+        ORDER BY
+            p.SeqNo)
+        LOOP
+            IF (Cur_Parameter.ParameterName = 'c_bpartner_id') THEN
+                v_bpartner := Cur_Parameter.P_String;
+            ELSEIF (Cur_Parameter.ParameterName = 'startdate') THEN
+                v_startdate := Cur_Parameter.P_Date;
+                v_Client_ID := Cur_Parameter.AD_Client_ID;
+                v_Org_ID := Cur_Parameter.AD_Org_ID;
+                v_User_ID := Cur_Parameter.CreatedBy;
+            ELSEIF (Cur_Parameter.ParameterName = 'enddate') THEN
+                v_enddate := Cur_Parameter.P_Date;
+            ELSE
+                DBMS_OUTPUT.PUT_LINE( '*** Unknown Parameter=' || Cur_Parameter.ParameterName);
+            END IF;
+        END LOOP;
+        -- End Get Parameter
+        -- Verificamos si existen lineas sin validar en el rango
+        SELECT COUNT(*) INTO v_count FROM sprov_employee_overtime
+        WHERE validated = 'N' AND (datemovement::DATE >= v_startdate AND datemovement::DATE <= v_enddate)
+            AND (c_bpartner_id = v_bpartner OR v_bpartner IS NULL) AND non_attendance='N';
+        IF (v_count = 0) THEN
+            FOR cur_mark IN (
+                SELECT * FROM sprov_employee_overtime
+                WHERE (datemovement::DATE >= v_startdate AND datemovement::DATE <= v_enddate)
+                    AND (c_bpartner_id = v_bpartner OR v_bpartner IS NULL) AND processed_check = 'N'
+            ) LOOP
+
+                -- Obtenemos el periodo
+                SELECT P.c_period_id INTO v_period FROM c_period AS P JOIN c_year AS Y ON Y.c_year_id = P.c_year_id
+                WHERE Y.year = TO_CHAR(now(), 'yyyy') AND P.periodno = TO_CHAR(now(), 'MM');
+                
+                -- Concepto laboral, novedades  y tipo 50
+                IF (cur_mark.time_value_50 > 0) THEN
+                    SELECT CN.Spev_Maintenance_News_ID, CN.Sspr_Concept_ID, conceptsubtype INTO v_new, v_concept, v_type
+                    FROM SPEV_Config_News AS CN JOIN Sspr_Concept AS C ON C.Sspr_Concept_ID = CN.Sspr_Concept_ID
+                    WHERE C.concepttypepayroll = 'HF' AND CN.function = 'sprbi_nhour_50';
+                    
+                    AD_Sequence_Next('SPEV_Detail_News', v_Client_ID, v_Record_ID);
+                    INSERT INTO SPEV_Detail_News (SPEV_Detail_News_ID, ad_client_id, ad_org_id, createdby, updatedby, Date_Detail,
+                        c_bpartner_id, value, Spev_Maintenance_News_ID, Sspr_Concept_ID, concept_type, process, type, c_period_id)
+                    VALUES (v_Record_ID, v_Client_ID, v_Org_ID, v_User_ID, v_User_ID, cur_mark.datemovement::DATE,
+                        cur_mark.c_bpartner_id, cur_mark.time_value_50, v_new, v_concept, v_type, 'AU', 'BR', v_period);
+                END IF;
+                
+                -- Concepto laboral, novedades y tipo 100
+                IF (cur_mark.time_value_100 > 0) THEN
+                    SELECT CN.Spev_Maintenance_News_ID, CN.Sspr_Concept_ID, conceptsubtype INTO v_new, v_concept, v_type
+                    FROM SPEV_Config_News AS CN JOIN Sspr_Concept AS C ON C.Sspr_Concept_ID = CN.Sspr_Concept_ID
+                    WHERE C.concepttypepayroll = 'HO' AND CN.function = 'sprbi_nhour_100';
+                    
+                    AD_Sequence_Next('SPEV_Detail_News', v_Client_ID, v_Record_ID);
+                    INSERT INTO SPEV_Detail_News (SPEV_Detail_News_ID, ad_client_id, ad_org_id, createdby, updatedby, Date_Detail,
+                        c_bpartner_id, value, Spev_Maintenance_News_ID, Sspr_Concept_ID, concept_type, process, type, c_period_id)
+                    VALUES (v_Record_ID, v_Client_ID, v_Org_ID, v_User_ID, v_User_ID, cur_mark.datemovement::DATE,
+                        cur_mark.c_bpartner_id, cur_mark.time_value_100, v_new, v_concept, v_type, 'AU', 'BR', v_period);
+                END IF;
+                
+                -- Concepto laboral, novedades y tipo alimentacion
+                IF (cur_mark.feed_value > 0) THEN
+                    SELECT CN.Spev_Maintenance_News_ID, CN.Sspr_Concept_ID, conceptsubtype INTO v_new, v_concept, v_type
+                    FROM SPEV_Config_News AS CN JOIN Sspr_Concept AS C ON C.Sspr_Concept_ID = CN.Sspr_Concept_ID
+                    WHERE C.concepttypepayroll = 'SPROV_FE' LIMIT 1;
+                    
+                    AD_Sequence_Next('SPEV_Detail_News', v_Client_ID, v_Record_ID);
+                    INSERT INTO SPEV_Detail_News (SPEV_Detail_News_ID, ad_client_id, ad_org_id, createdby, updatedby, Date_Detail,
+                        c_bpartner_id, value, Spev_Maintenance_News_ID, Sspr_Concept_ID, concept_type, process, type, c_period_id)
+                    VALUES (v_Record_ID, v_Client_ID, v_Org_ID, v_User_ID, v_User_ID, cur_mark.datemovement::DATE,
+                        cur_mark.c_bpartner_id, cur_mark.feed_value, v_new, v_concept, v_type, 'AU', 'BR', v_period);
+                END IF;
+                
+                UPDATE sprov_employee_overtime SET processed_check = 'Y' WHERE sprov_employee_overtime_id = cur_mark.sprov_employee_overtime_id;
+            END LOOP;
+        ELSE
+            RAISE_APPLICATION_ERROR(-20000, '@SPROV_UnvalidatedRecords@') ;
+        END IF;
+        DBMS_OUTPUT.PUT_LINE( 'Updating PInstance - Finished ' || v_Message);
+        AD_UPDATE_PINSTANCE(PInstance_ID, NULL, 'N', 1, v_Message);
+        RETURN;
+END SPROV_BIOMETRIC_NEWS
+]]></body>
+    </function>
+  </database>

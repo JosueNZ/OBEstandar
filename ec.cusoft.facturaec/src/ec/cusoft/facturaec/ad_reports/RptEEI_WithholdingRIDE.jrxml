@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="RptEEI_WithholdingRIDE" pageWidth="1440" pageHeight="595" orientation="Landscape" columnWidth="1400" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+	<property name="ireport.zoom" value="1.771561000000001"/>
+	<property name="ireport.x" value="0"/>
+	<property name="ireport.y" value="0"/>
+	<parameter name="F_DESDE" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="F_HASTA" class="java.util.Date">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="ESTADO" class="java.lang.String">
+		<defaultValueExpression><![CDATA[]]></defaultValueExpression>
+	</parameter>
+	<parameter name="C_DOCTYPE_ID" class="java.lang.String"/>
+	<parameter name="C_DOCTYPE2_ID" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[select
+nro_retencíon as "nro_retencíon"
+,documento as "documento"
+,fecha as "fecha"
+,tercero as "tercero"
+,clave_acceso as "clave_acceso"
+,fecha_autorizacion as "fecha_autorizacion"
+,numero_autorizacion as "numero_autorizacion"
+,estado as "estado"
+,autorzacion as "autorzacion"
+,usuario as "usuario"
+from
+(select
+ci.EM_Sswh_Withholdingref as nro_retencíon,
+ci.documentno as documento,
+(ci.em_sswh_datewithhold) as fecha,
+cbp.name as tercero,
+em_eei_codigo as clave_acceso,
+em_eei_fechaautotext as fecha_autorizacion,
+em_eei_rsi_auth_no as numero_autorizacion,
+case when em_eei_rsi_auth_no  is null THEN 'N'
+     when em_eei_rsi_auth_no  is not null THEN 'Y'
+end as estado,
+case when em_eei_rsi_auth_no  is null THEN 'No Autorizado'
+     when em_eei_rsi_auth_no  is not null THEN 'Autorizado'
+end as autorzacion,
+au.name as usuario,
+ci.c_doctype_id as tipo_documento,
+ci.em_sswh_c_doctype_id as tipo_doc_ret
+from c_invoice ci
+left join c_bpartner cbp on cbp.c_bpartner_id = ci.c_bpartner_id
+left join ad_user au on au.ad_user_id = ci.updatedby
+where ci.issotrx = 'N'
+and em_eei_codigo is not null) Withholding
+where
+ estado = $P{ESTADO}
+and fecha between $P{F_DESDE} and  $P{F_HASTA}
+and tipo_documento = $P{C_DOCTYPE_ID}
+and tipo_doc_ret = $P{C_DOCTYPE2_ID}]]>
+	</queryString>
+	<field name="nro_retencíon" class="java.lang.String"/>
+	<field name="documento" class="java.lang.String"/>
+	<field name="fecha" class="java.sql.Timestamp"/>
+	<field name="tercero" class="java.lang.String"/>
+	<field name="clave_acceso" class="java.lang.String"/>
+	<field name="fecha_autorizacion" class="java.lang.String"/>
+	<field name="numero_autorizacion" class="java.lang.String"/>
+	<field name="estado" class="java.lang.String"/>
+	<field name="autorzacion" class="java.lang.String"/>
+	<field name="usuario" class="java.lang.String"/>
+	<title>
+		<band height="59" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="1400" height="32"/>
+				<textElement textAlignment="Center">
+					<font size="18" isBold="true"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA["Reporte de Retenciones - " + ($F{autorzacion}==null? "Reporte de Retenciones ":$F{autorzacion})]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<pageHeader>
+		<band splitType="Stretch"/>
+	</pageHeader>
+	<columnHeader>
+		<band height="21" splitType="Stretch">
+			<staticText>
+				<reportElement x="0" y="0" width="123" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nro. Retención]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="123" y="0" width="117" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nro. Documento]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="240" y="0" width="100" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="340" y="1" width="166" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Tercero]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="506" y="0" width="309" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Clave de Acceco]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1040" y="0" width="144" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Fecha de autorización]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="815" y="0" width="225" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Nro. de Autorización]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="1184" y="0" width="216" height="20"/>
+				<textElement>
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Usuario]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="21" splitType="Stretch">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="123" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{nro_retencíon}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="123" y="0" width="117" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{documento}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy" isBlankWhenNull="true">
+				<reportElement x="240" y="0" width="100" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.sql.Timestamp"><![CDATA[$F{fecha}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="340" y="0" width="166" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{tercero}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="506" y="0" width="309" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{clave_acceso}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="815" y="1" width="225" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{numero_autorizacion}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="1040" y="1" width="144" height="20"/>
+				<textElement>
+					<font size="8"/>
+				</textElement>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{fecha_autorizacion}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="1184" y="1" width="216" height="20"/>
+				<textElement/>
+				<textFieldExpression class="java.lang.String"><![CDATA[$F{usuario}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<columnFooter>
+		<band splitType="Stretch"/>
+	</columnFooter>
+	<pageFooter>
+		<band splitType="Stretch"/>
+	</pageFooter>
+</jasperReport>

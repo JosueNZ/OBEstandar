@@ -1,0 +1,570 @@
+<?xml version="1.0"?>
+  <database name="FUNCTION SSPI_NUMBERTOLETTER_ES">
+    <function name="SSPI_NUMBERTOLETTER_ES" type="VARCHAR">
+      <parameter name="numero" type="NUMERIC" mode="in">
+        <default/>
+      </parameter>
+      <body><![CDATA[vUnidad NUMBER(5):=0; --OBTG:NUMBER--
+vDecena NUMBER(5):=0; --OBTG:NUMBER-- 
+vCentena NUMBER(5):=0; --OBTG:NUMBER-- 
+vUnidadMil NUMBER(5):=0; --OBTG:NUMBER--
+vDecenaMil NUMBER(5):=0; --OBTG:NUMBER--
+vCentenaMil NUMBER(5):=0; --OBTG:NUMBER--
+vMillon NUMBER(5):=0; --OBTG:NUMBER--
+vTexto VARCHAR2(400):=' '; 
+vNumber VARCHAR2(400);
+v_n1 VARCHAR2(400);
+vNumero NUMBER(20):=0;  --OBTG:NUMBER--
+vu VARCHAR2(10);
+vd VARCHAR2(10);
+vc VARCHAR2(10);
+vm VARCHAR2(10);
+vml VARCHAR2(10);
+v_tnumero NUMBER(5):=0; --OBTG:NUMBER--
+v_sbs_c VARCHAR2(4);
+v_armar_texto_u VARCHAR2(400) :=' ';
+v_armar_texto_d VARCHAR2(400) :=' ';
+v_armar_texto_d2 VARCHAR2(400) :=' ';
+v_armar_texto_c VARCHAR2(400) :=' ';
+v_armar_texto_m VARCHAR2(400) :=' ';
+v_number_test NUMBER(5):=0; --OBTG:NUMBER--
+j NUMBER(1):=0; --OBTG:NUMBER--
+BEGIN
+
+v_n1 := to_char(numero,'999999999.99');
+v_n1 := trim(v_n1);
+vNumber:= LPAD(v_n1,12,'0');
+vNumber:= trim(vNumber) ;
+vml := coalesce(substr(trim(vNumber), 1, 3),'0') ; 
+vm := coalesce(substr(trim(vNumber), 4, 3),'0') ;
+vc := coalesce(substr(trim(vNumber), 7, 3),'0');
+vu := coalesce(substr(trim(vNumber), 11, 3),'0');
+
+--RAISE NOTICE '%','RESULT vml = ' || vml;
+--RAISE NOTICE '%','RESULT vm = ' || vm;
+--RAISE NOTICE '%','RESULT vc = ' || vc;
+--RAISE NOTICE '%','RESULT vu = ' || vu;
+
+for i in 1..4  loop
+if i=2 then
+    vd:= vc;
+    v_tnumero := to_number(vd);
+    --RAISE NOTICE '%','RESULT centenas ';
+else
+    if i=3 then
+        vd:= vm;
+        v_tnumero := to_number(vd);
+        --RAISE NOTICE '%','RESULT miles';
+    else
+        if i = 4 then
+            vd:= vml;
+            v_tnumero := to_number(vd);
+            --RAISE NOTICE '%','RESULT millones';
+        else
+            if i = 1 then
+
+                v_armar_texto_u := coalesce(' ' || vu,' 00') || '/100';
+                --RAISE NOTICE '%','RESULT decenas';
+            end if;
+        end if;
+    end if;
+end if;
+--RAISE NOTICE '%','Paso 1';
+
+--RAISE NOTICE '%','RESULT v_tnumero = ' || to_char(i) || '=' ||to_char(v_tnumero);
+
+vTexto:= trim(vTexto);
+
+if v_tnumero>0 then
+    if  (v_tnumero >= 100 and v_tnumero <= 900) and  (v_tnumero = 100 or v_tnumero = 200 or v_tnumero = 300 or v_tnumero = 400 or v_tnumero = 500 or v_tnumero = 600 or v_tnumero = 700 or v_tnumero = 800 or v_tnumero = 900) then
+          v_sbs_c := substr(trim(vd),1,1); --2
+          v_number_test := to_number(v_sbs_c);
+		  
+          --RAISE NOTICE '%','RESULT v_number_test = ' || to_char(v_number_test);
+
+	  --RAISE NOTICE '%','RESULT mayor a 100 y menor a 900 solo centenas v_tnumero = ' || to_char(v_number_test);
+	  
+      vTexto:= vTexto || 
+      (CASE   
+		WHEN to_number(v_number_test)=1 THEN ' cien'
+		WHEN to_number(v_number_test)=2 THEN ' doscientos'
+		WHEN to_number(v_number_test)=3 THEN ' trescientos'
+		WHEN to_number(v_number_test)=4 THEN ' cuatrocientos'
+		WHEN to_number(v_number_test)=5 THEN ' quinientos'
+		WHEN to_number(v_number_test)=6 THEN ' seiscientos'
+		WHEN to_number(v_number_test)=7 THEN ' setecientos'
+		WHEN to_number(v_number_test)=8 THEN ' ochocientos'
+		WHEN to_number(v_number_test)=9 THEN ' novecientos'
+	END);
+      
+      v_armar_texto_d := vTexto;
+
+	--RAISE NOTICE '%','RESULT mayor a 100 y menor a 900 solo centenas = ' || v_armar_texto_d;
+	--RAISE NOTICE '%','Paso 2';
+	
+                 if  (i = 3) then
+                 
+                  vTexto := v_armar_texto_d || ' mil';
+                  v_armar_texto_d := vTexto;
+                end if;
+                if  (i = 4) then
+                  vTexto := v_armar_texto_d || ' millones';
+                  v_armar_texto_d := vTexto;
+                end if;
+	  
+    else
+      if v_tnumero >= 101 and v_tnumero <200 then
+        vTexto := ' ciento';  
+        vd := substr(trim(vd),2,2);
+        v_tnumero := to_number(vd);
+	
+	
+        --RAISE NOTICE '%','RESULT v_tnumero >= 101 and v_tnumero <200 v_number_test = ' || to_char(v_tnumero);
+
+        IF v_tnumero>=1 AND v_tnumero<=9 AND (i = 4 OR i= 3  ) THEN
+		  
+			  vTexto:= vTexto || 
+					      (CASE 
+							WHEN v_tnumero=1 THEN ' un'
+							WHEN v_tnumero=2 THEN ' dos'
+							WHEN v_tnumero=3 THEN ' tres'
+							WHEN v_tnumero=4 THEN ' cuatro'
+							WHEN v_tnumero=5 THEN ' cinco'
+							WHEN v_tnumero=6 THEN ' seis'
+							WHEN v_tnumero=7 THEN ' siete'
+							WHEN v_tnumero=8 THEN ' ocho'
+							WHEN v_tnumero=9 THEN ' nueve'
+						END);
+			v_tnumero:=0;			
+
+				if  (i = 3)   then
+
+					vTexto := vTexto || ' mil';
+					v_armar_texto_d := vTexto;
+					
+				end if;
+				
+				if  (i = 4 ) then
+				
+					vTexto := vTexto || ' millones';
+					v_armar_texto_d := vTexto;
+					
+				end if;	
+						
+		  END IF;
+		  
+	        --RAISE NOTICE '%','RESULT v_tnumero >= 101 and v_tnumero <200 v_number_test = ' || vTexto ;
+	  
+        
+        else 
+            if (v_tnumero > 200)  then
+                  v_sbs_c := substr(trim(vd),1,1); --2
+                  v_number_test := to_number(v_sbs_c);
+
+                  --RAISE NOTICE '%','RESULT mayor a 200 v_number_test = ' || to_char(v_number_test);
+
+                  vTexto:= vTexto || 
+			      (CASE   
+					WHEN v_number_test = 1 THEN ' cien'
+					WHEN v_number_test = 2 THEN ' doscientos'
+					WHEN v_number_test = 3 THEN ' trescientos'
+					WHEN v_number_test = 4 THEN ' cuatrocientos'
+					WHEN v_number_test = 5 THEN ' quinientos'
+					WHEN v_number_test = 6 THEN ' seiscientos'
+					WHEN to_number(v_number_test) = 7 THEN ' setecientos'
+					WHEN v_number_test = 8 THEN ' ochocientos'
+					WHEN v_number_test = 9 THEN ' novecientos'
+				END);
+				
+                  --RAISE NOTICE '%','RESULT mayor a 200 vTexto = ' || vTexto;
+
+                  v_armar_texto_d := vTexto;
+                  vTexto:= v_armar_texto_d;
+
+                  --RAISE NOTICE '%','RESULT mayor a 200 vTexto2 = ' || vTexto;
+
+                  vd := substr(trim(vd),2,2);
+                  v_tnumero := to_number(vd);
+
+                  --RAISE NOTICE '%','RESULT mayor a 200 v_tnumero = ' || to_char(v_tnumero);
+
+		  --RAISE NOTICE '%','Paso 3';
+		  
+		  IF v_tnumero>=1 AND v_tnumero<=9 AND (i = 4 OR i= 3  ) THEN
+		  
+			  vTexto:= vTexto || 
+					      (CASE 
+							WHEN v_tnumero=1 THEN ' uno'
+							WHEN v_tnumero=2 THEN ' dos'
+							WHEN v_tnumero=3 THEN ' tres'
+							WHEN v_tnumero=4 THEN ' cuatro'
+							WHEN v_tnumero=5 THEN ' cinco'
+							WHEN v_tnumero=6 THEN ' seis'
+							WHEN v_tnumero=7 THEN ' siete'
+							WHEN v_tnumero=8 THEN ' ocho'
+							WHEN v_tnumero=9 THEN ' nueve'
+						END);
+
+						v_tnumero:=0;
+
+				if  (i = 3)   then
+
+					vTexto := vTexto || ' mil';
+					v_armar_texto_d := vTexto;
+					
+				end if;
+				
+				if  (i = 4 ) then
+				
+					vTexto := vTexto || ' millones';
+					v_armar_texto_d := vTexto;
+					
+				end if;	
+						
+		  END IF;
+
+		if  (i = 3 AND vm= '0')   then
+
+			vTexto := v_armar_texto_d || ' mil';
+			v_armar_texto_d := vTexto;
+			
+		end if;
+		
+		if  (i = 4  AND vml= '0') then
+		
+			vTexto := v_armar_texto_d || ' millones';
+			v_armar_texto_d := vTexto;
+			
+		end if;	
+		
+		  --RAISE NOTICE '%','RESULT mayor a 200 vTexto3 = ' || vTexto;
+		  
+            end if;
+      end if;
+    end if;
+
+    if (v_tnumero >= 10 and v_tnumero <= 90) and  (v_tnumero = 10 or v_tnumero = 20 or v_tnumero = 30 or v_tnumero = 40 or v_tnumero = 50 or v_tnumero = 60 or v_tnumero = 70 or v_tnumero = 80 or v_tnumero = 90) then
+
+      --RAISE NOTICE '%','RESULT mayor a 10 y menor a 90 solo decenas v_tnumero = ' || to_char(v_tnumero);
+
+      vTexto:= vTexto || 
+	      (CASE   
+			WHEN v_tnumero=10 THEN ' diez'
+			WHEN v_tnumero=20 THEN ' veinte'
+			WHEN v_tnumero=30 THEN ' treinta'
+			WHEN v_tnumero=40 THEN ' cuarenta'
+			WHEN v_tnumero=50 THEN ' cincuenta'
+			WHEN v_tnumero=60 THEN ' sesenta'
+			WHEN v_tnumero=70 THEN ' setenta'
+			WHEN v_tnumero=80 THEN ' ochenta'
+			WHEN v_tnumero=90 THEN ' noventa'
+		END);
+      
+      v_armar_texto_d := vTexto;
+
+	--RAISE NOTICE '%','RESULT mayor a 10 y menor a 90 v_armar_texto_d = ' || v_armar_texto_d;
+	--RAISE NOTICE '%','Paso 4';
+
+	if  (i = 3) then
+
+		vTexto := v_armar_texto_d || ' mil';
+		v_armar_texto_d := vTexto;
+		
+	end if;
+	
+	if  (i = 4) then
+	
+		vTexto := v_armar_texto_d || ' millones';
+		v_armar_texto_d := vTexto;
+		
+	end if;		
+	
+    else
+      --v_tnumero;= 21;
+    
+      if (v_tnumero >= 10 and v_tnumero <= 99) then 
+        for j in 1..2 loop
+          v_sbs_c := substr(trim(vd),j,1); --2
+          v_number_test := to_number(v_sbs_c);  --2
+          if (v_tnumero >= 10 and v_tnumero <= 15) then
+
+                --RAISE NOTICE '%','RESULT mayor a 10 y menor o igual a 15  v_tnumero = ' || to_char(v_tnumero);
+
+                vTexto:= vTexto || 
+		      (CASE   
+				WHEN v_tnumero=10 THEN ' diez'
+				WHEN v_tnumero=11 THEN ' once'
+				WHEN v_tnumero=12 THEN ' doce'
+				WHEN v_tnumero=13 THEN ' trece'
+				WHEN v_tnumero=14 THEN ' catorce'
+				WHEN v_tnumero=15 THEN ' quince'
+			END);
+                v_armar_texto_d := vTexto;
+
+                --RAISE NOTICE '%','RESULT mayor a 10 y menor o igual a 15  v_tnumero = ' || v_armar_texto_d;
+
+                 if  (i = 3) then
+                 
+                  vTexto := v_armar_texto_d || ' mil';
+                  v_armar_texto_d := vTexto;
+                end if;
+                if  (i = 4) then
+                  vTexto := v_armar_texto_d || ' millones';
+                  v_armar_texto_d := vTexto;
+                end if;
+
+                --RAISE NOTICE '%','RESULT mayor a 10 y menor o igual a 15 = ' || v_armar_texto_d;
+
+                v_tnumero:= 0;
+                --j:=2;
+
+		--RAISE NOTICE '%','Paso 5';
+		
+          else
+              if (v_tnumero > 15 and v_tnumero < 20) then
+                v_sbs_c := substr(trim(vd),j,1);
+                v_number_test := to_number(v_sbs_c);
+
+		--RAISE NOTICE '%','RESULT mayor a 15 y menor  a 20 -- v_number_test = ' || v_number_test;
+                --RAISE NOTICE '%','RESULT mayor a 15 y menor  a 20 -- v_tnumero = ' || to_char(v_tnumero);
+
+		if v_number_test=1 then
+		
+			vTexto:= vTexto || 
+					(CASE   
+					WHEN v_number_test=1 THEN ' dieci'
+					END);                
+			v_armar_texto_d := vTexto;
+			
+                end if;
+
+                --RAISE NOTICE '%','RESULT mayor a 15 y menor  a 20 uno = ' || v_armar_texto_d || ' j = ' || to_char(j) ;
+
+		--RAISE NOTICE '%','RESULT mayor a 15 y menor  a 20 vTexto = ' || coalesce(to_char(vTexto),'');
+                
+                
+		--RAISE NOTICE '%','Paso 6';
+		
+              else
+              
+                if (v_tnumero > 20 and v_tnumero < 30) and j=1 then
+
+		  --RAISE NOTICE '%','RESULT mayor a 20 y menor o igual  a 30  v_sbs_c = ' || vd;
+
+		  v_sbs_c := substr(trim(TO_CHAR(TO_NUMBER(vd))),j,1);
+                  
+                  v_number_test := to_number(v_sbs_c);
+
+		  --RAISE NOTICE '%','RESULT mayor a 20 y menor o igual  a 30  v_number_test = ' || v_number_test;
+                  --RAISE NOTICE '%','RESULT mayor a 20 y menor o igual  a 30  v_tnumero = ' || to_char(v_tnumero);
+
+                  vTexto:= vTexto || 
+				(CASE   
+				WHEN v_number_test=2 THEN ' veinti'
+				END); 
+
+		  --RAISE NOTICE '%','RESULT mayor a 20 y menor o igual  a 30 vTexto= ' || vTexto;
+
+                  v_armar_texto_d := vTexto;
+                   
+                  --RAISE NOTICE '%','RESULT mayor a 20 y menor o igual  a 30 = ' || v_armar_texto_d;
+		  --RAISE NOTICE '%','Paso 7';
+				   
+			   
+                else
+                
+                  if (v_tnumero > 30 and v_tnumero <= 99 )  and j = 1  then
+                    v_sbs_c := substr(trim(to_char(v_tnumero)),j,1);
+                    v_number_test := to_number(v_sbs_c);
+
+                    --RAISE NOTICE '%','RESULT mayor a 30  v_tnumero = ' || to_char(v_tnumero);
+		    --RAISE NOTICE '%','RESULT mayor a 30  v_tnumero2 = ' || to_char(v_tnumero) || v_armar_texto_d;
+		    
+                          vTexto:= vTexto || 
+		      (CASE   
+				WHEN v_number_test=3 THEN ' treinta y'
+				WHEN v_number_test=4 THEN ' cuarenta y'
+				WHEN v_number_test=5 THEN ' cincuenta y'
+				WHEN v_number_test=6 THEN ' sesenta y'
+				WHEN v_number_test=7 THEN ' setenta y'
+				WHEN v_number_test=8 THEN ' ochenta y'
+				WHEN v_number_test=9 THEN ' noventa y'
+			END);
+
+			--RAISE NOTICE '%','RESULT mayor a 30  v_tnumero2_ = ' || to_char(v_tnumero) || vTexto;
+			
+                    v_armar_texto_d := vTexto; 
+
+                    --RAISE NOTICE '%','RESULT mayor a 30 = ' || v_armar_texto_d;
+		    --RAISE NOTICE '%','Paso 8';
+		    
+                  end if;
+                end if;		
+              end if;
+              
+              if (v_tnumero > 15)  and j = 2  then
+                if (v_tnumero >30) then
+                    vTexto := vTexto || ' ' ;
+                end if;
+                v_sbs_c := substr(trim(to_char(v_tnumero)),2,1);
+                v_number_test := to_number(v_sbs_c);
+
+         	--RAISE NOTICE '%','RESULT mayor a 15 j = ' || to_char(j) ;  --OBTG:-20000--
+
+		--RAISE NOTICE '%','RESULT mayor a 15 uno... v_number_test = ' || to_char(v_number_test) ;  --OBTG:-20000--
+                --RAISE NOTICE '%','RESULT mayor a 15 v_tnumero = ' || to_char(v_tnumero) ;  --OBTG:-20000--
+
+                --RAISE NOTICE '%','RESULT mayor a 15 vTexto = ' || coalesce(to_char(vTexto),'ND') ;  --OBTG:-20000--
+                
+	
+                if (i=3) or (i=4) then
+			vTexto:= vTexto || 
+			      (CASE   
+					WHEN v_number_test=1 THEN 'un'
+					WHEN v_number_test=2 THEN 'dos'
+					WHEN v_number_test=3 THEN 'tres'
+					WHEN v_number_test=4 THEN 'cuatro'
+					WHEN v_number_test=5 THEN 'cinco'
+					WHEN v_number_test=6 THEN 'seis'
+					WHEN v_number_test=7 THEN 'siete'
+					WHEN v_number_test=8 THEN 'ocho'
+					WHEN v_number_test=9 THEN 'nueve'
+				END);	
+		else
+
+			vTexto:= vTexto || 
+			      (CASE   
+					WHEN v_number_test=1 THEN 'uno'
+					WHEN v_number_test=2 THEN 'dos'
+					WHEN v_number_test=3 THEN 'tres'
+					WHEN v_number_test=4 THEN 'cuatro'
+					WHEN v_number_test=5 THEN 'cinco'
+					WHEN v_number_test=6 THEN 'seis'
+					WHEN v_number_test=7 THEN 'siete'
+					WHEN v_number_test=8 THEN 'ocho'
+					WHEN v_number_test=9 THEN 'nueve'
+				END);	
+		end if;
+                
+
+			                
+                v_armar_texto_d := vTexto ; --|| vTexto ; 
+
+		--RAISE NOTICE '%','RESULT mayor a 15  v_armar_texto_d = ' || v_armar_texto_d ;  --OBTG:-20000--
+
+                if  (i= 3) then
+                  vTexto := vTexto || ' mil';
+                  v_armar_texto_d := vTexto;
+                else
+                  if  (i = 4) then
+                    vTexto := vTexto || ' millones';
+                    v_armar_texto_d := vTexto;
+                  end if;
+                end if;                
+              
+              --RAISE NOTICE '%','Paso 9';
+              
+			  end if;
+          end if;
+          
+        end loop;
+      else
+          if  (v_tnumero < 10) then
+            if i>=1 and i<=2 then
+
+                --RAISE NOTICE '%','RESULT menor a 10, y cuando i>=1 and i<=2  v_tnumero = ' || to_char(v_tnumero);
+
+		vTexto:= vTexto || 
+		      (CASE   
+				WHEN v_tnumero=1 THEN ' uno'
+				WHEN v_tnumero=2 THEN ' dos'
+				WHEN v_tnumero=3 THEN ' tres'
+				WHEN v_tnumero=4 THEN ' cuatro'
+				WHEN v_tnumero=5 THEN ' cinco'
+				WHEN v_tnumero=6 THEN ' seis'
+				WHEN v_tnumero=7 THEN ' siete'
+				WHEN v_tnumero=8 THEN ' ocho'
+				WHEN v_tnumero=9 THEN ' nueve'
+			END);                  
+                v_armar_texto_d := vTexto;    
+
+		--RAISE NOTICE '%','Paso 10';
+		
+            else
+                if ( v_tnumero <= 9 and i = 3) then
+                    if v_tnumero = 1 then
+                      vTexto:= ' mil';
+                      v_armar_texto_d := vTexto;
+                    else
+                      if (v_tnumero >1 and i = 3) then
+
+                            --RAISE NOTICE '%','RESULT mayor a 1 y  cuando i=3  v_tnumero = ' || to_char(v_tnumero);
+
+			    vTexto:= vTexto || 
+				      (CASE   
+						WHEN v_tnumero=2 THEN ' dos'
+						WHEN v_tnumero=3 THEN ' tres'
+						WHEN v_tnumero=4 THEN ' cuatro'
+						WHEN v_tnumero=5 THEN ' cinco'
+						WHEN v_tnumero=6 THEN ' seis'
+						WHEN v_tnumero=7 THEN ' siete'
+						WHEN v_tnumero=8 THEN ' ocho'
+						WHEN v_tnumero=9 THEN ' nueve'
+					END);                              
+                            vTexto := vTexto || ' mil';
+                            v_armar_texto_d := vTexto;
+
+				--RAISE NOTICE '%','Paso 11';
+				
+                      end if;
+                    end if;
+                end if;
+                if  (v_tnumero <= 9 and i = 4) then
+                    if v_tnumero = 1 then
+                      vTexto:= 'un millon';
+                      v_armar_texto_d := vTexto;
+                    else
+                      if (v_tnumero >1 and i = 4) then
+
+                            --RAISE NOTICE '%','RESULT mayor a 1, y cuando i=4 v_tnumero = ' || to_char(v_tnumero);
+
+			    vTexto:= vTexto || 
+				      (CASE   
+						WHEN v_tnumero=2 THEN ' dos'
+						WHEN v_tnumero=3 THEN ' tres'
+						WHEN v_tnumero=4 THEN ' cuatro'
+						WHEN v_tnumero=5 THEN ' cinco'
+						WHEN v_tnumero=6 THEN ' seis'
+						WHEN v_tnumero=7 THEN ' siete'
+						WHEN v_tnumero=8 THEN ' ocho'
+						WHEN v_tnumero=9 THEN ' nueve'
+					END);                                      
+                            vTexto := vTexto || ' millones';
+                            v_armar_texto_d := vTexto ;
+
+				--RAISE NOTICE '%','Paso 12';
+				
+                      end if;
+                    end if;
+                end if;
+            end if;
+          end if;
+      end if;
+    end if;
+ v_armar_texto_d := vTexto ;
+v_armar_texto_d2 :=    v_armar_texto_d ||  v_armar_texto_d2 ;
+v_armar_texto_d := ' ';
+v_number_test := 0;
+vTexto := ' ';
+vd := '0';
+end if;
+end loop;
+v_armar_texto_d2 := upper(v_armar_texto_d2);
+
+--RAISE NOTICE '%','Resultado Fin =' || v_armar_texto_d2 || v_armar_texto_u;
+
+return v_armar_texto_d2 || v_armar_texto_u;
+END SSPI_NUMBERTOLETTER_ES
+]]></body>
+    </function>
+  </database>
